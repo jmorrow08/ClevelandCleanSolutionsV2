@@ -1,31 +1,38 @@
+// src/components/admin/AdminDashboard.tsx
+
 import React from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { formatCurrency } from '../../lib/utils';
-import { Users, Briefcase, Receipt, Clock } from 'lucide-react';
+import { Users, Briefcase, Receipt, Clock, Building2 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
-  const { jobs, employees, invoices, timeLogs } = useApp();
+  const { jobs, employees, invoices, timeLogs, clientCount } = useApp();
 
-  const activeJobs = jobs.filter(job => job.status === 'in-progress').length;
-  const employeesOnClock = employees.filter(emp => emp.status === 'clocked-in').length;
-  const pendingInvoices = invoices.filter(inv => inv.status === 'pending').length;
+  const activeJobs = jobs.filter((job) => job.status === 'in-progress').length;
+  const employeesOnClock = employees.filter((emp) => emp.status === 'clocked-in').length;
+  const pendingInvoices = invoices.filter((inv) => inv.status === 'pending').length;
   const totalRevenue = invoices
-    .filter(inv => inv.status === 'paid')
+    .filter((inv) => inv.status === 'paid')
     .reduce((sum, inv) => sum + inv.amount, 0);
 
   const recentActivity = [
-    ...timeLogs.slice(-5).map(log => ({
+    ...timeLogs.slice(-5).map((log) => ({
       type: 'time' as const,
       message: `${log.employeeName} clocked ${log.clockOut ? 'out' : 'in'}`,
-      time: log.clockIn
+      time: log.clockIn,
     })),
-    ...jobs.filter(job => job.status === 'completed').slice(-3).map(job => ({
-      type: 'job' as const,
-      message: `Job completed at ${job.clientName}`,
-      time: job.scheduledDate
-    }))
-  ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 5);
+    ...jobs
+      .filter((job) => job.status === 'completed')
+      .slice(-3)
+      .map((job) => ({
+        type: 'job' as const,
+        message: `Job completed at ${job.clientName}`,
+        time: job.scheduledDate,
+      })),
+  ]
+    .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+    .slice(0, 5);
 
   return (
     <div className="space-y-8">
@@ -34,8 +41,18 @@ export const AdminDashboard: React.FC = () => {
         <p className="text-muted-foreground">Overview of your cleaning operations</p>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Clients</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{clientCount}</div>
+            <p className="text-xs text-muted-foreground">All managed clients</p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
@@ -60,17 +77,6 @@ export const AdminDashboard: React.FC = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Invoices</CardTitle>
-            <Receipt className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{pendingInvoices}</div>
-            <p className="text-xs text-muted-foreground">Awaiting payment</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
             <Receipt className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -81,7 +87,6 @@ export const AdminDashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* Recent Activity */}
       <Card>
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>

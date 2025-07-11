@@ -1,0 +1,12 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow any authenticated user to read from any collection.
+    // This is for initial development and will be replaced later.
+    match /{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false; // Disallow all writes for now
+    }
+  }
+}

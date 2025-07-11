@@ -16,6 +16,7 @@
 
     /* Linting */
     "strict": true,
+    "strictNullChecks": true, // Explicitly enabling this
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
