@@ -130,7 +130,7 @@ export default function KPIStrip() {
       {cards.map((k) => (
         <div
           key={k.label}
-          className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1"
+          className="rounded-lg p-4 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1"
         >
           <div className="text-xs uppercase text-zinc-500">{k.label}</div>
           <div className="text-xl font-semibold mt-1">

@@ -16,8 +16,8 @@ import {
   type SupportTicket,
 } from "./supportUtils";
 import {
-  getClientName,
-  getLocationName,
+  getClientNames,
+  getLocationNames,
 } from "../../services/queries/resolvers";
 
 type FilterState = {
@@ -76,22 +76,20 @@ export default function SupportList() {
       const assigneeIds = Array.from(
         new Set(tickets.map((t) => t.assigneeId).filter(Boolean))
       ) as string[];
+      const [clientNameList, locationNameList] = await Promise.all([
+        getClientNames(clientIds),
+        getLocationNames(locationIds),
+      ]);
       const cn: Record<string, string> = {};
       const ln: Record<string, string> = {};
-      const an: Record<string, string> = {};
-      await Promise.all([
-        Promise.all(
-          clientIds.map(async (id) => (cn[id] = await getClientName(id)))
-        ),
-        Promise.all(
-          locationIds.map(async (id) => (ln[id] = await getLocationName(id)))
-        ),
-        Promise.all(
-          assigneeIds.map(async (id) => (an[id] = await getEmployeeName(id)))
-        ),
-      ]);
+      clientIds.forEach((id, i) => (cn[id] = clientNameList[i] || id));
+      locationIds.forEach((id, i) => (ln[id] = locationNameList[i] || id));
       setClientNames(cn);
       setLocationNames(ln);
+      const an: Record<string, string> = {};
+      await Promise.all(
+        assigneeIds.map(async (id) => (an[id] = await getEmployeeName(id)))
+      );
       setAssigneeNames(an);
     }
     if (tickets.length > 0) {

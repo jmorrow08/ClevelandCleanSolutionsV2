@@ -11,8 +11,8 @@ import {
 } from "firebase/firestore";
 import { firebaseConfig } from "../../../services/firebase";
 import {
-  getClientName,
-  getLocationName,
+  getClientNames,
+  getLocationNames,
   getEmployeeNames,
 } from "../../../services/queries/resolvers";
 import { startOfDay, addDays } from "date-fns";
@@ -91,12 +91,10 @@ export default function TodayBoard() {
         )
       );
       if (locIds.length) {
-        const results = await Promise.all(
-          locIds.map(async (id) => [id, await getLocationName(id)] as const)
-        );
+        const names = await getLocationNames(locIds);
         setLocNames((prev) => {
           const next = { ...prev };
-          results.forEach(([id, name]) => (next[id] = name));
+          locIds.forEach((id, i) => (next[id] = names[i] || id));
           return next;
         });
       }
@@ -109,12 +107,10 @@ export default function TodayBoard() {
         )
       );
       if (clientIds.length) {
-        const results = await Promise.all(
-          clientIds.map(async (id) => [id, await getClientName(id)] as const)
-        );
+        const names = await getClientNames(clientIds);
         setClientNames((prev) => {
           const next = { ...prev };
-          results.forEach(([id, name]) => (next[id] = name));
+          clientIds.forEach((id, i) => (next[id] = names[i] || id));
           return next;
         });
       }
@@ -142,7 +138,7 @@ export default function TodayBoard() {
   }, [jobs]);
 
   return (
-    <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+    <div className="rounded-lg p-4 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1">
       <div className="font-medium">Today & Tomorrow</div>
       {loading ? (
         <div className="text-sm text-zinc-500 mt-2">Loading…</div>

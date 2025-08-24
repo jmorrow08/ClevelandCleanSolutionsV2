@@ -181,3 +181,6 @@ export default function TrainingModuleModal({ onClose, onCreated }: Props) {
     </div>
   );
 }
+
+
+

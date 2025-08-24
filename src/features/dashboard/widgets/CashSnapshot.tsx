@@ -74,13 +74,11 @@ export default function CashSnapshot() {
           ...Object.keys(inflows),
           ...Object.keys(outflows),
         ]);
-        const merged: Point[] = [...allDays]
-          .sort()
-          .map((d) => ({
-            date: d,
-            inflow: inflows[d] || 0,
-            outflow: outflows[d] || 0,
-          }));
+        const merged: Point[] = [...allDays].sort().map((d) => ({
+          date: d,
+          inflow: inflows[d] || 0,
+          outflow: outflows[d] || 0,
+        }));
         setPoints(merged.slice(-30));
       } finally {
         setLoading(false);
@@ -90,7 +88,7 @@ export default function CashSnapshot() {
   }, []);
 
   return (
-    <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+    <div className="rounded-lg p-4 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1">
       <div className="font-medium">Cash Snapshot</div>
       {loading ? (
         <div className="text-sm text-zinc-500 mt-2">Loading…</div>

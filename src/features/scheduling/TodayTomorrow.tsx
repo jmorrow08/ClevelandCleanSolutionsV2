@@ -11,8 +11,8 @@ import {
 } from "firebase/firestore";
 import { firebaseConfig } from "../../services/firebase";
 import {
-  getClientName,
-  getLocationName,
+  getClientNames,
+  getLocationNames,
   getEmployeeNames,
 } from "../../services/queries/resolvers";
 import { startOfDay, addDays, format } from "date-fns";
@@ -90,14 +90,10 @@ export default function TodayTomorrow() {
         )
       );
       if (uniqueLocIds.length) {
-        const results = await Promise.all(
-          uniqueLocIds.map(
-            async (id) => [id, await getLocationName(id)] as const
-          )
-        );
+        const names = await getLocationNames(uniqueLocIds);
         setLocNames((prev) => {
           const next = { ...prev };
-          results.forEach(([id, name]) => (next[id] = name));
+          uniqueLocIds.forEach((id, i) => (next[id] = names[i] || id));
           return next;
         });
       }
@@ -110,14 +106,10 @@ export default function TodayTomorrow() {
         )
       );
       if (uniqueClientIds.length) {
-        const results = await Promise.all(
-          uniqueClientIds.map(
-            async (id) => [id, await getClientName(id)] as const
-          )
-        );
+        const names = await getClientNames(uniqueClientIds);
         setClientNames((prev) => {
           const next = { ...prev };
-          results.forEach(([id, name]) => (next[id] = name));
+          uniqueClientIds.forEach((id, i) => (next[id] = names[i] || id));
           return next;
         });
       }

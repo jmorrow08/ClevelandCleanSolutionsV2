@@ -6,16 +6,16 @@ export default {
     extend: {
       colors: {
         brand: {
-          50: "#f5f7ff",
-          100: "#e8ecff",
-          200: "#cdd7ff",
-          300: "#aabaff",
-          400: "#7f95ff",
-          500: "#5a74ff",
-          600: "#3e58f6",
-          700: "#2e43d3",
-          800: "#2435a8",
-          900: "#1f2d86",
+          50: "#eff6ff",
+          100: "#dbeafe",
+          200: "#bfdbfe",
+          300: "#93c5fd",
+          400: "#60a5fa",
+          500: "#3b82f6",
+          600: "#2563eb",
+          700: "#1d4ed8",
+          800: "#1e40af",
+          900: "#1e3a8a",
         },
       },
       spacing: {
@@ -33,4 +33,3 @@ export default {
   },
   plugins: [],
 };
-

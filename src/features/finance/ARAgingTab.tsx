@@ -70,23 +70,23 @@ export default function ARAgingTab() {
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-            <div className="rounded-md p-3 bg-white dark:bg-zinc-800 shadow-elev-1">
+            <div className="rounded-md p-3 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1">
               <div className="text-xs text-zinc-500">0–30</div>
               <div className="font-medium">${buckets.b0.toLocaleString()}</div>
             </div>
-            <div className="rounded-md p-3 bg-white dark:bg-zinc-800 shadow-elev-1">
+            <div className="rounded-md p-3 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1">
               <div className="text-xs text-zinc-500">31–60</div>
               <div className="font-medium">${buckets.b30.toLocaleString()}</div>
             </div>
-            <div className="rounded-md p-3 bg-white dark:bg-zinc-800 shadow-elev-1">
+            <div className="rounded-md p-3 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1">
               <div className="text-xs text-zinc-500">61–90</div>
               <div className="font-medium">${buckets.b60.toLocaleString()}</div>
             </div>
-            <div className="rounded-md p-3 bg-white dark:bg-zinc-800 shadow-elev-1">
+            <div className="rounded-md p-3 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1">
               <div className="text-xs text-zinc-500">90</div>
               <div className="font-medium">${buckets.b90.toLocaleString()}</div>
             </div>
-            <div className="rounded-md p-3 bg-white dark:bg-zinc-800 shadow-elev-1">
+            <div className="rounded-md p-3 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1">
               <div className="text-xs text-zinc-500">90+</div>
               <div className="font-medium">
                 ${buckets.b90p.toLocaleString()}

@@ -114,3 +114,6 @@ export function computeLastCompletedPeriod(
 export function toTimestamp(d: Date): Timestamp {
   return Timestamp.fromDate(d);
 }
+
+
+

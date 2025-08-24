@@ -445,3 +445,6 @@ export default function AssetDetail() {
     </div>
   );
 }
+
+
+

@@ -21,6 +21,133 @@
         { "fieldPath": "targetRef.id", "order": "ASCENDING" },
         { "fieldPath": "at", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "serviceAgreements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientId", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "serviceAgreements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "contractEndDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "serviceHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientProfileId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "serviceDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "serviceHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientProfileId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "serviceDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "invoices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "payeeEmail", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeePayroll",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeProfileId", "order": "ASCENDING" },
+        { "fieldPath": "payPeriodStartDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeePayroll",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeProfileId", "order": "ASCENDING" },
+        { "fieldPath": "paymentDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "generalJobNotes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "generalJobNotes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "employeeId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "servicePhotos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "employeeId", "order": "ASCENDING" },
+        { "fieldPath": "uploadedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "serviceHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "serviceDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "serviceHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "assignedEmployees", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "serviceDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "serviceHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "assignedEmployees", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "serviceDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "analyticsDaily",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "dateKey", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "analyticsDaily",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "dateKey", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "analyticsMonthly",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "monthKey", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "analyticsMonthly",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "monthKey", "order": "DESCENDING" }]
     }
   ],
   "fieldOverrides": []

@@ -40,7 +40,7 @@ export default function MyQueue() {
   }, []);
 
   return (
-    <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+    <div className="rounded-lg p-4 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1">
       <div className="font-medium">My Queue</div>
       {loading ? (
         <div className="text-sm text-zinc-500 mt-2">Loading…</div>

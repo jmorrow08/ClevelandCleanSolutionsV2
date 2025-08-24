@@ -11,8 +11,8 @@ import {
 } from "firebase/firestore";
 import { firebaseConfig } from "../../services/firebase";
 import {
-  getClientName,
-  getLocationName,
+  getClientNames,
+  getLocationNames,
   getEmployeeNames,
 } from "../../services/queries/resolvers";
 import { startOfWeek, endOfWeek, format } from "date-fns";
@@ -94,12 +94,10 @@ export default function WeekView() {
         )
       );
       if (locIds.length) {
-        const pairs = await Promise.all(
-          locIds.map(async (id) => [id, await getLocationName(id)] as const)
-        );
+        const names = await getLocationNames(locIds);
         setLocNames((prev) => {
           const next = { ...prev };
-          pairs.forEach(([id, name]) => (next[id] = name));
+          locIds.forEach((id, i) => (next[id] = names[i] || id));
           return next;
         });
       }
@@ -112,12 +110,10 @@ export default function WeekView() {
         )
       );
       if (clientIds.length) {
-        const pairs = await Promise.all(
-          clientIds.map(async (id) => [id, await getClientName(id)] as const)
-        );
+        const names = await getClientNames(clientIds);
         setClientNames((prev) => {
           const next = { ...prev };
-          pairs.forEach(([id, name]) => (next[id] = name));
+          clientIds.forEach((id, i) => (next[id] = names[i] || id));
           return next;
         });
       }
@@ -136,12 +132,10 @@ export default function WeekView() {
         )
       );
       if (locIds.length) {
-        const pairs = await Promise.all(
-          locIds.map(async (id) => [id, await getLocationName(id)] as const)
-        );
+        const names = await getLocationNames(locIds);
         setLocNames((prev) => {
           const next = { ...prev };
-          pairs.forEach(([id, name]) => (next[id] = name));
+          locIds.forEach((id, i) => (next[id] = names[i] || id));
           return next;
         });
       }
@@ -154,12 +148,10 @@ export default function WeekView() {
         )
       );
       if (clientIds.length) {
-        const pairs = await Promise.all(
-          clientIds.map(async (id) => [id, await getClientName(id)] as const)
-        );
+        const names = await getClientNames(clientIds);
         setClientNames((prev) => {
           const next = { ...prev };
-          pairs.forEach(([id, name]) => (next[id] = name));
+          clientIds.forEach((id, i) => (next[id] = names[i] || id));
           return next;
         });
       }

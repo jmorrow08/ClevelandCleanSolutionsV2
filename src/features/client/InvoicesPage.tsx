@@ -4,16 +4,14 @@ import { getAuth } from "firebase/auth";
 import {
   getFirestore,
   collection,
-  doc,
   query,
   where,
   orderBy,
   getDocs,
-  getDoc,
 } from "firebase/firestore";
 import { firebaseConfig } from "../../services/firebase";
-import { useSettings } from "../../context/SettingsContext";
 import { renderInvoicePdf, renderInvoicePreview } from "../../lib/invoicePdf";
+import { useSettings } from "../../context/SettingsContext";
 
 type Invoice = {
   id: string;
@@ -22,18 +20,11 @@ type Invoice = {
   totalAmount?: number;
   amount?: number;
 };
-type Payment = {
-  id: string;
-  amount?: number;
-  createdAt?: any;
-  invoiceId?: string;
-};
 
-export default function Billing() {
+export default function InvoicesPage() {
   const { settings } = useSettings();
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -56,38 +47,7 @@ export default function Billing() {
           );
           setInvoices(invList);
         } catch (e: any) {
-          console.warn("Client Billing invoices may need index", e?.message);
-        }
-        try {
-          // Read client payments from Stripe extension: customers/{uid}/payments
-          const uid = auth.currentUser?.uid;
-          if (uid) {
-            // Attempt to read subcollection with most recent first; fall back without order if needed
-            try {
-              const paySnap = await getDocs(
-                query(
-                  collection(db, "customers", uid, "payments"),
-                  orderBy("created", "desc")
-                )
-              );
-              const payList: Payment[] = [];
-              paySnap.forEach((d) =>
-                payList.push({ id: d.id, ...(d.data() as any) })
-              );
-              setPayments(payList);
-            } catch (_inner) {
-              const paySnap = await getDocs(
-                collection(db, "customers", uid, "payments")
-              );
-              const payList: Payment[] = [];
-              paySnap.forEach((d) =>
-                payList.push({ id: d.id, ...(d.data() as any) })
-              );
-              setPayments(payList);
-            }
-          }
-        } catch (e: any) {
-          console.warn("Client Billing payments read", e?.message);
+          console.warn("Client invoices list may need index", e?.message);
         }
       } finally {
         setLoading(false);
@@ -97,19 +57,19 @@ export default function Billing() {
   }, []);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
-        <div className="font-medium">Invoices</div>
+    <div className="p-6">
+      <h1 className="text-xl font-semibold">Invoices</h1>
+      <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1 mt-4">
         {loading ? (
-          <div className="text-sm text-zinc-500 mt-1">Loading…</div>
+          <div className="text-sm text-zinc-500">Loading…</div>
         ) : invoices.length === 0 ? (
-          <div className="text-sm text-zinc-500 mt-1">No invoices.</div>
+          <div className="text-sm text-zinc-500">No invoices.</div>
         ) : (
-          <ul className="text-sm mt-2">
-            {invoices.slice(0, 10).map((inv) => (
+          <ul className="text-sm divide-y divide-zinc-200 dark:divide-zinc-700">
+            {invoices.map((inv) => (
               <li
                 key={inv.id}
-                className="py-2 border-b border-zinc-100 dark:border-zinc-700 flex items-center justify-between gap-2"
+                className="py-2 flex items-center justify-between gap-2"
               >
                 <div>
                   {inv.id} — {inv.status || "—"} — $
@@ -183,25 +143,6 @@ export default function Billing() {
                     Download
                   </button>
                 </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
-        <div className="font-medium">Payments</div>
-        {loading ? (
-          <div className="text-sm text-zinc-500 mt-1">Loading…</div>
-        ) : payments.length === 0 ? (
-          <div className="text-sm text-zinc-500 mt-1">No payments.</div>
-        ) : (
-          <ul className="text-sm mt-2">
-            {payments.slice(0, 10).map((p) => (
-              <li
-                key={p.id}
-                className="py-1 border-b border-zinc-100 dark:border-zinc-700"
-              >
-                {p.id} — ${Number(p.amount || 0).toLocaleString()}
               </li>
             ))}
           </ul>

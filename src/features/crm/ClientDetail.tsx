@@ -18,6 +18,7 @@ import { useToast } from "../../context/ToastContext";
 import { RoleGuard } from "../../context/RoleGuard";
 import { useNewLocationModal } from "./NewLocationModal";
 import ClientEditModal from "./ClientEditModal";
+import { ServiceAgreementModal } from "./ServiceAgreementModal";
 
 type Client = {
   id: string;
@@ -50,6 +51,10 @@ export default function ClientDetail() {
   const [activity, setActivity] = useState<any[]>([]);
   const [editOpen, setEditOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [agrModal, setAgrModal] = useState<{
+    mode: "create" | "edit" | "view";
+    id?: string | null;
+  } | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -145,6 +150,22 @@ export default function ClientDetail() {
     }
     load();
   }, [id]);
+
+  async function reloadAgreements(clientId: string) {
+    try {
+      if (!getApps().length) initializeApp(firebaseConfig);
+      const db = getFirestore();
+      const agSnap = await getDocs(
+        query(
+          collection(db, "serviceAgreements"),
+          where("clientId", "==", clientId)
+        )
+      );
+      const list: any[] = [];
+      agSnap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
+      setAgreements(list);
+    } catch {}
+  }
 
   const totalOutstanding = useMemo(() => {
     return invoices
@@ -332,6 +353,17 @@ export default function ClientDetail() {
 
       {tab === "agreements" && (
         <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-zinc-500">Agreements</div>
+            <RoleGuard allow={["owner", "super_admin", "admin"]}>
+              <button
+                className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-800"
+                onClick={() => setAgrModal({ mode: "create" })}
+              >
+                New Agreement
+              </button>
+            </RoleGuard>
+          </div>
           {agreements.length === 0 ? (
             <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
               No agreements.
@@ -342,12 +374,32 @@ export default function ClientDetail() {
                 key={a.id}
                 className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1"
               >
-                <div className="font-medium">
-                  {a.agreementName || a.frequency || "Agreement"}
-                </div>
-                <div className="text-sm text-zinc-500 mt-1">
-                  {a.paymentAmount ? `$${a.paymentAmount}` : ""}{" "}
-                  {a.paymentFrequency || ""}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">
+                      {a.agreementName || a.frequency || "Agreement"}
+                    </div>
+                    <div className="text-sm text-zinc-500 mt-1">
+                      {a.paymentAmount ? `$${a.paymentAmount}` : ""}{" "}
+                      {a.paymentFrequency || ""}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <button
+                      className="px-2 py-1 rounded-md border"
+                      onClick={() => setAgrModal({ mode: "view", id: a.id })}
+                    >
+                      View
+                    </button>
+                    <RoleGuard allow={["owner", "super_admin", "admin"]}>
+                      <button
+                        className="px-2 py-1 rounded-md border"
+                        onClick={() => setAgrModal({ mode: "edit", id: a.id })}
+                      >
+                        Edit
+                      </button>
+                    </RoleGuard>
+                  </div>
                 </div>
               </div>
             ))
@@ -467,6 +519,16 @@ export default function ClientDetail() {
           onUpdated={(partial) =>
             setClient((prev) => (prev ? { ...prev, ...partial } : prev))
           }
+        />
+      )}
+      {agrModal && id && (
+        <ServiceAgreementModal
+          clientId={id}
+          agreementId={agrModal.id || null}
+          mode={agrModal.mode}
+          onClose={() => setAgrModal(null)}
+          onSaved={() => reloadAgreements(id)}
+          onDeleted={() => reloadAgreements(id)}
         />
       )}
     </div>

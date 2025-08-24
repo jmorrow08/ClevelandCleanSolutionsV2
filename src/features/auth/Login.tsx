@@ -6,26 +6,34 @@ import {
   signInWithEmailAndPassword,
 } from "firebase/auth";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { claimsToHome } from "../../utils/roleHome";
+import { useAuth } from "../../context/AuthContext";
 
 export default function Login() {
   const auth = getAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { claims } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // If already logged in, send to previous or home
-    const unsub = auth.onAuthStateChanged((u) => {
+    // If already logged in, send to role-based home
+    const unsub = auth.onAuthStateChanged(async (u) => {
       if (u) {
-        const from = (location.state as any)?.from?.pathname || "/";
-        navigate(from, { replace: true });
+        try {
+          const token = await u.getIdTokenResult();
+          const home = claimsToHome(token.claims as any);
+          navigate(home, { replace: true });
+        } catch {
+          navigate("/", { replace: true });
+        }
       }
     });
     return () => unsub();
-  }, [auth, location.state, navigate]);
+  }, [auth, navigate]);
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -33,8 +41,14 @@ export default function Login() {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
-      const from = (location.state as any)?.from?.pathname || "/";
-      navigate(from, { replace: true });
+      const u = auth.currentUser;
+      if (u) {
+        const token = await u.getIdTokenResult();
+        const home = claimsToHome(token.claims as any);
+        navigate(home, { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
     } catch (err: any) {
       setError(err.message || "Failed to sign in");
     } finally {
@@ -48,8 +62,14 @@ export default function Login() {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      const from = (location.state as any)?.from?.pathname || "/";
-      navigate(from, { replace: true });
+      const u = auth.currentUser;
+      if (u) {
+        const token = await u.getIdTokenResult();
+        const home = claimsToHome(token.claims as any);
+        navigate(home, { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
     } catch (err: any) {
       setError(err.message || "Failed to sign in with Google");
     } finally {
@@ -117,7 +137,7 @@ export default function Login() {
 
         <div className="mt-4 text-xs text-zinc-600 dark:text-zinc-400">
           <span>Having trouble?</span>{" "}
-          <Link to="/" className="underline">
+          <Link to={claimsToHome(claims)} className="underline">
             Go home
           </Link>
         </div>

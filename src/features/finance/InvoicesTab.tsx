@@ -139,7 +139,7 @@ export default function InvoicesTab() {
         <div className="flex items-center gap-2">
           <label className="text-sm">Status</label>
           <select
-            className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-900"
+            className="border border-[color:var(--border)] rounded-md px-2 py-1 bg-[color:var(--card)] text-[color:var(--text)]"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
           >
@@ -150,13 +150,13 @@ export default function InvoicesTab() {
         </div>
         <input
           placeholder="Search by ID, email, status"
-          className="border rounded-md px-3 py-1 flex-1 bg-white dark:bg-zinc-900"
+          className="border border-[color:var(--border)] rounded-md px-3 py-1 flex-1 bg-[color:var(--card)] text-[color:var(--text)]"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         <RoleGuard allow={["admin", "owner", "super_admin"]}>
           <button
-            className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm"
+            className="px-3 py-1.5 rounded-md bg-[color:var(--brand)] hover:brightness-95 text-white text-sm focus-ring"
             onClick={() => setShowNew(true)}
           >
             New Invoice
@@ -164,9 +164,9 @@ export default function InvoicesTab() {
         </RoleGuard>
       </div>
 
-      <div className="hidden md:block overflow-x-auto rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1">
+      <div className="hidden md:block overflow-x-auto rounded-lg bg-[color:var(--card)] shadow-elev-1">
         <table className="min-w-full text-sm">
-          <thead className="text-left text-zinc-500">
+          <thead className="text-left text-[color:var(--text)] opacity-60">
             <tr>
               <th className="px-3 py-2">Invoice</th>
               <th className="px-3 py-2">Status</th>
@@ -184,7 +184,10 @@ export default function InvoicesTab() {
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td className="px-3 py-4 text-zinc-500" colSpan={5}>
+                <td
+                  className="px-3 py-4 text-[color:var(--text)] opacity-60"
+                  colSpan={5}
+                >
                   {statusFilter === "All" && !search
                     ? "No invoices found."
                     : "No matching invoices."}
@@ -196,7 +199,7 @@ export default function InvoicesTab() {
                 return (
                   <tr
                     key={inv.id}
-                    className="border-t border-zinc-100 dark:border-zinc-700"
+                    className="border-t border-[color:var(--border)]"
                   >
                     <td className="px-3 py-2">{inv.id}</td>
                     <td className="px-3 py-2">{inv.status || "—"}</td>
@@ -224,11 +227,11 @@ export default function InvoicesTab() {
       {/* Mobile TableCard list */}
       <div className="md:hidden space-y-2">
         {loading ? (
-          <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+          <div className="rounded-lg p-3 bg-[color:var(--card)] shadow-elev-1 text-sm text-[color:var(--text)] opacity-60">
             Loading…
           </div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+          <div className="rounded-lg p-3 bg-[color:var(--card)] shadow-elev-1 text-sm text-[color:var(--text)] opacity-60">
             {statusFilter === "All" && !search
               ? "No invoices found."
               : "No matching invoices."}
@@ -239,13 +242,13 @@ export default function InvoicesTab() {
             return (
               <div
                 key={inv.id}
-                className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1"
+                className="rounded-lg p-3 bg-[color:var(--card)] shadow-elev-1"
               >
                 <div className="flex items-center justify-between">
                   <div className="font-medium">{inv.id}</div>
                   <div className="text-sm">{formatCurrency(amount)}</div>
                 </div>
-                <div className="text-xs text-zinc-500 mt-1 flex items-center justify-between">
+                <div className="text-xs text-[color:var(--text)] opacity-60 mt-1 flex items-center justify-between">
                   <span>Status: {inv.status || "—"}</span>
                   <span>Due: {formatDate(inv.dueDate)}</span>
                 </div>
@@ -272,13 +275,13 @@ export default function InvoicesTab() {
             className="absolute inset-0 bg-black/40"
             onClick={() => !submitting && setShowNew(false)}
           />
-          <div className="relative w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4">
+          <div className="relative w-full max-w-md rounded-lg bg-[color:var(--card)] shadow-elev-3 p-4">
             <div className="text-lg font-medium">New Invoice</div>
             <div className="mt-3 space-y-3">
               <div>
                 <label className="block text-sm mb-1">Client ID</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border border-[color:var(--border)] rounded-md px-3 py-2 bg-[color:var(--card)] text-[color:var(--text)]"
                   value={form.clientId}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, clientId: e.target.value }))
@@ -290,7 +293,7 @@ export default function InvoicesTab() {
                 <label className="block text-sm mb-1">Due Date</label>
                 <input
                   type="date"
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border border-[color:var(--border)] rounded-md px-3 py-2 bg-[color:var(--card)] text-[color:var(--text)]"
                   value={form.dueDate}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, dueDate: e.target.value }))
@@ -303,7 +306,7 @@ export default function InvoicesTab() {
                   type="number"
                   min="0"
                   step="0.01"
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border border-[color:var(--border)] rounded-md px-3 py-2 bg-[color:var(--card)] text-[color:var(--text)]"
                   value={form.amount}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, amount: e.target.value }))
@@ -313,16 +316,14 @@ export default function InvoicesTab() {
             </div>
             <div className="mt-4 flex items-center justify-end gap-2">
               <button
-                className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                className="px-3 py-1.5 rounded-md border border-[color:var(--border)] bg-[color:var(--card)] text-[color:var(--text)] focus-ring"
                 onClick={() => setShowNew(false)}
                 disabled={submitting}
               >
                 Cancel
               </button>
               <button
-                className={`px-3 py-1.5 rounded-md text-white ${
-                  submitting ? "bg-zinc-400" : "bg-blue-600 hover:bg-blue-700"
-                }`}
+                className="px-3 py-1.5 rounded-md text-white bg-[color:var(--brand)] hover:brightness-95 disabled:opacity-60 focus-ring"
                 onClick={async () => {
                   const clientId = form.clientId.trim();
                   const dueStr = form.dueDate;

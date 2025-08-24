@@ -13,7 +13,12 @@ import {
   getIdTokenResult,
   connectAuthEmulator,
 } from "firebase/auth";
-import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import {
+  getFirestore,
+  connectFirestoreEmulator,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import type { User } from "firebase/auth";
 import { firebaseConfig } from "../services/firebase";
 
@@ -23,18 +28,21 @@ type AuthContextValue = {
   user: User | null;
   loading: boolean;
   claims: Claims | null;
+  profileId: string | null;
 };
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   loading: true,
   claims: null,
+  profileId: null,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [claims, setClaims] = useState<Claims | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
 
   useEffect(() => {
     // Ensure Firebase app is initialized once
@@ -64,8 +72,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (u) {
         const token = await getIdTokenResult(u, true);
         setClaims(token.claims as Claims);
+        // Resolve client profile mapping for client portal screens
+        try {
+          const db = getFirestore();
+          const snap = await getDoc(doc(db, "users", u.uid));
+          const data = (snap.data() as any) || {};
+          setProfileId((data?.profileId as string) || null);
+        } catch {
+          setProfileId(null);
+        }
       } else {
         setClaims(null);
+        setProfileId(null);
       }
       setLoading(false);
     });
@@ -73,8 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, claims }),
-    [user, loading, claims]
+    () => ({ user, loading, claims, profileId }),
+    [user, loading, claims, profileId]
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

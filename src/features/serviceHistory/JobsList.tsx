@@ -14,9 +14,13 @@ import { firebaseConfig } from "../../services/firebase";
 import { subDays } from "date-fns";
 import { Link } from "react-router-dom";
 import {
-  getClientName,
-  getLocationName,
+  getClientNames,
+  getLocationNames,
 } from "../../services/queries/resolvers";
+import {
+  makeDayBounds as makeDayBoundsUtil,
+  formatJobWindow,
+} from "../../utils/time";
 
 type Job = {
   id: string;
@@ -43,6 +47,7 @@ export default function JobsList({ showAll }: { showAll: boolean }) {
   const [, setError] = useState<string | null>(null);
   const [locNames, setLocNames] = useState<Record<string, string>>({});
   const [clientNames, setClientNames] = useState<Record<string, string>>({});
+  const [timeWindows, setTimeWindows] = useState<Record<string, string>>({});
 
   useEffect(() => {
     async function load() {
@@ -92,12 +97,10 @@ export default function JobsList({ showAll }: { showAll: boolean }) {
         )
       );
       if (locIds.length) {
-        const results = await Promise.all(
-          locIds.map(async (id) => [id, await getLocationName(id)] as const)
-        );
+        const names = await getLocationNames(locIds);
         setLocNames((prev) => {
           const next = { ...prev };
-          results.forEach(([id, name]) => (next[id] = name));
+          locIds.forEach((id, i) => (next[id] = names[i] || id));
           return next;
         });
       }
@@ -110,21 +113,75 @@ export default function JobsList({ showAll }: { showAll: boolean }) {
         )
       );
       if (clientIds.length) {
-        const results = await Promise.all(
-          clientIds.map(async (id) => [id, await getClientName(id)] as const)
-        );
+        const names = await getClientNames(clientIds);
         setClientNames((prev) => {
           const next = { ...prev };
-          results.forEach(([id, name]) => (next[id] = name));
+          clientIds.forEach((id, i) => (next[id] = names[i] || id));
           return next;
         });
       }
     })();
   }, [jobs]);
 
+  // Compute time windows for jobs
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!getApps().length) initializeApp(firebaseConfig);
+        const db = getFirestore();
+        const map: Record<string, string> = {};
+        for (const j of jobs) {
+          const dt: Date | null = j.serviceDate?.toDate
+            ? j.serviceDate.toDate()
+            : j.serviceDate?.seconds
+            ? new Date(j.serviceDate.seconds * 1000)
+            : null;
+          if (!dt || !j.locationId) {
+            map[j.id] = formatJobWindow(j.serviceDate);
+            continue;
+          }
+          const { start, end } = makeDayBoundsUtil(dt, "America/New_York");
+          try {
+            const qref = query(
+              collection(db, "employeeTimeTracking"),
+              where("locationId", "==", j.locationId),
+              where("clockInTime", ">=", Timestamp.fromDate(start)),
+              where("clockInTime", "<=", Timestamp.fromDate(end)),
+              orderBy("clockInTime", "asc"),
+              limit(10)
+            );
+            const snap = await getDocs(qref);
+            const rows: any[] = [];
+            snap.forEach((d) => rows.push({ id: d.id, ...(d.data() as any) }));
+            const assigned = Array.isArray((j as any).assignedEmployees)
+              ? ((j as any).assignedEmployees as string[])
+              : [];
+            let rec = rows.find((r) =>
+              assigned.includes((r as any).employeeProfileId || "")
+            );
+            if (!rec) rec = rows[0];
+            if (rec?.clockInTime?.toDate && rec?.clockOutTime?.toDate) {
+              map[j.id] = formatJobWindow(j.serviceDate, {
+                start: rec.clockInTime,
+                end: rec.clockOutTime,
+              });
+            } else if (rec?.clockInTime?.toDate && !rec?.clockOutTime) {
+              map[j.id] = formatJobWindow(j.serviceDate);
+            } else {
+              map[j.id] = formatJobWindow(j.serviceDate);
+            }
+          } catch {
+            map[j.id] = formatJobWindow(j.serviceDate);
+          }
+        }
+        setTimeWindows(map);
+      } catch {}
+    })();
+  }, [jobs]);
+
   return (
     <div className="space-y-2">
-      <div className="hidden md:block overflow-x-auto rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1">
+      <div className="hidden md:block overflow-x-auto rounded-lg bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1">
         <table className="min-w-full text-sm">
           <thead className="text-left text-zinc-500">
             <tr>
@@ -156,7 +213,10 @@ export default function JobsList({ showAll }: { showAll: boolean }) {
                   <td className="px-3 py-2">
                     {j.serviceDate?.toDate
                       ? j.serviceDate.toDate().toLocaleDateString()
-                      : "—"}
+                      : "—"}{" "}
+                    <span className="text-[11px] text-zinc-500">
+                      {timeWindows[j.id] || formatJobWindow(j.serviceDate)}
+                    </span>
                   </td>
                   <td className="px-3 py-2 max-w-[320px]">
                     <div className="truncate">
@@ -204,18 +264,18 @@ export default function JobsList({ showAll }: { showAll: boolean }) {
       </div>
       <div className="md:hidden space-y-2">
         {loading ? (
-          <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+          <div className="rounded-lg p-3 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
             Loading…
           </div>
         ) : jobs.length === 0 ? (
-          <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+          <div className="rounded-lg p-3 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
             No jobs found.
           </div>
         ) : (
           jobs.map((j) => (
             <div
               key={j.id}
-              className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1"
+              className="rounded-lg p-3 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1"
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="font-medium min-w-0 flex-1 truncate">
@@ -248,7 +308,10 @@ export default function JobsList({ showAll }: { showAll: boolean }) {
               <div className="text-xs text-zinc-500 mt-1">
                 {j.serviceDate?.toDate
                   ? j.serviceDate.toDate().toLocaleDateString()
-                  : "—"}
+                  : "—"}{" "}
+                <span className="text-[11px] text-zinc-500">
+                  {timeWindows[j.id] || formatJobWindow(j.serviceDate)}
+                </span>
               </div>
               <div className="mt-2 text-right">
                 <Link
