@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #f5f7ff;
+  --color-brand-100: #e8ecff;
+  --color-brand-200: #cdd7ff;
+  --color-brand-300: #aabaff;
+  --color-brand-400: #7f95ff;
+  --color-brand-500: #5a74ff;
+  --color-brand-600: #3e58f6;
+  --color-brand-700: #2e43d3;
+  --color-brand-800: #2435a8;
+  --color-brand-900: #1f2d86;
+}
+
+/* CSS variables for design tokens */
+:root {
+  --radius: 0.5rem;
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --elev-2: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --elev-3: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+/* Base styles */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-white text-gray-900 dark:bg-zinc-900 dark:text-zinc-100;
+}
+
+/* Focus ring utility */
+.focus-ring {
+  @apply outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900;
+}
+
+/* Custom elevation utilities */
+@utility shadow-elev-1 {
+  @apply shadow-[0_1px_2px_rgba(0,0,0,0.05)];
+}
+@utility shadow-elev-2 {
+  @apply shadow-[0_2px_8px_rgba(0,0,0,0.08)];
+}
+@utility shadow-elev-3 {
+  @apply shadow-[0_8px_24px_rgba(0,0,0,0.12)];
+}

@@ -1,0 +1,51 @@
+// Firebase Storage Rules Additions for V2 media
+// Paste/merge instructions:
+// - Open ./storage.rules (root project) and paste these inside service firebase.storage { match /b/{bucket}/o { ... } }
+// - Keep existing V1 rules; these are additive for the /media/** path used by V2 Media Library.
+// Policy:
+// - Writes to /media/** allowed for admins, owner, and marketing roles.
+// - Reads allowed if the requesting user is authorized per the corresponding Firestore mediaAssets/{assetId} metadata:
+//   * mediaAssets doc must exist and either be public == true, or include requester in allowedRoles/allowedUserIds, or be tagged for an entity the user belongs to (future-ready).
+// - Deletes restricted to super_admin only.
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper to read mediaAssets metadata to gate access.
+    function canReadMediaByAssetId(assetId) {
+      return exists(/databases/(default)/documents/mediaAssets/$(assetId)) &&
+             (get(/databases/(default)/documents/mediaAssets/$(assetId)).data.public == true ||
+              (request.auth != null && (
+                request.auth.token.admin == true || request.auth.token.owner == true || request.auth.token.marketing == true || request.auth.token.super_admin == true ||
+                (
+                  (get(/databases/(default)/documents/mediaAssets/$(assetId)).data.allowedUserIds is list &&
+                   request.auth.uid in get(/databases/(default)/documents/mediaAssets/$(assetId)).data.allowedUserIds) ||
+                  (get(/databases/(default)/documents/mediaAssets/$(assetId)).data.allowedRoles is list && (
+                     (request.auth.token.employee == true && 'employee' in get(/databases/(default)/documents/mediaAssets/$(assetId)).data.allowedRoles) ||
+                     (request.auth.token.client == true && 'client' in get(/databases/(default)/documents/mediaAssets/$(assetId)).data.allowedRoles)
+                  ))
+                )
+              )));
+    }
+
+    // V2 Media path
+    match /media/{assetId} {
+      // Uploads: admins, owner, marketing
+      allow write: if request.auth != null && (request.auth.token.admin == true || request.auth.token.owner == true || request.auth.token.marketing == true);
+      // Deletes: super_admin only
+      allow delete: if request.auth != null && request.auth.token.super_admin == true;
+      // Reads: gated by mediaAssets metadata
+      allow read: if canReadMediaByAssetId(assetId);
+    }
+
+    // Allow nested folders under media as well
+    match /media/{assetId}/{all=**} {
+      allow write: if request.auth != null && (request.auth.token.admin == true || request.auth.token.owner == true || request.auth.token.marketing == true);
+      allow delete: if request.auth != null && request.auth.token.super_admin == true;
+      allow read: if canReadMediaByAssetId(assetId);
+    }
+  }
+}
+
+

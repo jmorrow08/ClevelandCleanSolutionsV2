@@ -1,0 +1,205 @@
+// Firestore Rules Additions for V2 collections
+// Paste/merge instructions:
+// - Open ./firestore.rules (V1)
+// - Paste the contents of this file INSIDE service cloud.firestore { match /databases/{database}/documents { ... } }
+//   ideally just below the existing helper functions.
+// - Do NOT duplicate rules that already exist in V1; these are additive for new V2 collections.
+// Global enforcement to observe in UI and rules:
+// - Only super_admin may DELETE any document in these new collections.
+// - Owner: full read/write except delete; sensitive fields are masked in UI (see per-collection comments below).
+
+// --- Helper shims (use existing V1 helpers where available) ---
+function isSuperAdmin() { return hasClaim('super_admin'); }
+function isAdmin() { return hasClaim('admin'); }
+function isMarketing() { return hasClaim('marketing'); }
+function isEmployeeV2() {
+  return hasClaim('employee') || (request.auth != null && hasRoleInFirestore(request.auth.uid, 'employee'));
+}
+function isClientV2() {
+  return hasClaim('client') || (request.auth != null && hasRoleInFirestore(request.auth.uid, 'client'));
+}
+function currentProfileId() {
+  return request.auth != null && getUserData(request.auth.uid) != null ? getUserData(request.auth.uid).profileId : null;
+}
+
+// ---------------------------------------------------------------------------
+// jobNotes
+// Fields (expected): { jobId?, locationId, date:timestamp, authorRole:'client'|'employee'|'admin', message, visibleTo:list<string>, createdAt }
+// UI note: Clients may read ONLY their own submissions in V2 initial rollout. Employees/Admins/Owner can read all.
+match /jobNotes/{noteId} {
+  function isValidJobNoteCreate(d) {
+    return d.locationId is string && d.locationId != '' &&
+           d.date is timestamp && d.message is string && d.message != '' &&
+           (d.visibleTo == null || d.visibleTo is list) &&
+           (d.createdAt is timestamp || d.createdAt == request.time);
+  }
+
+  allow read: if isAdmin() || isOwner() || isEmployeeV2() ||
+                 (isClientV2() && resource.data.authorRole == 'client' &&
+                  resource.data.clientEmail != null && request.auth.token.email == resource.data.clientEmail);
+
+  allow create: if isValidJobNoteCreate(request.resource.data) &&
+                   (isAdmin() || isOwner() || isEmployeeV2() || isClientV2());
+
+  // Edits restricted to admins/owner initially; authors edit flow can be added later
+  allow update: if isAdmin() || isOwner();
+  allow delete: if isSuperAdmin();
+}
+
+// ---------------------------------------------------------------------------
+// timesheets
+// Fields: { employeeId:profileId, jobId?, start:ts, end:ts, hours:number, rateSnapshot:any, approvedInRunId?:string }
+// UI: Owner/Admin manage; employees have READ-ONLY of their own rows. Mask rateSnapshot details for non-admin in UI.
+match /timesheets/{tsId} {
+  function isOwnerOfTimesheet() { return currentProfileId() != null && resource.data.employeeId == currentProfileId(); }
+  function isOwnerOfTimesheetForCreate(d) { return currentProfileId() != null && d.employeeId == currentProfileId(); }
+  function isValidTimesheet(d) {
+    return d.employeeId is string && d.start is timestamp && (d.end == null || d.end is timestamp) &&
+           d.hours is number && d.hours >= 0 && (d.rateSnapshot == null || d.rateSnapshot is map);
+  }
+
+  allow read: if isAdmin() || isOwner() || (isEmployeeV2() && isOwnerOfTimesheet());
+  allow create: if isAdmin() || isOwner();
+  allow update: if isAdmin() || isOwner();
+  allow delete: if isSuperAdmin();
+}
+
+// ---------------------------------------------------------------------------
+// payrollRuns
+// Fields: { periodStart:ts, periodEnd:ts, status:'draft'|'review'|'approved'|'locked', totals:any, createdBy, createdAt }
+// UI: Owner/Admin can create/update; delete disabled (super_admin only for emergencies). Sensitive totals masked in non-finance UIs.
+match /payrollRuns/{runId} {
+  allow read: if isAdmin() || isOwner();
+  allow create: if isAdmin() || isOwner();
+  allow update: if isAdmin() || isOwner();
+  allow delete: if isSuperAdmin();
+}
+
+// ---------------------------------------------------------------------------
+// payments (V2 Finance hub)
+// NOTE: Client-facing payment history should use Stripe extension under customers/{uid}/payments.
+match /payments/{paymentId} {
+  allow read: if isAdmin() || isOwner() || isSuperAdmin();
+  allow create: if isAdmin() || isOwner();
+  allow update: if isAdmin() || isOwner();
+  allow delete: if isSuperAdmin();
+}
+
+// ---------------------------------------------------------------------------
+// expenses (V2 Finance hub - non-payroll outflows)
+// Owner and Super Admin may read/write; delete restricted to Super Admin only.
+match /expenses/{expenseId} {
+  allow read: if isOwner() || isSuperAdmin();
+  allow create: if isOwner() || isSuperAdmin();
+  allow update: if isOwner() || isSuperAdmin();
+  allow delete: if isSuperAdmin();
+}
+
+// ---------------------------------------------------------------------------
+// inventoryItems
+// UI: Owner and Super Admin can create/update; employees read-only; delete is super_admin only
+match /inventoryItems/{itemId} {
+  allow read: if isOwner() || isSuperAdmin() || isEmployeeV2() || isAdmin();
+  allow create: if isOwner() || isSuperAdmin();
+  allow update: if isOwner() || isSuperAdmin();
+  allow delete: if isSuperAdmin();
+}
+
+// inventoryTransactions
+// UI: Owner and Super Admin can create; employees read-only; delete is super_admin only
+// Fields: { itemId, type:'purchase'|'usage'|'return'|'adjustment', qty, costPerUnit?, linkedInvoiceId?, linkedJobId?, createdAt, createdBy }
+match /inventoryTransactions/{txId} {
+  allow read: if isOwner() || isSuperAdmin() || isEmployeeV2() || isAdmin();
+  allow create: if isOwner() || isSuperAdmin();
+  allow update: if false; // immutable ledger entries
+  allow delete: if isSuperAdmin();
+}
+
+// ---------------------------------------------------------------------------
+// leads (CRM)
+// UI: Admin/Owner/Marketing manage leads. Sensitive PII (emails/phones) should be masked in list views.
+match /leads/{leadId} {
+  allow read: if isAdmin() || isOwner() || isMarketing();
+  allow create: if isAdmin() || isOwner() || isMarketing();
+  allow update: if isAdmin() || isOwner() || isMarketing();
+  allow delete: if isSuperAdmin();
+}
+
+// ---------------------------------------------------------------------------
+// activities (CRM + Training tasks)
+// UI: Admin/Owner/Marketing manage activities; employees can READ activities where entityId == their profileId (e.g., training tasks/type='task').
+match /activities/{activityId} {
+  allow read: if isAdmin() || isOwner() || isMarketing() ||
+                (isEmployeeV2() && resource.data.entityId != null && resource.data.entityId == currentProfileId());
+  allow create: if isAdmin() || isOwner() || isMarketing();
+  allow update: if isAdmin() || isOwner() || isMarketing();
+  allow delete: if isSuperAdmin();
+}
+
+// ---------------------------------------------------------------------------
+// campaigns (Marketing)
+match /campaigns/{campaignId} {
+  allow read: if isAdmin() || isOwner() || isMarketing();
+  allow create: if isAdmin() || isOwner() || isMarketing();
+  allow update: if isAdmin() || isOwner() || isMarketing();
+  allow delete: if isSuperAdmin();
+}
+
+// ---------------------------------------------------------------------------
+// campaignActivities (log of sends/opens/clicks)
+match /campaignActivities/{id} {
+  allow read: if isAdmin() || isOwner() || isMarketing();
+  allow create: if isAdmin() || isOwner() || isMarketing();
+  allow update: if isAdmin() || isOwner() || isMarketing();
+  allow delete: if isSuperAdmin();
+}
+
+// ---------------------------------------------------------------------------
+// mediaAssets (metadata for Storage uploads)
+// UI: Admin/Owner/Marketing browse and manage. Clients/employees do not read raw docs in V2.
+match /mediaAssets/{assetId} {
+  allow read: if isAdmin() || isOwner() || isMarketing();
+  allow create: if isAdmin() || isOwner() || isMarketing();
+  allow update: if isAdmin() || isOwner() || isMarketing();
+  allow delete: if isSuperAdmin();
+}
+
+// ---------------------------------------------------------------------------
+// notifications (in-app user inbox; multi-channel queue)
+// UI: Users can read their own docs and mark as read; Admin/Owner can read all and manage queue.
+match /notifications/{nid} {
+  function isRecipient() { return request.auth != null && resource.data.userId == request.auth.uid; }
+  function allowedUserUpdate() {
+    // Users may only set status='read' and readAt timestamp on their own docs
+    return isRecipient() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','readAt']) &&
+           request.resource.data.status in ['read','sent','queued'] &&
+           (request.resource.data.readAt == null || request.resource.data.readAt is timestamp);
+  }
+  allow read: if isAdmin() || isOwner() || isSuperAdmin() || isRecipient();
+  allow create: if isAdmin() || isOwner() || isSuperAdmin();
+  allow update: if isAdmin() || isOwner() || isSuperAdmin() || allowedUserUpdate();
+  allow delete: if isSuperAdmin();
+}
+
+// ---------------------------------------------------------------------------
+// auditLogs (immutable; written via Admin SDK in Cloud Functions)
+// UI: Admin/Owner/Super Admin can read. Client-side writes are blocked; deletion restricted to super_admin.
+match /auditLogs/{logId} {
+  allow read: if isAdmin() || isOwner() || isSuperAdmin();
+  allow write: if false; // Writes occur via Cloud Functions using Admin SDK (bypasses rules)
+  allow delete: if isSuperAdmin();
+}
+
+// ---------------------------------------------------------------------------
+// settings (singleton: settings/org)
+// UI: Owner and super_admin can modify settings; others read-only as needed by apps.
+match /settings/{docId} {
+  allow read: if request.auth != null; // any authenticated user may read
+  allow create, update: if isOwner() || isSuperAdmin();
+  allow delete: if isSuperAdmin();
+}
+
+// Indexes: See ../ClevelandCleanSolutionsV2/firestore.indexes.json.suggested for composite index definitions
+// that support the queries listed in docs/DDD/* and V2 components.
+
+
