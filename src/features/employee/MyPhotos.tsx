@@ -110,7 +110,12 @@ export default function MyPhotos() {
                 onClick={() => window.open(p.photoUrl, "_blank")}
               />
               <div className="mt-2 text-xs text-zinc-500">
-                <div>{p.locationName || "Unknown location"}</div>
+                <div>
+                  {p.locationName ||
+                    (p.locationId
+                      ? `Location ${p.locationId.slice(0, 8)}...`
+                      : "Unknown location")}
+                </div>
                 <div>
                   {p.uploadedAt?.toDate
                     ? p.uploadedAt.toDate().toLocaleString()

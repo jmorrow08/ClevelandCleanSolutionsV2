@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { initializeApp, getApps } from "firebase/app";
 import {
   getFirestore,
@@ -15,6 +15,7 @@ import {
   updateDoc,
   Timestamp,
   writeBatch,
+  limit,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { firebaseConfig } from "../../services/firebase";
@@ -33,6 +34,7 @@ import {
 } from "../../services/statusMap";
 import { RoleGuard } from "../../context/RoleGuard";
 import JobEditForm from "./JobEditForm";
+import EmployeeAssignmentForm from "./EmployeeAssignmentForm";
 import { useToast } from "../../context/ToastContext";
 import { makeDayBounds, mergePhotoResults } from "../../services/firebase";
 
@@ -55,6 +57,7 @@ type Note = {
 
 export default function JobDetail() {
   const { jobId } = useParams();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [job, setJob] = useState<JobRecord | null>(null);
   const [clientName, setClientName] = useState<string>("");
@@ -93,6 +96,15 @@ export default function JobDetail() {
   const [statusLegacy, setStatusLegacy] = useState<string>("");
   const [savingApproval, setSavingApproval] = useState(false);
   const [timeWindow, setTimeWindow] = useState<string>("");
+  const [canEditScheduling, setCanEditScheduling] = useState<boolean>(false);
+  const fromScheduling = useMemo(() => {
+    try {
+      const sp = new URLSearchParams(location.search);
+      return sp.get("from") === "sched";
+    } catch {
+      return false;
+    }
+  }, [location.search]);
 
   useEffect(() => {
     async function load() {
@@ -142,6 +154,55 @@ export default function JobDetail() {
     }
     load();
   }, [jobId]);
+
+  // Determine if a short-lived scheduling session is active for this user
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!getApps().length) initializeApp(firebaseConfig);
+        const auth = getAuth();
+        const uid = auth.currentUser?.uid;
+        if (!uid) {
+          setCanEditScheduling(false);
+          return;
+        }
+        const db = getFirestore();
+        const snap = await getDoc(doc(db, "scheduleSessions", uid));
+        const data: any = snap.exists() ? snap.data() : null;
+        const exp = data?.expiresAt?.toDate ? data.expiresAt.toDate() : null;
+        let active = !!exp && exp.getTime() > Date.now();
+        // If opened from Scheduling and there's no active session, start one
+        if (!active && fromScheduling) {
+          try {
+            const fns = (await import("firebase/functions")).getFunctions();
+            try {
+              if (
+                import.meta.env.DEV &&
+                (import.meta.env as any).VITE_USE_FIREBASE_EMULATOR === "true"
+              )
+                (await import("firebase/functions")).connectFunctionsEmulator(
+                  fns,
+                  "127.0.0.1",
+                  5001
+                );
+            } catch {}
+            const start = (await import("firebase/functions")).httpsCallable(
+              fns,
+              "startScheduleSession"
+            );
+            await start({ ttlMinutes: 20 });
+            active = true;
+          } catch (error) {
+            console.warn("Failed to start scheduling session:", error);
+            // Continue without session - editing will be disabled
+          }
+        }
+        setCanEditScheduling(active);
+      } catch {
+        setCanEditScheduling(false);
+      }
+    })();
+  }, [fromScheduling]);
 
   // Compute time window for header
   useEffect(() => {
@@ -493,7 +554,13 @@ export default function JobDetail() {
                   </div>
                 ) : null}
               </div>
-              <div className="shrink-0" />
+              <div className="shrink-0 flex items-center gap-2">
+                {canEditScheduling && fromScheduling && (
+                  <div className="px-2 py-1 rounded-md text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
+                    Scheduling Session Active
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Tabs */}
@@ -526,9 +593,75 @@ export default function JobDetail() {
 
             {activeTab === "overview" ? (
               <>
-                <RoleGuard allow={["admin", "owner", "super_admin"]}>
-                  <JobEditForm job={job} onSave={handleSave} />
-                </RoleGuard>
+                {/* Job Overview - Always show details */}
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm font-medium mb-2">
+                        Job Details
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="text-zinc-500">Client:</span>{" "}
+                          {clientName || job.clientProfileId || "—"}
+                        </div>
+                        <div>
+                          <span className="text-zinc-500">Location:</span>{" "}
+                          {locationName || job.locationId || "—"}
+                        </div>
+                        <div>
+                          <span className="text-zinc-500">Service Date:</span>{" "}
+                          {job.serviceDate?.toDate
+                            ? job.serviceDate.toDate().toLocaleString()
+                            : "—"}
+                        </div>
+                        <div>
+                          <span className="text-zinc-500">Status:</span>{" "}
+                          <span className="px-2 py-0.5 rounded-md text-xs bg-zinc-100 dark:bg-zinc-700">
+                            {statusCanonical || "—"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium mb-2">
+                        Assigned Employees
+                      </div>
+                      {assignedDisplay.length > 0 ? (
+                        <div className="space-y-1">
+                          {assignedDisplay.map((name, i) => (
+                            <div key={i} className="text-sm">
+                              {name}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-zinc-500">
+                          No employees assigned
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Employee Assignment Editing - Only from Scheduling */}
+                  {canEditScheduling && fromScheduling ? (
+                    <RoleGuard allow={["admin", "owner", "super_admin"]}>
+                      <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
+                        <div className="text-sm font-medium mb-3">
+                          Edit Employee Assignments
+                        </div>
+                        <EmployeeAssignmentForm job={job} onSave={handleSave} />
+                      </div>
+                    </RoleGuard>
+                  ) : (
+                    <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
+                      <div className="rounded-md p-3 bg-zinc-50 dark:bg-zinc-900 text-xs text-zinc-600 dark:text-zinc-300">
+                        Employee assignments can be edited from the Scheduling
+                        page.
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <div className="border-t border-zinc-200 dark:border-zinc-700 pt-3">
                   <div className="font-medium">Notes</div>

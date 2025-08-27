@@ -33,60 +33,99 @@ export default function ClientResources() {
   // Best-effort: current client context not modeled; fallback to any client-targeted assets
   useEffect(() => {
     async function load() {
+      if (!user) return;
+      setLoading(true);
       try {
-        if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
 
-        // Company resources (client-targeted)
-        const clientQ = query(
+        // Company-specific guides
+        const companyQ = query(
           collection(db, "mediaAssets"),
           where("category", "==", "client_resource"),
+          where("audience", "==", "client"),
           orderBy("uploadedAt", "desc")
         );
-        const cSnap = await getDocs(clientQ);
-        const cList: Asset[] = [];
-        cSnap.forEach((d) => {
-          const v: any = d.data();
-          const rel = v.relatedEntities || {};
-          // Without a concrete clientId context, include any with related clientIds.
-          if (Array.isArray(rel.clientIds) && rel.clientIds.length > 0) {
-            cList.push({ id: d.id, ...(v as any) });
-          }
-        });
-        setCompanyAssets(cList);
+
+        try {
+          const cSnap = await getDocs(companyQ);
+          const cList: Asset[] = [];
+          cSnap.forEach((d) => {
+            const v: any = d.data();
+            const rel = v.relatedEntities || {};
+            // Without a concrete clientId context, include any with related clientIds.
+            if (Array.isArray(rel.clientIds) && rel.clientIds.length > 0) {
+              cList.push({ id: d.id, ...(v as any) });
+            }
+          });
+          setCompanyAssets(cList);
+        } catch (error) {
+          console.warn("Failed to load company assets:", error);
+          setCompanyAssets([]);
+        }
 
         // Public guides
-        const publicQ = query(
-          collection(db, "mediaAssets"),
-          where("category", "==", "client_resource"),
-          where("audience", "==", "public"),
-          orderBy("uploadedAt", "desc")
-        );
-        const pSnap = await getDocs(publicQ);
-        const pList: Asset[] = [];
-        pSnap.forEach((d) => pList.push({ id: d.id, ...(d.data() as any) }));
-        setPublicGuides(pList);
+        try {
+          const publicQ = query(
+            collection(db, "mediaAssets"),
+            where("category", "==", "client_resource"),
+            where("audience", "==", "public"),
+            orderBy("uploadedAt", "desc")
+          );
+          const pSnap = await getDocs(publicQ);
+          const pList: Asset[] = [];
+          pSnap.forEach((d) => pList.push({ id: d.id, ...(d.data() as any) }));
+          setPublicGuides(pList);
+        } catch (error) {
+          console.warn("Failed to load public guides:", error);
+          setPublicGuides([]);
+        }
+      } catch (error) {
+        console.error("Failed to load resources:", error);
+        show({
+          type: "error",
+          message: "Failed to load resources. Please try again later.",
+        });
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, []);
+  }, [user, show]);
 
   async function acknowledgeAsset(a: Asset) {
+    if (!user) {
+      show({
+        type: "error",
+        message: "You must be logged in to acknowledge resources.",
+      });
+      return;
+    }
+
     try {
       const db = getFirestore();
       await addDoc(collection(db, "trainingCompletions"), {
         moduleId: null,
         userId: null,
-        clientUserId: user?.uid || null,
+        clientUserId: user.uid,
         acknowledged: true,
         assetId: a.id,
         completedAt: serverTimestamp(),
       });
-      show({ type: "success", message: "Acknowledged" });
+      show({ type: "success", message: "Resource acknowledged successfully" });
     } catch (e: any) {
-      show({ type: "error", message: e?.message || "Failed" });
+      console.error("Failed to acknowledge asset:", e);
+      if (e.code === "permission-denied") {
+        show({
+          type: "error",
+          message: "You don't have permission to acknowledge this resource.",
+        });
+      } else {
+        show({
+          type: "error",
+          message:
+            e?.message || "Failed to acknowledge resource. Please try again.",
+        });
+      }
     }
   }
 
@@ -139,6 +178,3 @@ export default function ClientResources() {
     </div>
   );
 }
-
-
-

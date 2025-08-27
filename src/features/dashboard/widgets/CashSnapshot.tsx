@@ -27,7 +27,7 @@ export default function CashSnapshot() {
         const start = subDays(end, 90);
 
         // Inflows: invoices status paid in last 90d
-        let inflows: Record<string, number> = {};
+        const inflows: Record<string, number> = {};
         try {
           const paidQ = query(
             collection(db, "invoices"),
@@ -49,7 +49,7 @@ export default function CashSnapshot() {
         }
 
         // Outflows: payrollRuns totals in last 90d (using periodEnd)
-        let outflows: Record<string, number> = {};
+        const outflows: Record<string, number> = {};
         try {
           const prQ = query(
             collection(db, "payrollRuns"),

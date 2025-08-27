@@ -67,7 +67,7 @@ function NewLocationModal({ onClose }: { onClose: () => void }) {
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
         // Prefer ordered active clients
-        let list: Option[] = [];
+        const list: Option[] = [];
         try {
           const snap = await getDocs(
             query(

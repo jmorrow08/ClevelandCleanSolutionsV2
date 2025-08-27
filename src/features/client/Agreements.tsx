@@ -24,7 +24,31 @@ type Agreement = {
   serviceAgreementUrl?: string;
   specialInstructions?: string;
   isActive?: boolean;
+  agreementName?: string;
+  locationId?: string;
+  locationName?: string;
 };
+
+// Generate a meaningful agreement name if none exists
+function generateAgreementName(agreement: Agreement): string {
+  if (agreement.agreementName) {
+    return agreement.agreementName;
+  }
+
+  const frequencyMap: Record<string, string> = {
+    weekly: "Weekly",
+    "bi-weekly": "Bi-Weekly",
+    monthly: "Monthly",
+    "one-time": "One-Time",
+  };
+
+  const frequency =
+    frequencyMap[agreement.frequency || ""] || agreement.frequency || "Regular";
+  const serviceType = agreement.serviceType || "Cleaning";
+  const locationName = agreement.locationName || "Service";
+
+  return `${frequency} ${serviceType} - ${locationName}`;
+}
 
 export default function Agreements() {
   const { profileId } = useAuth();
@@ -47,8 +71,87 @@ export default function Agreements() {
         );
         const snap = await getDocs(q);
         const list: Agreement[] = [];
+
+        // First, collect all agreements
         snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
-        setAgreements(list);
+
+        // Filter out expired contracts
+        const today = new Date();
+        const activeAgreements = list.filter((agreement) => {
+          if (!agreement.contractEndDate) {
+            // If no end date, consider it active
+            return true;
+          }
+
+          try {
+            const endDate = agreement.contractEndDate.toDate
+              ? agreement.contractEndDate.toDate()
+              : new Date(agreement.contractEndDate);
+
+            // Keep only contracts that haven't expired (end date is in the future or today)
+            return endDate >= today;
+          } catch (error) {
+            console.warn(
+              "Error parsing contract end date for agreement:",
+              agreement.id,
+              error
+            );
+            // If we can't parse the date, keep it to be safe
+            return true;
+          }
+        });
+
+        console.log(
+          `Filtered out ${
+            list.length - activeAgreements.length
+          } expired agreements`
+        );
+
+        // Use agreements directly since we don't need to display location names
+        const agreementsWithLocationNames = activeAgreements;
+
+        // Custom sorting logic to prioritize specific agreements
+        const sortedAgreements = agreementsWithLocationNames.sort((a, b) => {
+          // Helper function to get agreement display name
+          const getAgreementDisplayName = (agreement: Agreement) => {
+            if (agreement.agreementName) {
+              return agreement.agreementName.toLowerCase();
+            }
+
+            // Generate name from location and service type
+            const locationName = agreement.locationName || "";
+            const serviceType = agreement.serviceType || "Cleaning";
+            return `${locationName} ${serviceType}`.toLowerCase();
+          };
+
+          const aName = getAgreementDisplayName(a);
+          const bName = getAgreementDisplayName(b);
+
+          // Priority order: "CPP - Main" first, then "CPP - Extra Office & Warehouse Space"
+          if (aName.includes("cpp") && aName.includes("main")) return -1;
+          if (bName.includes("cpp") && bName.includes("main")) return 1;
+          if (aName.includes("cpp") && aName.includes("extra")) return -1;
+          if (bName.includes("cpp") && bName.includes("extra")) return 1;
+
+          // For other agreements, sort by contract start date (oldest first)
+          const safeToMillis = (value: any) => {
+            if (!value) return 0;
+            try {
+              if (value.toDate) return value.toDate().getTime();
+              if (value.seconds) return value.seconds * 1000; // Firestore Timestamp-like
+              const d = new Date(value);
+              return isNaN(d.getTime()) ? 0 : d.getTime();
+            } catch (_) {
+              return 0;
+            }
+          };
+
+          const aMillis = safeToMillis(a.contractStartDate);
+          const bMillis = safeToMillis(b.contractStartDate);
+          return aMillis - bMillis;
+        });
+
+        setAgreements(sortedAgreements);
       } finally {
         setLoading(false);
       }
@@ -75,7 +178,7 @@ export default function Agreements() {
 }
 
 function AgreementCard({ agreement }: { agreement: Agreement }) {
-  const title = agreement.serviceType || "Service Agreement";
+  const title = generateAgreementName(agreement);
   const start = agreement.contractStartDate?.toDate
     ? (agreement.contractStartDate.toDate() as Date)
     : undefined;

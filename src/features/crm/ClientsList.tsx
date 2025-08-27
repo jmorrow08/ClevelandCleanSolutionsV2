@@ -30,7 +30,7 @@ export default function ClientsList() {
       try {
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
-        let qref = query(
+        const qref = query(
           collection(db, "clientMasterList"),
           orderBy("companyName")
         );

@@ -114,7 +114,6 @@ function EmployeeSidebar() {
   const items: NavItem[] = [
     { label: "Home", to: "/employee" },
     { label: "My Jobs", to: "/employee/jobs" },
-    { label: "Time Clock", to: "/employee/clock" },
     { label: "Upload Photos", to: "/employee/photos" },
     { label: "My Photos", to: "/employee/uploads" },
     { label: "Job Notes", to: "/employee/notes" },

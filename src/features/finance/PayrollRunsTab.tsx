@@ -10,7 +10,13 @@ import {
   addDoc,
   serverTimestamp,
   Timestamp,
+  where,
 } from "firebase/firestore";
+import {
+  getFunctions,
+  httpsCallable,
+  connectFunctionsEmulator,
+} from "firebase/functions";
 import { firebaseConfig } from "../../services/firebase";
 import { useToast } from "../../context/ToastContext";
 import { RoleGuard } from "../../context/RoleGuard";
@@ -26,13 +32,51 @@ type Run = {
   totalEarnings?: number;
 };
 
+type ScanPreview = {
+  periodId: string;
+  jobsCount: number;
+  assignmentsCount: number;
+  employees: Array<{
+    employeeId: string;
+    jobs: number;
+    totalAmount: number;
+    employeeName?: string;
+  }>;
+  missingRates: Array<{
+    serviceHistoryId: string;
+    employeeId: string;
+    locationId?: string | null;
+  }>;
+  previewTotals?: { totalAmount?: number };
+};
+
+type DrawerRow = {
+  id: string;
+  employeeId: string;
+  jobId?: string | null;
+  amount?: number;
+  units?: number;
+  unitRate?: number;
+  start?: any;
+  serviceDate?: any;
+  source?: string;
+};
+
 export default function PayrollRunsTab() {
   const { claims } = useAuth();
   const { settings } = useSettings();
   const [loading, setLoading] = useState(true);
   const [runs, setRuns] = useState<Run[]>([]);
   const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [periodStartInput, setPeriodStartInput] = useState<string>("");
+  const [periodEndInput, setPeriodEndInput] = useState<string>("");
+  const [scan, setScan] = useState<ScanPreview | null>(null);
+  const [drawerRun, setDrawerRun] = useState<Run | null>(null);
+  const [drawerRows, setDrawerRows] = useState<DrawerRow[]>([]);
+  const [drawerLoading, setDrawerLoading] = useState(false);
   const { show } = useToast();
+
   useEffect(() => {
     const canRead = !!(claims?.admin || claims?.owner || claims?.super_admin);
     if (!canRead) {
@@ -44,14 +88,27 @@ export default function PayrollRunsTab() {
       try {
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
-        const q = query(
+        const qy = query(
           collection(db, "payrollRuns"),
           orderBy("periodEnd", "desc")
         );
-        const snap = await getDocs(q);
+        const snap = await getDocs(qy);
         const list: Run[] = [];
         snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
         setRuns(list);
+        // Default period to current cycle
+        const cycle = (settings?.payrollCycle as any) || {};
+        const period = computeLastCompletedPeriod(new Date(), cycle);
+        const end = period ? period.end : new Date();
+        const start = period
+          ? period.start
+          : new Date(end.getTime() - 14 * 86400000);
+        const toLocalDate = (d: Date) =>
+          new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+            .toISOString()
+            .slice(0, 10);
+        setPeriodStartInput(toLocalDate(start));
+        setPeriodEndInput(toLocalDate(end));
       } catch (e: any) {
         console.error("payrollRuns load error", e);
         setRuns([]);
@@ -62,68 +119,222 @@ export default function PayrollRunsTab() {
     }
     load();
   }, [claims]);
+
+  function toDateFromInput(s: string): Date | null {
+    if (!s) return null;
+    const d = new Date(s + "T00:00:00");
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+
+  function configureFunctionsForEmulator(fns: ReturnType<typeof getFunctions>) {
+    try {
+      // Only connect in dev when explicitly enabled
+      if (
+        import.meta.env.DEV &&
+        (import.meta.env as any).VITE_USE_FIREBASE_EMULATOR === "true"
+      ) {
+        connectFunctionsEmulator(fns, "127.0.0.1", 5001);
+      }
+    } catch {}
+  }
+
+  async function doScan() {
+    try {
+      setBusy(true);
+      if (!getApps().length) initializeApp(firebaseConfig);
+      const fns = getFunctions();
+      configureFunctionsForEmulator(fns);
+      const callable = httpsCallable(fns, "payrollScan");
+      const start = toDateFromInput(periodStartInput);
+      const end = toDateFromInput(periodEndInput);
+      if (!start || !end) throw new Error("Select a valid start/end date.");
+      const res: any = await callable({
+        periodStart: start.getTime(),
+        periodEnd: end.getTime(),
+      });
+      setScan(res.data as ScanPreview);
+      const mr = (res.data?.missingRates || []) as any[];
+      if (mr.length)
+        show({
+          type: "warning",
+          message: `${mr.length} assignments are missing rates.`,
+        });
+      else
+        show({ type: "success", message: "Scan complete. No missing rates." });
+    } catch (e: any) {
+      show({ type: "error", message: e?.message || "Scan failed" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doGenerate() {
+    try {
+      setBusy(true);
+      if (!getApps().length) initializeApp(firebaseConfig);
+      const fns = getFunctions();
+      configureFunctionsForEmulator(fns);
+      const callable = httpsCallable(fns, "payrollGenerate");
+      const start = toDateFromInput(periodStartInput);
+      const end = toDateFromInput(periodEndInput);
+      if (!start || !end) throw new Error("Select a valid start/end date.");
+      const gen: any = await callable({
+        periodStart: start.getTime(),
+        periodEnd: end.getTime(),
+        periodId: scan?.periodId,
+      });
+      show({
+        type: "success",
+        message: `Generated ${gen.data?.created || 0} drafts.`,
+      });
+      // Refresh runs list
+      const db = getFirestore();
+      const qy = query(
+        collection(db, "payrollRuns"),
+        orderBy("periodEnd", "desc")
+      );
+      const snap = await getDocs(qy);
+      const fresh: Run[] = [];
+      snap.forEach((d) => fresh.push({ id: d.id, ...(d.data() as any) }));
+      setRuns(fresh);
+    } catch (e: any) {
+      show({ type: "error", message: e?.message || "Generate failed" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openDrawer(run: Run) {
+    try {
+      setDrawerRun(run);
+      setDrawerLoading(true);
+      if (!getApps().length) initializeApp(firebaseConfig);
+      const db = getFirestore();
+      const qy = query(
+        collection(db, "timesheets"),
+        where("approvedInRunId", "==", run.id)
+      );
+      const snap = await getDocs(qy);
+      const list: DrawerRow[] = [];
+      snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
+      setDrawerRows(list);
+    } catch (_) {
+      setDrawerRows([]);
+    } finally {
+      setDrawerLoading(false);
+    }
+  }
+
+  function closeDrawer() {
+    setDrawerRun(null);
+    setDrawerRows([]);
+    setDrawerLoading(false);
+  }
+
+  function fmt(ts: any): string {
+    try {
+      const d = ts?.toDate ? ts.toDate() : ts instanceof Date ? ts : null;
+      if (!d) return "—";
+      return d.toLocaleString();
+    } catch {
+      return "—";
+    }
+  }
+
   return (
     <div className="space-y-3">
       <RoleGuard allow={["admin", "owner", "super_admin"]}>
-        <button
-          className={`px-3 py-1.5 rounded-md text-white ${
-            creating ? "bg-zinc-400" : "bg-blue-600 hover:bg-blue-700"
-          }`}
-          disabled={creating}
-          onClick={async () => {
-            try {
-              setCreating(true);
-              // Compute last completed period from org settings
-              const cycle = (settings?.payrollCycle as any) || {};
-              const period = computeLastCompletedPeriod(new Date(), cycle);
-              // Fallback to previous biweekly Monday-aligned window if settings are not available
-              const end = period
-                ? period.end
-                : (() => {
-                    const x = new Date();
-                    x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
-                    return x;
-                  })();
-              const start = period
-                ? period.start
-                : (() => {
-                    const x = new Date(end);
-                    x.setDate(x.getDate() - 14);
-                    return x;
-                  })();
-              const db = getFirestore();
-              const optimistic: Run = {
-                id: `tmp-${Math.random().toString(36).slice(2)}`,
-                status: "draft",
-                periodStart: start,
-                periodEnd: end,
-              } as any;
-              setRuns((prev) => [optimistic, ...prev]);
-              const ref = await addDoc(collection(db, "payrollRuns"), {
-                periodStart: Timestamp.fromDate(start),
-                periodEnd: Timestamp.fromDate(end),
-                status: "draft",
-                createdAt: serverTimestamp(),
-              });
-              setRuns((prev) => [
-                { ...optimistic, id: ref.id },
-                ...prev.filter((r) => r.id !== optimistic.id),
-              ]);
-              show({ type: "success", message: "Draft payroll run created." });
-            } catch (e: any) {
-              setRuns((prev) => prev.filter((r) => !r.id.startsWith("tmp-")));
-              show({
-                type: "error",
-                message: e?.message || "Failed to create draft",
-              });
-            } finally {
-              setCreating(false);
-            }
-          }}
-        >
-          {creating ? "Creating…" : "Create Draft (last pay period)"}
-        </button>
+        <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1">
+          <div className="text-sm font-medium mb-2">Payroll Prep</div>
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
+            <label className="block md:col-span-2">
+              <div className="text-xs text-zinc-500">Period Start</div>
+              <input
+                type="date"
+                className="mt-1 w-full px-2 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                value={periodStartInput}
+                onChange={(e) => setPeriodStartInput(e.target.value)}
+              />
+            </label>
+            <label className="block md:col-span-2">
+              <div className="text-xs text-zinc-500">Period End</div>
+              <input
+                type="date"
+                className="mt-1 w-full px-2 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                value={periodEndInput}
+                onChange={(e) => setPeriodEndInput(e.target.value)}
+              />
+            </label>
+            <div className="md:col-span-2 flex gap-2">
+              <button
+                className={`px-3 py-1.5 rounded-md text-white ${
+                  busy ? "bg-zinc-400" : "bg-indigo-600 hover:bg-indigo-700"
+                }`}
+                onClick={doScan}
+                disabled={busy}
+              >
+                {busy ? "Working…" : "Scan Jobs"}
+              </button>
+              <button
+                className={`px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900 ${
+                  busy ? "opacity-60" : ""
+                }`}
+                onClick={doGenerate}
+                disabled={busy || !scan}
+              >
+                Generate Timesheets (Draft)
+              </button>
+            </div>
+          </div>
+
+          {scan && (
+            <div className="mt-3 text-sm">
+              <div className="text-xs text-zinc-500">Preview</div>
+              <div className="mt-1">
+                Jobs: {scan.jobsCount} · Assignments: {scan.assignmentsCount}
+              </div>
+              <div className="mt-1">
+                Total $:{" "}
+                {Number(scan.previewTotals?.totalAmount || 0).toFixed(2)}
+              </div>
+              {scan.missingRates?.length ? (
+                <div className="mt-1 text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 text-xs">
+                  {scan.missingRates.length} missing rates detected. Generation
+                  will skip those.
+                </div>
+              ) : null}
+              <div className="overflow-x-auto mt-2">
+                <table className="min-w-full text-sm">
+                  <thead className="text-left text-zinc-500">
+                    <tr>
+                      <th className="px-2 py-1">Employee</th>
+                      <th className="px-2 py-1"># Jobs</th>
+                      <th className="px-2 py-1">Total $</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scan.employees.map((e) => (
+                      <tr
+                        key={e.employeeId}
+                        className="border-t border-zinc-100 dark:border-zinc-700"
+                      >
+                        <td className="px-2 py-1">
+                          {e.employeeName || e.employeeId}
+                        </td>
+                        <td className="px-2 py-1">{e.jobs}</td>
+                        <td className="px-2 py-1">
+                          {Number(e.totalAmount || 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       </RoleGuard>
+
       {!(claims?.admin || claims?.owner || claims?.super_admin) ? (
         <div className="text-sm text-zinc-500">You do not have access.</div>
       ) : loading ? (
@@ -135,15 +346,86 @@ export default function PayrollRunsTab() {
           {runs.slice(0, 20).map((r) => (
             <li
               key={r.id}
-              className="py-2 border-b border-zinc-100 dark:border-zinc-700"
+              className="py-2 border-b border-zinc-100 dark:border-zinc-700 flex items-center justify-between"
             >
-              <Link to={`/finance/payroll/${r.id}`} className="underline">
-                Run {r.id}
-              </Link>{" "}
-              — {String(r.status || "").toUpperCase()}
+              <div>
+                <Link to={`/finance/payroll/${r.id}`} className="underline">
+                  Run {r.id}
+                </Link>{" "}
+                — {String(r.status || "").toUpperCase()}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className="px-2 py-1 rounded-md border bg-white dark:bg-zinc-900"
+                  onClick={() => openDrawer(r)}
+                >
+                  View Timesheets
+                </button>
+              </div>
             </li>
           ))}
         </ul>
+      )}
+
+      {drawerRun && (
+        <div className="fixed inset-0 z-[100]">
+          <div className="absolute inset-0 bg-black/40" onClick={closeDrawer} />
+          <div className="absolute right-0 top-0 h-full w-[640px] max-w-[96vw] bg-white dark:bg-zinc-800 shadow-elev-3 p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-lg font-medium">
+                Timesheets — {drawerRun.id}
+              </div>
+              <button className="text-sm underline" onClick={closeDrawer}>
+                Close
+              </button>
+            </div>
+            {drawerLoading ? (
+              <div className="text-sm text-zinc-500 mt-3">Loading…</div>
+            ) : drawerRows.length === 0 ? (
+              <div className="text-sm text-zinc-500 mt-3">No entries.</div>
+            ) : (
+              <div className="overflow-x-auto mt-3">
+                <table className="min-w-full text-sm">
+                  <thead className="text-left text-zinc-500">
+                    <tr>
+                      <th className="px-2 py-1">Employee</th>
+                      <th className="px-2 py-1">Job</th>
+                      <th className="px-2 py-1">Start</th>
+                      <th className="px-2 py-1">Units</th>
+                      <th className="px-2 py-1">Rate</th>
+                      <th className="px-2 py-1">Amount</th>
+                      <th className="px-2 py-1">Source</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {drawerRows.map((t) => (
+                      <tr
+                        key={t.id}
+                        className="border-t border-zinc-100 dark:border-zinc-700"
+                      >
+                        <td className="px-2 py-1">{t.employeeId}</td>
+                        <td className="px-2 py-1">{t.jobId || "—"}</td>
+                        <td className="px-2 py-1">
+                          {fmt(t.start || t.serviceDate)}
+                        </td>
+                        <td className="px-2 py-1">
+                          {Number(t.units || 0).toFixed(0)}
+                        </td>
+                        <td className="px-2 py-1">
+                          {Number(t.unitRate || 0).toFixed(2)}
+                        </td>
+                        <td className="px-2 py-1">
+                          {Number(t.amount || 0).toFixed(2)}
+                        </td>
+                        <td className="px-2 py-1">{t.source || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

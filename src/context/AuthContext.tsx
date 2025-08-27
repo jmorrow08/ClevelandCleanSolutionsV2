@@ -18,6 +18,9 @@ import {
   connectFirestoreEmulator,
   doc,
   getDoc,
+  setDoc,
+  updateDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import type { User } from "firebase/auth";
 import { firebaseConfig } from "../services/firebase";
@@ -89,6 +92,103 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     return () => unsub();
   }, []);
+
+  // Presence heartbeat: mark current user online and update lastActive periodically
+  useEffect(() => {
+    if (!user) return;
+    const db = getFirestore();
+    const uid = user.uid;
+    let intervalId: any;
+    let isOnline = true;
+
+    async function writeOnline() {
+      if (!isOnline) return; // Don't write if we're offline
+
+      try {
+        await setDoc(
+          doc(db, "presence", uid),
+          {
+            uid,
+            displayName:
+              user.displayName || (user as any)?.name || user.email || "User",
+            online: true,
+            lastActive: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (error) {
+        console.warn("Failed to update presence:", error);
+        // Don't retry immediately on error
+        return;
+      }
+
+      // Best-effort mirror under users/{uid}.presence for legacy readers
+      try {
+        await setDoc(
+          doc(db, "users", uid),
+          { presence: { online: true, lastActive: serverTimestamp() } },
+          { merge: true }
+        );
+      } catch (error) {
+        console.warn("Failed to update user presence:", error);
+      }
+    }
+
+    // Initial write and heartbeat every 60s (increased from 30s to reduce frequency)
+    writeOnline();
+    intervalId = setInterval(writeOnline, 60000);
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        isOnline = true;
+        writeOnline();
+      } else {
+        isOnline = false;
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    // Handle online/offline events
+    const handleOnline = () => {
+      isOnline = true;
+      writeOnline();
+    };
+    const handleOffline = () => {
+      isOnline = false;
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+
+      // Mark offline on sign-out
+      (async () => {
+        try {
+          await setDoc(
+            doc(db, "presence", uid),
+            { online: false, lastActive: serverTimestamp() },
+            { merge: true }
+          );
+        } catch (error) {
+          console.warn("Failed to mark offline in presence:", error);
+        }
+        try {
+          await setDoc(
+            doc(db, "users", uid),
+            { presence: { online: false, lastActive: serverTimestamp() } },
+            { merge: true }
+          );
+        } catch (error) {
+          console.warn("Failed to mark offline in users:", error);
+        }
+      })();
+    };
+  }, [user?.uid]);
 
   const value = useMemo(
     () => ({ user, loading, claims, profileId }),

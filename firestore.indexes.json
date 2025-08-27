@@ -1,28 +1,6 @@
 {
   "indexes": [
     {
-      "collectionGroup": "auditLogs",
-      "queryScope": "COLLECTION",
-      "fields": [{ "fieldPath": "at", "order": "DESCENDING" }]
-    },
-    {
-      "collectionGroup": "auditLogs",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "actorUid", "order": "ASCENDING" },
-        { "fieldPath": "at", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "auditLogs",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "targetRef.collection", "order": "ASCENDING" },
-        { "fieldPath": "targetRef.id", "order": "ASCENDING" },
-        { "fieldPath": "at", "order": "DESCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "serviceAgreements",
       "queryScope": "COLLECTION",
       "fields": [
@@ -57,11 +35,35 @@
       ]
     },
     {
+      "collectionGroup": "serviceHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientProfileId", "order": "ASCENDING" },
+        { "fieldPath": "serviceDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "serviceHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientProfileId", "order": "ASCENDING" },
+        { "fieldPath": "serviceDate", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "invoices",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "payeeEmail", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "invoices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "payeeEmail", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
       ]
     },
     {
@@ -128,26 +130,6 @@
         { "fieldPath": "assignedEmployees", "arrayConfig": "CONTAINS" },
         { "fieldPath": "serviceDate", "order": "DESCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "analyticsDaily",
-      "queryScope": "COLLECTION",
-      "fields": [{ "fieldPath": "dateKey", "order": "ASCENDING" }]
-    },
-    {
-      "collectionGroup": "analyticsDaily",
-      "queryScope": "COLLECTION",
-      "fields": [{ "fieldPath": "dateKey", "order": "DESCENDING" }]
-    },
-    {
-      "collectionGroup": "analyticsMonthly",
-      "queryScope": "COLLECTION",
-      "fields": [{ "fieldPath": "monthKey", "order": "ASCENDING" }]
-    },
-    {
-      "collectionGroup": "analyticsMonthly",
-      "queryScope": "COLLECTION",
-      "fields": [{ "fieldPath": "monthKey", "order": "DESCENDING" }]
     }
   ],
   "fieldOverrides": []

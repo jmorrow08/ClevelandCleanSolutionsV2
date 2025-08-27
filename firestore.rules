@@ -1,0 +1,733 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Helper Functions ---
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+    
+    function hasClaim(role) {
+      return request.auth != null && request.auth.token != null && request.auth.token[role] == true;
+    }
+    
+    function isOwner() {
+      return hasClaim('owner');
+    }
+    
+    function getUserData(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId)) ?
+             get(/databases/$(database)/documents/users/$(userId)).data : null;
+    }
+    
+    function hasRoleInFirestore(userId, role) {
+      let userData = getUserData(userId);
+      return userData != null && userData.role == role;
+    }
+    
+    function isProfileOwner(profileDocId) {
+      return isLoggedIn() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             getUserData(request.auth.uid).profileId == profileDocId;
+    }
+    
+    // Short-lived scheduling session started by callable function
+    function isScheduleSessionActive() {
+      return isLoggedIn() &&
+             exists(/databases/$(database)/documents/scheduleSessions/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/scheduleSessions/$(request.auth.uid)).data.expiresAt > request.time;
+    }
+
+    // --- V2 Helper shims ---
+    function isSuperAdmin() { return hasClaim('super_admin'); }
+    function isAdmin() { return hasClaim('admin'); }
+    function isMarketing() { return hasClaim('marketing'); }
+    function isEmployeeV2() {
+      return hasClaim('employee') || (request.auth != null && hasRoleInFirestore(request.auth.uid, 'employee'));
+    }
+
+    function currentProfileId() {
+      return request.auth != null && getUserData(request.auth.uid) != null ? getUserData(request.auth.uid).profileId : null;
+    }
+
+    // --- appSettings Collection Rules ---
+    // Stores public-facing company settings used by PDFs and portals
+    match /appSettings/{docId} {
+      // Anyone can read company settings (non-sensitive info: name/email/phone/logo)
+      allow read: if true;
+      // Only admins, super_admins, or owner can modify
+      allow write: if hasClaim('admin') || hasClaim('super_admin') || isOwner();
+    }
+
+    // --- users Collection Rules ---
+    match /users/{userId} {
+      // Allow users to read their own document without requiring custom claims (for login flow)
+      // OR admin/owner to read any document
+      allow read: if isLoggedIn() && (request.auth.uid == userId || hasClaim('admin') || isOwner());
+      // Allow users to create their own document if it doesn't exist (for self-registration)
+      allow create: if isLoggedIn() && request.auth.uid == userId && !resource.exists;
+      allow update: if hasClaim('admin') || hasClaim('super_admin') || isOwner(); // Only admins/owners can update user docs directly
+      allow delete: if false; // Deletion handled by Cloud Function
+    }
+
+    // --- clientMasterList Rules ---
+    match /clientMasterList/{clientDocId} {
+      function clientCanUpdateProfileFields() {
+        let allowedKeys = ['contactName', 'phone', 'updatedAt'];
+        return request.resource.data.contactName is string && request.resource.data.contactName.size() > 0 &&
+               request.resource.data.phone is string &&
+               request.resource.data.updatedAt is timestamp &&
+               request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys);
+      }
+
+      function isClientEmailMatch() {
+        return isLoggedIn() && request.auth.token.email == resource.data.email;
+      }
+
+      // Allow reading for clients by email match or profile ownership
+      allow read: if hasClaim('admin') || isOwner() || 
+                     (hasClaim('client') && isProfileOwner(clientDocId)) || 
+                     isProfileOwner(clientDocId) ||
+                     isClientEmailMatch();
+      allow create: if hasClaim('admin') || isOwner();
+      allow update: if hasClaim('admin') || isOwner() ||
+                       (hasClaim('client') && isProfileOwner(clientDocId) && clientCanUpdateProfileFields()) ||
+                       (isClientEmailMatch() && clientCanUpdateProfileFields());
+      allow delete: if hasClaim('admin') || isOwner();
+    }
+
+    // --- employeeMasterList Rules ---
+    match /employeeMasterList/{employeeDocId} {
+      function employeeCanUpdateProfileFields() {
+        let allowedKeys = ['phone', 'firstName', 'lastName', 'updatedAt'];
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys) &&
+               request.resource.data.updatedAt is timestamp;
+      }
+
+      function isEmployeeEmailMatch() {
+        return isLoggedIn() && request.auth.token.email == resource.data.email;
+      }
+
+      // Allow reading for admins, super_admin, owners, or the employee themselves
+      allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner() || 
+                     (hasClaim('employee') && isProfileOwner(employeeDocId)) ||
+                     (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee') && isProfileOwner(employeeDocId)) ||
+                     isEmployeeEmailMatch();
+      allow create: if hasClaim('admin') || hasClaim('super_admin') || isOwner();
+      allow update: if hasClaim('admin') || hasClaim('super_admin') || isOwner() ||
+                       (hasClaim('employee') && isProfileOwner(employeeDocId) && employeeCanUpdateProfileFields()) ||
+                       (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee') && isProfileOwner(employeeDocId) && employeeCanUpdateProfileFields());
+      allow delete: if hasClaim('admin') || hasClaim('super_admin') || isOwner();
+    }
+
+    // --- locations Collection Rules ---
+    match /locations/{locationDocId} {
+      function isLocationClient() {
+        return isLoggedIn() && 
+               exists(/databases/$(database)/documents/clientMasterList/$(resource.data.clientProfileId)) &&
+               get(/databases/$(database)/documents/clientMasterList/$(resource.data.clientProfileId)).data.email == request.auth.token.email;
+      }
+
+      // Allow employees to read location documents so the employee portal can show selectable locations
+      // Accept either the employee custom claim OR role stored in /users
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('employee') ||
+                    (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee')) ||
+                    isLocationClient();
+      allow create, update, delete: if hasClaim('admin') || isOwner();
+    }
+
+    // --- servicePhotos Collection Rules ---
+    match /servicePhotos/{photoId} {
+      function isValidPhotoData(photoData) {
+        let userDocData = getUserData(request.auth.uid);
+        return isLoggedIn() && 
+               userDocData != null &&
+               (hasClaim('employee') || hasRoleInFirestore(request.auth.uid, 'employee')) &&
+               photoData.employeeProfileId == userDocData.profileId &&
+               photoData.locationId is string && photoData.locationId != '' &&
+               photoData.photoUrl is string && (
+               photoData.photoUrl.matches('https://firebasestorage.googleapis.com/.*') ||
+               photoData.photoUrl.matches('http://localhost:[0-9]+/v0/b/.*')
+               ) &&
+               (photoData.uploadedAt is timestamp || photoData.uploadedAt == request.time);
+      }
+
+      function employeeCanUpdatePhotoNotes() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['notes', 'updatedAt']) &&
+               request.resource.data.notes is string &&
+               request.resource.data.updatedAt is timestamp;
+      }
+
+      function isPhotoOwner() {
+        let userDocData = getUserData(request.auth.uid);
+        return userDocData != null && resource.data.employeeProfileId == userDocData.profileId;
+      }
+
+      allow create: if isValidPhotoData(request.resource.data);
+      function isPhotoClientByEmail() {
+        return isLoggedIn() && 
+               exists(/databases/$(database)/documents/locations/$(resource.data.locationId)) &&
+               exists(/databases/$(database)/documents/clientMasterList/$(get(/databases/$(database)/documents/locations/$(resource.data.locationId)).data.clientProfileId)) &&
+               get(/databases/$(database)/documents/clientMasterList/$(get(/databases/$(database)/documents/locations/$(resource.data.locationId)).data.clientProfileId)).data.email == request.auth.token.email;
+      }
+
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') ||
+                     (resource.data.flagged == true && hasClaim('admin')) ||
+                     (hasClaim('employee')) ||
+                     (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee')) ||
+                     isPhotoClientByEmail();
+      function clientCanFlagPhoto() {
+        return isLoggedIn() && 
+               request.resource.data.diff(resource.data).affectedKeys().hasOnly(['flagged', 'flaggedAt', 'flaggedByEmail']) &&
+               request.resource.data.flagged == true &&
+               request.resource.data.flaggedAt is timestamp &&
+               request.resource.data.flaggedByEmail is string &&
+               isPhotoClientByEmail();
+      }
+
+      allow update: if hasClaim('admin') || isOwner() || hasClaim('super_admin') ||
+                       (hasClaim('employee') && isPhotoOwner() && employeeCanUpdatePhotoNotes()) ||
+                       (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee') && isPhotoOwner() && employeeCanUpdatePhotoNotes()) ||
+                       clientCanFlagPhoto();
+      allow delete: if hasClaim('admin') || isOwner() ||
+                       (hasClaim('employee') && isPhotoOwner()) ||
+                       (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee') && isPhotoOwner());
+    }
+
+    // --- photoFlags Collection Rules ---
+    match /photoFlags/{docId} {
+      function isValidFlagData(flagData) {
+        return isLoggedIn() && 
+               flagData.photoId is string && flagData.photoId != '' &&
+               flagData.photoUrl is string && flagData.photoUrl != '' &&
+               flagData.flaggedByEmail is string && flagData.flaggedByEmail != '' &&
+               flagData.timestamp is timestamp &&
+               flagData.clientEmail is string && flagData.clientEmail != '';
+      }
+
+      allow read: if hasClaim('admin') || isOwner();
+      allow create: if hasClaim('admin') || isOwner() || isValidFlagData(request.resource.data);
+      allow update, delete: if hasClaim('admin') || isOwner(); // Only admins/owners can modify/delete
+    }
+
+    // --- employeeTimeTracking Rules ---
+    match /employeeTimeTracking/{entryDocId} {
+      // Helper to check if the logged-in user's profileId from /users collection
+      // matches the employeeProfileId stored in the time tracking document.
+      function isTimeEntryOwner() {
+        let userDocData = getUserData(request.auth.uid); // Use existing helper
+        return userDocData != null && resource.data.employeeProfileId == userDocData.profileId;
+      }
+
+      // Helper to check if the data being created is valid AND
+      // if the employeeProfileId being written matches the creator's own profileId.
+      function isValidTimeEntryDataForCreate(entryData) {
+        let userDocData = getUserData(request.auth.uid);
+        return isLoggedIn() &&
+               hasRoleInFirestore(request.auth.uid, 'employee') && // User's role in /users is 'employee'
+               userDocData != null &&
+               entryData.employeeProfileId == userDocData.profileId && // Creating for themselves
+               entryData.locationId is string && entryData.locationId != '' &&
+               entryData.status is string && entryData.status == "Clocked In" &&
+               entryData.clockInTime is timestamp &&
+               entryData.clockOutTime == null &&
+               (entryData.clockInCoordinates == null || entryData.clockInCoordinates is latlng) &&
+               entryData.createdAt is timestamp &&
+               entryData.updatedAt is timestamp;
+      }
+
+      // Employees need to update their own entries to clock out
+      function employeeCanClockOut(updatedEntryData) {
+        let userDocData = getUserData(request.auth.uid);
+        // Check that they are only modifying specific fields for clock-out
+        let allowedUpdateKeys = ['clockOutTime', 'status', 'clockOutCoordinates', 'updatedAt'];
+        return isLoggedIn() &&
+               hasRoleInFirestore(request.auth.uid, 'employee') &&
+               userDocData != null &&
+               resource.data.employeeProfileId == userDocData.profileId && // Must own the record
+               updatedEntryData.status == "Clocked Out" &&
+               updatedEntryData.clockOutTime is timestamp &&
+               (updatedEntryData.clockOutCoordinates == null || updatedEntryData.clockOutCoordinates is latlng) &&
+               updatedEntryData.updatedAt is timestamp &&
+               request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedUpdateKeys);
+      }
+
+      allow read: if hasClaim('admin') || isOwner() ||
+                    (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee') && isTimeEntryOwner());
+
+      allow create: if hasClaim('admin') || isOwner() || isValidTimeEntryDataForCreate(request.resource.data);
+
+      // Allow admin to update anything. Allow employee to update ONLY for clocking out.
+      allow update: if hasClaim('admin') || isOwner() || employeeCanClockOut(request.resource.data);
+
+      allow delete: if false; // Or if hasClaim('admin') if needed
+    }
+
+    // --- serviceHistory Rules (SIMPLIFIED UPDATE RULE v2) ---
+    match /serviceHistory/{jobDocId} {
+      function isAssignedEmployee() {
+         // Check if user is an employee AND assigned to this job
+         let userDocData = getUserData(request.auth.uid);
+         return isLoggedIn() &&
+                userDocData != null &&
+                (hasClaim('employee') || hasRoleInFirestore(request.auth.uid, 'employee')) &&
+                (
+                  // Check new assignedEmployees field (array of UIDs)
+                  (resource.data.assignedEmployees is list && 
+                   request.auth.uid in resource.data.assignedEmployees) ||
+                  // Check legacy employeeAssignments field (array of objects)
+                  (resource.data.employeeAssignments is list &&
+                   resource.data.employeeAssignments.hasAny([{'employeeId': userDocData.profileId}]))
+                );
+      }
+
+      function isJobClient() {
+        let userDocData = getUserData(request.auth.uid);
+        return isLoggedIn() &&
+               ((userDocData != null &&
+                 userDocData.profileId == resource.data.clientProfileId &&
+                 ((hasClaim('client')) || (hasRoleInFirestore(request.auth.uid, 'client')))) ||
+                (exists(/databases/$(database)/documents/clientMasterList/$(resource.data.clientProfileId)) &&
+                 get(/databases/$(database)/documents/clientMasterList/$(resource.data.clientProfileId)).data.email == request.auth.token.email));
+      }
+
+      function isValidServiceHistoryData(jobData) {
+        return jobData.clientProfileId is string && jobData.clientProfileId != '' &&
+               jobData.locationId is string && jobData.locationId != '' &&
+               jobData.serviceDate is timestamp &&
+               (jobData.employeeAssignments == null || jobData.employeeAssignments is list) &&
+               jobData.status is string && jobData.status != '' &&
+               jobData.createdAt is timestamp &&
+               jobData.updatedAt is timestamp;
+      }
+
+      // Allow employees to read serviceHistory documents (UI filters client-side to their own jobs).
+      // Accept either the employee custom claim OR role stored in /users, plus specific allowances.
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('employee') ||
+                    (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee')) ||
+                    isJobClient() || isAssignedEmployee();
+      // Creates allowed only from Scheduling UI session (or Admin SDK bypasses rules)
+      allow create: if (hasClaim('admin') || isOwner()) && isScheduleSessionActive() && isValidServiceHistoryData(request.resource.data);
+
+      // Updates:
+      // - General admin/owner/super_admin updates are allowed for non-scheduling fields
+      // - Scheduling-sensitive fields (assignedEmployees, serviceDate, statusV2)
+      //   require an active scheduling session
+      allow update: if hasClaim('admin') || isOwner() || hasClaim('super_admin') &&
+        (
+          // If touching scheduling fields, require active session
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasAny(['assignedEmployees','serviceDate','statusV2'])
+              ? isScheduleSessionActive()
+              : true
+          )
+        );
+      allow delete: if hasClaim('admin') || isOwner();
+    }
+
+    // --- employeeRates Rules ---
+    // Read/write allowed for Owner or Super Admin; delete restricted to Super Admin only
+    match /employeeRates/{rateId} {
+      allow read, write: if isOwner() || hasClaim('super_admin');
+      allow delete: if hasClaim('super_admin');
+    }
+
+    // --- employeePayroll Rules ---
+    match /employeePayroll/{payrollDocId} {
+      // Helper to check if the logged-in user's profileId from /users collection
+      // matches the employeeProfileId stored in the payroll document.
+      function isPayrollOwner() {
+        let userDocData = getUserData(request.auth.uid); // Use existing helper
+        return userDocData != null && resource.data.employeeProfileId == userDocData.profileId;
+      }
+
+      allow read: if hasClaim('admin') || isOwner() ||
+                    (isLoggedIn() &&
+                     hasRoleInFirestore(request.auth.uid, 'employee') &&
+                     isPayrollOwner()); // Employee can read their own payroll doc
+
+      allow update, delete: if hasClaim('admin') || isOwner(); // Only admins/owners can modify/delete
+      allow create: if false; // Only Cloud Function creates
+    }
+
+    // --- payrollPeriods (closed state banner) ---
+    // Cloud Functions write this collection; client needs read-only for admin/owner
+    match /payrollPeriods/{payPeriodId} {
+      allow read: if hasClaim('admin') || isOwner();
+      allow write: if false; // writes are performed via Admin SDK in Cloud Functions
+    }
+
+    // --- generalJobNotes Collection Rules ---
+    match /generalJobNotes/{noteId} {
+      function isValidJobNoteData(noteData) {
+        let userDocData = getUserData(request.auth.uid);
+        return isLoggedIn() && 
+               userDocData != null &&
+               (hasClaim('employee') || hasRoleInFirestore(request.auth.uid, 'employee')) &&
+               noteData.employeeProfileId == userDocData.profileId &&
+               noteData.locationId is string && noteData.locationId != '' &&
+               noteData.notes is string && noteData.notes != '' &&
+               noteData.createdAt is timestamp;
+      }
+
+      function isNoteOwner() {
+        let userDocData = getUserData(request.auth.uid);
+        return userDocData != null && resource.data.employeeProfileId == userDocData.profileId;
+      }
+
+      allow create: if isValidJobNoteData(request.resource.data);
+      allow read: if hasClaim('admin') || isOwner() ||
+                     (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee')) ||
+                     (hasClaim('employee'));
+      allow update: if hasClaim('admin') || isOwner() ||
+                       (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee') && isNoteOwner()) ||
+                       (hasClaim('employee') && isNoteOwner());
+      allow delete: if hasClaim('admin') || isOwner() ||
+                       (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee') && isNoteOwner()) ||
+                       (hasClaim('employee') && isNoteOwner());
+    }
+
+    // --- jobNotes Collection Rules (V2-compatible minimal) ---
+    match /jobNotes/{noteId} {
+      // Read allowed for admins/owner/super_admin/employees. Clients may read their own created notes (email match) when authorRole == 'client'.
+      allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner() || hasClaim('employee') ||
+                     (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee')) ||
+                     (hasClaim('client') && resource.data.authorRole == 'client' &&
+                      resource.data.clientEmail != null && request.auth.token.email == resource.data.clientEmail);
+      // Allow create for admins/owner/employees/clients
+      allow create: if isLoggedIn() && (hasClaim('admin') || hasClaim('super_admin') || isOwner() || hasClaim('employee') ||
+                       hasRoleInFirestore(request.auth.uid, 'employee') || hasClaim('client') || hasRoleInFirestore(request.auth.uid, 'client'));
+      // Updates restricted to admin/owner/super_admin
+      allow update: if hasClaim('admin') || hasClaim('super_admin') || isOwner();
+      // Delete restricted to super_admin
+      allow delete: if hasClaim('super_admin');
+    }
+
+    // --- serviceAgreements Collection Rules ---
+    match /serviceAgreements/{agreementId} {
+      function isAgreementClient() {
+        let userDocData = getUserData(request.auth.uid);
+        return isLoggedIn() &&
+               ((userDocData != null &&
+                 userDocData.profileId == resource.data.clientId &&
+                 ((hasClaim('client')) || (hasRoleInFirestore(request.auth.uid, 'client')))) ||
+                (exists(/databases/$(database)/documents/clientMasterList/$(resource.data.clientId)) &&
+                 get(/databases/$(database)/documents/clientMasterList/$(resource.data.clientId)).data.email == request.auth.token.email));
+      }
+
+      allow read: if hasClaim('admin') || isOwner() || isAgreementClient();
+      allow create, update, delete: if hasClaim('admin') || isOwner();
+    }
+
+    // --- payrollRecords Collection Rules ---
+    match /payrollRecords/{payrollId} {
+      allow read, write, delete: if hasClaim('admin') || isOwner();
+    }
+
+    // --- serviceReviews Collection Rules ---
+    match /serviceReviews/{reviewId} {
+      function isValidReviewData(reviewData) {
+        return isLoggedIn() && 
+               (reviewData.clientId is string && reviewData.clientId != '' ||
+                reviewData.clientProfileId is string && reviewData.clientProfileId != '') &&
+               reviewData.jobId is string && reviewData.jobId != '' &&
+               reviewData.rating is number && reviewData.rating >= 1 && reviewData.rating <= 5 &&
+               reviewData.comment is string &&
+               // Accept server timestamps or concrete timestamp values
+               (reviewData.timestamp is timestamp || reviewData.timestamp == request.time);
+      }
+
+      function isReviewClient() {
+        let clientId = resource.data.clientId != null ? resource.data.clientId : resource.data.clientProfileId;
+        return isLoggedIn() && 
+               exists(/databases/$(database)/documents/clientMasterList/$(clientId)) &&
+               get(/databases/$(database)/documents/clientMasterList/$(clientId)).data.email == request.auth.token.email;
+      }
+
+      function isReviewClientForCreate(reviewData) {
+        let clientId = reviewData.clientId != null ? reviewData.clientId : reviewData.clientProfileId;
+        return isLoggedIn() && 
+               exists(/databases/$(database)/documents/clientMasterList/$(clientId)) &&
+               get(/databases/$(database)/documents/clientMasterList/$(clientId)).data.email == request.auth.token.email;
+      }
+
+      // Allow admins/owners, the review's client, or any authenticated user whose role is 'client'
+      allow read: if hasClaim('admin') || isOwner() || isReviewClient() ||
+                     hasClaim('client') || (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'client'));
+      allow create: if hasClaim('admin') || isOwner() || 
+                       (isValidReviewData(request.resource.data) && isReviewClientForCreate(request.resource.data));
+      allow update, delete: if hasClaim('admin') || isOwner();
+    }
+
+    // --- invoices Collection Rules ---
+    // Admins (incl. owners/super_admins) can fully manage invoices.
+    // Clients can read invoices where their auth email matches payeeEmail.
+    match /invoices/{invoiceId} {
+      // Create/update/delete restricted to admins
+      allow create, update, delete: if hasClaim('admin') || isOwner();
+      // Read allowed for admins, owners, or the client who owns the invoice (email match)
+      allow read: if hasClaim('admin') || isOwner() || 
+                     (isLoggedIn() && request.auth.token.email == resource.data.payeeEmail);
+    }
+
+    // --- invoices lineItems Subcollection Rules (V2 addition, non-breaking) ---
+    // Allow admin/owner/super_admin to manage invoice line items (e.g., supplies added from inventory)
+    match /invoices/{invoiceId}/lineItems/{lineItemId} {
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
+      allow create, update: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
+      allow delete: if hasClaim('super_admin');
+    }
+
+    // --- Stripe Extension Collections (firestore-stripe-payments) ---
+    // Allow authenticated users to create their own checkout sessions
+    // The extension backend will populate url or error back on the same doc
+    match /customers/{uid} {
+      allow read: if isLoggedIn() && request.auth.uid == uid; // read own customer doc if needed
+      allow write: if false; // base doc is managed by the extension
+
+      match /checkout_sessions/{sessionId} {
+        allow create: if isLoggedIn() && request.auth.uid == uid
+                       && request.resource.data.keys().hasOnly(['price','quantity','success_url','cancel_url','allow_promotion_codes','metadata']); // user starts checkout with restricted fields
+        allow read: if isLoggedIn() && request.auth.uid == uid; // read back url / error
+        allow update, delete: if false; // extension updates these documents
+      }
+
+      match /payments/{paymentId} {
+        allow read: if isLoggedIn() && request.auth.uid == uid; // user can read their payments
+        allow write: if false; // extension writes payments
+      }
+    }
+
+    // --- presence Collection Rules (V2 - FIXED) ---
+    // Allow any authenticated user to write their own presence document; everyone authenticated may read
+    match /presence/{uid} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- auditLogs Collection Rules ---
+    // Functions-only writes; read allowed for Admin/Owner/Super Admin
+    match /auditLogs/{logId} {
+      allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner();
+      allow create, update, delete: if false;
+    }
+
+    // --- supportTickets Collection Rules ---
+    match /supportTickets/{ticketId} {
+      function isValidTicketData(ticketData) {
+        return isLoggedIn() && 
+               ticketData.clientId is string && ticketData.clientId != '' &&
+               ticketData.clientName is string && ticketData.clientName != '' &&
+               ticketData.email is string && ticketData.email != '' &&
+               ticketData.subject is string && ticketData.subject != '' &&
+               ticketData.message is string && ticketData.message != '' &&
+               ticketData.status is string && ticketData.status == "open" &&
+               ticketData.createdAt is timestamp &&
+               ticketData.lastUpdated is timestamp;
+      }
+
+      function isTicketClient() {
+        return isLoggedIn() && 
+               resource.data.email == request.auth.token.email;
+      }
+
+      function isTicketClientForCreate(ticketData) {
+        return isLoggedIn() && 
+               ticketData.email == request.auth.token.email;
+      }
+
+      // Allow reading for admins/owners OR if the ticket belongs to the current user
+      allow read: if hasClaim('admin') || isOwner() || isTicketClient();
+      
+      // Allow creating tickets for admins/owners OR if the user is creating their own ticket
+      allow create: if hasClaim('admin') || isOwner() || 
+                       (isValidTicketData(request.resource.data) && isTicketClientForCreate(request.resource.data)) ||
+                       (isLoggedIn() && isValidTicketData(request.resource.data) && request.resource.data.email == request.auth.token.email);
+      
+      // Allow updating for admins/owners only
+      allow update: if hasClaim('admin') || isOwner();
+      
+      // Allow deleting for admins/owners only
+      allow delete: if hasClaim('admin') || isOwner();
+    }
+
+    // --- counters Collection Rules ---
+    match /counters/ids {
+      allow read: if hasClaim('admin') || isOwner();
+      allow write: if false; // Only Cloud Function modifies
+    }
+
+    // --- V2: leads (CRM) ---
+    // Admin/Owner/Marketing can read and write; delete restricted to super_admin
+    match /leads/{leadId} {
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('marketing') || hasClaim('super_admin');
+      allow create, update: if hasClaim('admin') || isOwner() || hasClaim('marketing');
+      allow delete: if hasClaim('super_admin');
+    }
+
+    // --- V2: timesheets ---
+    // Functions-only writes; read restricted to Admin/Owner/Super Admin
+    match /timesheets/{tsId} {
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
+      allow create, update, delete: if false;
+    }
+
+    // --- V2: payrollRuns ---
+    // Admin/Owner can create/update/read; delete restricted to super_admin
+    match /payrollRuns/{runId} {
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
+      allow create, update: if hasClaim('admin') || isOwner();
+      allow delete: if hasClaim('super_admin');
+    }
+
+    // --- V2: payments (Finance hub summary) ---
+    match /payments/{paymentId} {
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
+      allow create, update: if hasClaim('admin') || isOwner();
+      allow delete: if hasClaim('super_admin');
+    }
+
+    // --- expenses (V2 Finance hub - non-payroll outflows; mirror of inventory purchases) ---
+    // Owner and Super Admin may read/write; delete restricted to Super Admin only.
+    match /expenses/{expenseId} {
+      allow read: if isOwner() || hasClaim('super_admin');
+      allow create: if isOwner() || hasClaim('super_admin');
+      allow update: if isOwner() || hasClaim('super_admin');
+      allow delete: if hasClaim('super_admin');
+    }
+
+    // --- inventoryItems (V2) ---
+    // Owner/Super Admin: read/write; Employees: read-only; Delete: Super Admin only
+    match /inventoryItems/{itemId} {
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') ||
+                     hasClaim('employee') || (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee'));
+      allow create, update: if isOwner() || hasClaim('super_admin');
+      allow delete: if hasClaim('super_admin');
+    }
+
+    // --- inventoryTransactions (V2) ---
+    // Immutable ledger: create by Owner/Super Admin; Employees read-only; Delete: Super Admin only
+    match /inventoryTransactions/{txId} {
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') ||
+                     hasClaim('employee') || (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee'));
+      allow create: if isOwner() || hasClaim('super_admin');
+      allow update: if false; // immutable entries
+      allow delete: if hasClaim('super_admin');
+    }
+
+    // --- analyticsDaily & analyticsMonthly (read-only to admin/owner) ---
+    match /analyticsDaily/{dateId} {
+      allow read: if hasClaim('admin') || isOwner();
+      allow write: if false; // writes via Cloud Functions only
+    }
+
+    match /analyticsMonthly/{monthId} {
+      allow read: if hasClaim('admin') || isOwner();
+      allow write: if false; // writes via Cloud Functions only
+    }
+
+    // --- mediaAssets Collection Rules ---
+    match /mediaAssets/{assetId} {
+      // Allow reading for admins/owners OR if the asset is public OR if user is a client and asset is for clients
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') ||
+                     (isLoggedIn() && (
+                       resource.data.audience == 'public' ||
+                       (hasClaim('client') || hasRoleInFirestore(request.auth.uid, 'client')) ||
+                       (hasClaim('employee') || hasRoleInFirestore(request.auth.uid, 'employee'))
+                     ));
+      
+      // Allow creating for admins/owners only
+      allow create: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
+      
+      // Allow updating for admins/owners only
+      allow update: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
+      
+      // Allow deleting for admins/owners only
+      allow delete: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
+    }
+
+    // --- trainingCompletions Collection Rules ---
+    match /trainingCompletions/{completionId} {
+      function isValidCompletionData(completionData) {
+        return isLoggedIn() && 
+               completionData.acknowledged == true &&
+               completionData.assetId is string && completionData.assetId != '' &&
+               completionData.completedAt is timestamp;
+      }
+
+      function isCompletionOwner() {
+        return isLoggedIn() && 
+               (resource.data.clientUserId == request.auth.uid ||
+                resource.data.userId == request.auth.uid);
+      }
+
+      // Allow reading for admins/owners OR if the completion belongs to the current user
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') ||
+                     (isLoggedIn() && isCompletionOwner());
+      
+      // Allow creating for authenticated users (for acknowledging assets)
+      allow create: if isLoggedIn() && isValidCompletionData(request.resource.data) &&
+                       (request.resource.data.clientUserId == request.auth.uid ||
+                        request.resource.data.userId == request.auth.uid);
+      
+      // Allow updating for admins/owners only
+      allow update: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
+      
+      // Allow deleting for admins/owners only
+      allow delete: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
+    }
+
+    // --- V2: activities (CRM + Training tasks) ---
+    // UI: Admin/Owner/Marketing manage activities; employees can READ activities where entityId == their profileId (e.g., training tasks/type='task').
+    match /activities/{activityId} {
+      allow read: if isAdmin() || isOwner() || isMarketing() ||
+                    (isEmployeeV2() && resource.data.entityId != null && resource.data.entityId == currentProfileId());
+      allow create: if isAdmin() || isOwner() || isMarketing();
+      allow update: if isAdmin() || isOwner() || isMarketing();
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- V2: campaigns (Marketing) ---
+    match /campaigns/{campaignId} {
+      allow read: if isAdmin() || isOwner() || isMarketing();
+      allow create: if isAdmin() || isOwner() || isMarketing();
+      allow update: if isAdmin() || isOwner() || isMarketing();
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- V2: campaignActivities (log of sends/opens/clicks) ---
+    match /campaignActivities/{id} {
+      allow read: if isAdmin() || isOwner() || isMarketing();
+      allow create: if isAdmin() || isOwner() || isMarketing();
+      allow update: if isAdmin() || isOwner() || isMarketing();
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- V2: notifications (in-app user inbox; multi-channel queue) ---
+    // UI: Users can read their own docs and mark as read; Admin/Owner can read all and manage queue.
+    match /notifications/{nid} {
+      function isRecipient() { return request.auth != null && resource.data.userId == request.auth.uid; }
+      function allowedUserUpdate() {
+        // Users may only set status='read' and readAt timestamp on their own docs
+        return isRecipient() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','readAt']) &&
+               request.resource.data.status in ['read','sent','queued'] &&
+               (request.resource.data.readAt == null || request.resource.data.readAt is timestamp);
+      }
+      allow read: if isAdmin() || isOwner() || isSuperAdmin() || isRecipient();
+      allow create: if isAdmin() || isOwner() || isSuperAdmin();
+      allow update: if isAdmin() || isOwner() || isSuperAdmin() || allowedUserUpdate();
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- V2: settings (singleton: settings/org) ---
+    // UI: Owner and super_admin can modify settings; others read-only as needed by apps.
+    match /settings/{docId} {
+      allow read: if request.auth != null; // any authenticated user may read
+      allow create, update: if isOwner() || isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+  } // End match /databases/{database}/documents
+} // End service cloud.firestore

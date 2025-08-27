@@ -21,7 +21,11 @@ import {
 } from "../../utils/time";
 import Agreements from "./Agreements";
 import { useAuth } from "../../context/AuthContext";
-import { getLocationNames } from "../../services/queries/resolvers";
+import {
+  getLocationNames,
+  getEmployeeNames,
+} from "../../services/queries/resolvers";
+import { deriveClientStatus } from "../../services/statusMap";
 
 type Job = {
   id: string;
@@ -43,39 +47,36 @@ type Review = {
 export default function ServicesPage() {
   const { profileId } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [completed, setCompleted] = useState<Job[]>([]);
-  const [scheduled, setScheduled] = useState<Job[]>([]);
-  const [inProgress, setInProgress] = useState<Job[]>([]);
+  const [allJobs, setAllJobs] = useState<Job[]>([]);
   const [locationNames, setLocationNames] = useState<Record<string, string>>(
     {}
   );
   const [reviewsByJob, setReviewsByJob] = useState<Record<string, Review>>({});
-  const [specialInstructions, setSpecialInstructions] = useState<string[]>([]);
-  const [photosModal, setPhotosModal] = useState<null | { job: Job }>(null);
-  const [completedCursor, setCompletedCursor] = useState<any | null>(null);
-  const [completedHasMore, setCompletedHasMore] = useState<boolean>(false);
-  const [completedWindows, setCompletedWindows] = useState<
-    Record<string, string>
-  >({});
 
-  const loadMoreCompleted = async () => {
+  const [detailsModal, setDetailsModal] = useState<null | { job: Job }>(null);
+  const [allJobsCursor, setAllJobsCursor] = useState<any | null>(null);
+  const [allJobsHasMore, setAllJobsHasMore] = useState<boolean>(false);
+  const [allJobsWindows, setAllJobsWindows] = useState<Record<string, string>>(
+    {}
+  );
+
+  const loadMoreJobs = async () => {
     try {
-      if (!completedCursor || !profileId) return;
+      if (!allJobsCursor || !profileId) return;
       if (!getApps().length) initializeApp(firebaseConfig);
       const db = getFirestore();
       const qMore = query(
         collection(db, "serviceHistory"),
         where("clientProfileId", "==", profileId),
-        where("status", "==", "Completed"),
         orderBy("serviceDate", "desc"),
-        startAfter(completedCursor),
+        startAfter(allJobsCursor),
         limit(25)
       );
       const s = await getDocs(qMore);
       const jobs = s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-      setCompleted((prev) => prev.concat(jobs));
-      setCompletedCursor(s.docs.length ? s.docs[s.docs.length - 1] : null);
-      setCompletedHasMore(s.docs.length === 25);
+      setAllJobs((prev) => prev.concat(jobs));
+      setAllJobsCursor(s.docs.length ? s.docs[s.docs.length - 1] : null);
+      setAllJobsHasMore(s.docs.length === 25);
       // Resolve any new location names
       const ids = new Set<string>();
       jobs.forEach((j) => j.locationId && ids.add(j.locationId));
@@ -90,7 +91,7 @@ export default function ServicesPage() {
         });
       }
     } catch (e: any) {
-      console.warn("client completed jobs pagination failed", e?.message);
+      console.warn("client jobs pagination failed", e?.message);
     }
   };
   const [ratingState, setRatingState] = useState<null | {
@@ -108,100 +109,60 @@ export default function ServicesPage() {
         const db = getFirestore();
         if (!profileId) return;
 
-        // Completed jobs (recent)
+        // All jobs (completed, scheduled, in progress)
         try {
-          const qCompleted = query(
+          const qAllJobs = query(
             collection(db, "serviceHistory"),
             where("clientProfileId", "==", profileId),
-            where("status", "==", "Completed"),
             orderBy("serviceDate", "desc"),
             limit(25)
           );
-          const s = await getDocs(qCompleted);
-          const completedJobs = s.docs.map((d) => ({
+          const s = await getDocs(qAllJobs);
+          const allJobsData = s.docs.map((d) => ({
             id: d.id,
             ...(d.data() as any),
           }));
-          setCompleted(completedJobs);
-          setCompletedCursor(s.docs.length ? s.docs[s.docs.length - 1] : null);
-          setCompletedHasMore(s.docs.length === 25);
+
+          setAllJobs(allJobsData);
+          setAllJobsCursor(s.docs.length ? s.docs[s.docs.length - 1] : null);
+          setAllJobsHasMore(s.docs.length === 25);
 
           // Prefetch existing reviews for these jobs
           try {
-            const revSnap = await getDocs(
+            // First try with clientProfileId (newer records)
+            let revSnap = await getDocs(
               query(
                 collection(db, "serviceReviews"),
-                where("clientId", "==", profileId)
+                where("clientProfileId", "==", profileId)
               )
             );
+
+            // If no results, fallback to clientId (legacy records)
+            if (revSnap.empty) {
+              revSnap = await getDocs(
+                query(
+                  collection(db, "serviceReviews"),
+                  where("clientId", "==", profileId)
+                )
+              );
+            }
+
             const map: Record<string, Review> = {};
             revSnap.forEach((d) => {
               const r = d.data() as any;
               if (r?.jobId) map[r.jobId] = { id: d.id, ...(r as any) };
             });
+
             setReviewsByJob(map);
           } catch {}
         } catch (e: any) {
-          console.warn(
-            "client completed jobs query may need index",
-            e?.message
-          );
-        }
-
-        // Scheduled (future)
-        try {
-          const now = new Date();
-          const qUpcoming = query(
-            collection(db, "serviceHistory"),
-            where("clientProfileId", "==", profileId),
-            where("status", "==", "Scheduled"),
-            where("serviceDate", ">=", Timestamp.fromDate(now)),
-            orderBy("serviceDate", "asc")
-          );
-          const s = await getDocs(qUpcoming);
-          const scheduledJobs = s.docs.map((d) => ({
-            id: d.id,
-            ...(d.data() as any),
-          }));
-          setScheduled(scheduledJobs);
-        } catch (e: any) {
-          console.warn(
-            "client scheduled jobs query may need index",
-            e?.message
-          );
-        }
-
-        // In Progress / Started
-        try {
-          const qIp = query(
-            collection(db, "serviceHistory"),
-            where("clientProfileId", "==", profileId),
-            where("status", "in", ["In Progress", "Started"]),
-            orderBy("serviceDate", "desc")
-          );
-          const s = await getDocs(qIp);
-          const inProgressJobs = s.docs.map((d) => ({
-            id: d.id,
-            ...(d.data() as any),
-          }));
-          setInProgress(inProgressJobs);
-        } catch (e: any) {
-          console.warn(
-            "client in-progress jobs query may need index",
-            e?.message
-          );
+          console.warn("client jobs query may need index", e?.message);
         }
 
         // Resolve location names for visible jobs
         try {
           const ids = new Set<string>();
-          // Use the latest local arrays to avoid stale state
-          const all = new Array<Job>().concat(
-            completed || [],
-            scheduled || [],
-            inProgress || []
-          );
-          all.forEach((j) => {
+          allJobs.forEach((j) => {
             if (j.locationId) ids.add(j.locationId);
           });
           const idList = Array.from(ids);
@@ -211,24 +172,6 @@ export default function ServicesPage() {
           entries.forEach(([id, name]) => (map[id] = name));
           setLocationNames(map);
         } catch {}
-
-        // Aggregate special instructions from all active agreements
-        try {
-          const agSnap = await getDocs(
-            query(
-              collection(db, "serviceAgreements"),
-              where("clientId", "==", profileId),
-              where("isActive", "==", true)
-            )
-          );
-          const list: string[] = [];
-          agSnap.forEach((d) => {
-            const txt = (d.data() as any)?.specialInstructions;
-            if (typeof txt === "string" && txt.trim()) list.push(txt.trim());
-          });
-          const unique = Array.from(new Set(list));
-          setSpecialInstructions(unique);
-        } catch {}
       } finally {
         setLoading(false);
       }
@@ -237,14 +180,14 @@ export default function ServicesPage() {
     load();
   }, [profileId]);
 
-  // Compute time windows for completed jobs
+  // Compute time windows for all jobs
   useEffect(() => {
     (async () => {
       try {
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
         const map: Record<string, string> = {};
-        for (const j of completed) {
+        for (const j of allJobs) {
           const dt: Date | null = j.serviceDate?.toDate
             ? j.serviceDate.toDate()
             : j.serviceDate?.seconds
@@ -288,12 +231,66 @@ export default function ServicesPage() {
             map[j.id] = formatJobWindow(j.serviceDate);
           }
         }
-        setCompletedWindows(map);
+        setAllJobsWindows(map);
       } catch {}
     })();
-  }, [completed]);
+  }, [allJobs]);
 
-  const noJobs = useMemo(() => completed.length === 0, [completed.length]);
+  const noJobs = useMemo(() => allJobs.length === 0, [allJobs.length]);
+
+  // Categorize jobs using deriveClientStatus (keeping for potential future use)
+  const categorizedJobs = useMemo(() => {
+    const now = new Date();
+    const categorized = {
+      completed: [] as Job[],
+      inProgress: [] as Job[],
+      upcoming: [] as Job[],
+    };
+
+    allJobs.forEach((job) => {
+      const clientStatus = deriveClientStatus(job, now);
+      if (clientStatus === "completed") {
+        categorized.completed.push(job);
+      } else if (clientStatus === "in_progress") {
+        categorized.inProgress.push(job);
+      } else if (clientStatus === "upcoming") {
+        categorized.upcoming.push(job);
+      }
+    });
+
+    // Sort each category appropriately
+    categorized.completed.sort((a, b) => {
+      const aDate = a.serviceDate?.toDate?.() || new Date(0);
+      const bDate = b.serviceDate?.toDate?.() || new Date(0);
+      return bDate.getTime() - aDate.getTime(); // newest first
+    });
+    categorized.inProgress.sort((a, b) => {
+      const aDate = a.serviceDate?.toDate?.() || new Date(0);
+      const bDate = b.serviceDate?.toDate?.() || new Date(0);
+      return bDate.getTime() - aDate.getTime(); // newest first
+    });
+    categorized.upcoming.sort((a, b) => {
+      const aDate = a.serviceDate?.toDate?.() || new Date(0);
+      const bDate = b.serviceDate?.toDate?.() || new Date(0);
+      return aDate.getTime() - bDate.getTime(); // oldest first
+    });
+
+    return categorized;
+  }, [allJobs]);
+
+  // Create a single sorted list of all jobs by date
+  const sortedJobs = useMemo(() => {
+    const allJobsWithStatus = allJobs.map((job) => {
+      const clientStatus = deriveClientStatus(job, new Date());
+      return { ...job, clientStatus };
+    });
+
+    return allJobsWithStatus.sort((a, b) => {
+      const aDate = a.serviceDate?.toDate?.() || new Date(0);
+      const bDate = b.serviceDate?.toDate?.() || new Date(0);
+      return bDate.getTime() - aDate.getTime(); // newest first
+    });
+  }, [allJobs]);
 
   return (
     <div className="p-6 space-y-6">
@@ -306,116 +303,116 @@ export default function ServicesPage() {
         </div>
       </div>
 
-      {specialInstructions.length > 0 && (
-        <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
-          <div className="font-medium">Special Instructions</div>
-          <ul className="mt-2 list-disc pl-5 text-sm space-y-1">
-            {specialInstructions.map((s, i) => (
-              <li key={i}>{s}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
-        <div className="font-medium">Scheduled & In Progress</div>
-        {loading ? (
-          <div className="text-sm text-zinc-500 mt-2">Loading…</div>
-        ) : !scheduled.length && !inProgress.length ? (
-          <div className="text-sm text-zinc-500 mt-2">No upcoming services</div>
-        ) : (
-          <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <JobsList
-              title="In Progress"
-              jobs={inProgress}
-              locationNames={locationNames}
-            />
-            <JobsList
-              title="Scheduled"
-              jobs={scheduled}
-              locationNames={locationNames}
-            />
-          </div>
-        )}
-      </div>
-
       <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
         <div className="font-medium">Service History</div>
         {loading ? (
           <div className="text-sm text-zinc-500 mt-2">Loading…</div>
         ) : noJobs ? (
-          <div className="text-sm text-zinc-500 mt-2">
-            No completed services
-          </div>
+          <div className="text-sm text-zinc-500 mt-2">No services found</div>
         ) : (
           <>
-            <ul className="mt-3 space-y-2">
-              {completed.map((j) => (
-                <li
-                  key={j.id}
-                  className="rounded-md border border-zinc-200 dark:border-zinc-700 p-3"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm">
-                      <div className="font-medium">
-                        {j.serviceDate?.toDate
-                          ? j.serviceDate.toDate().toLocaleDateString("en-US", {
-                              timeZone: "America/New_York",
-                            })
-                          : "—"}{" "}
-                        <span className="text-xs text-zinc-500">
-                          {completedWindows[j.id] ||
-                            formatJobWindow(j.serviceDate)}
-                        </span>
-                      </div>
-                      <div className="text-xs text-zinc-500">
-                        {locationNames[j.locationId || ""] ||
-                          j.locationId ||
-                          j.clientProfileId ||
-                          j.id}
-                      </div>
-                    </div>
-                    <div className="text-sm flex items-center gap-2">
-                      <button
-                        className="px-2 py-1 text-xs rounded-md border"
-                        onClick={() => setPhotosModal({ job: j })}
-                      >
-                        Photos
-                      </button>
-                      {reviewsByJob[j.id] ? (
-                        <div className="flex items-center gap-2">
-                          <Stars value={reviewsByJob[j.id].rating} readOnly />
-                          {reviewsByJob[j.id].comment ? (
-                            <span className="text-xs text-zinc-500 max-w-[280px] truncate">
-                              {reviewsByJob[j.id].comment}
+            {/* Single chronological list of all services */}
+            <div className="mt-4">
+              <ul className="space-y-2">
+                {sortedJobs.map((j) => {
+                  const status = j.clientStatus;
+                  const statusConfig = {
+                    completed: {
+                      label: "Completed",
+                      className:
+                        "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200",
+                    },
+                    in_progress: {
+                      label: "In Progress",
+                      className:
+                        "bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200",
+                    },
+                    upcoming: {
+                      label: "Scheduled",
+                      className:
+                        "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200",
+                    },
+                  };
+
+                  const config = statusConfig[status] || {
+                    label: "Unknown",
+                    className:
+                      "bg-zinc-100 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200",
+                  };
+
+                  return (
+                    <li
+                      key={j.id}
+                      className="rounded-md border border-zinc-200 dark:border-zinc-700 p-3"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm">
+                          <div className="font-medium">
+                            {j.serviceDate?.toDate
+                              ? j.serviceDate
+                                  .toDate()
+                                  .toLocaleDateString("en-US", {
+                                    timeZone: "America/New_York",
+                                  })
+                              : "—"}{" "}
+                            <span className="text-xs text-zinc-500">
+                              {allJobsWindows[j.id] ||
+                                formatJobWindow(j.serviceDate)}
                             </span>
-                          ) : null}
+                          </div>
+                          <div className="text-xs text-zinc-500">
+                            {locationNames[j.locationId || ""] ||
+                              (j as any).locationName ||
+                              (j as any).name ||
+                              (j.locationId
+                                ? `Location ${j.locationId.slice(0, 8)}...`
+                                : "Unknown Location")}
+                          </div>
                         </div>
-                      ) : (
-                        <button
-                          className="px-3 py-1.5 rounded-md border text-sm"
-                          onClick={() =>
-                            setRatingState({
-                              jobId: j.id,
-                              rating: 5,
-                              comment: "",
-                              submitting: false,
-                            })
-                          }
-                        >
-                          Rate this service
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            {completedHasMore && (
+                        <div className="text-sm flex items-center gap-2">
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-md ${config.className}`}
+                          >
+                            {config.label}
+                          </span>
+                          {status === "completed" && (
+                            <>
+                              <button
+                                className="px-2 py-1 text-xs rounded-md border"
+                                onClick={() => setDetailsModal({ job: j })}
+                              >
+                                View Details
+                              </button>
+                              {!reviewsByJob[j.id] && (
+                                <button
+                                  className="px-3 py-1.5 rounded-md border text-sm"
+                                  onClick={() =>
+                                    setRatingState({
+                                      jobId: j.id,
+                                      rating: 5,
+                                      comment: "",
+                                      submitting: false,
+                                    })
+                                  }
+                                >
+                                  Rate this service
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            {allJobsHasMore && (
               <div className="mt-3">
                 <button
                   className="px-3 py-1.5 rounded-md border text-sm"
-                  onClick={loadMoreCompleted}
+                  onClick={loadMoreJobs}
                 >
                   Load more
                 </button>
@@ -448,7 +445,6 @@ export default function ServicesPage() {
               );
               await addDoc(collection(db, "serviceReviews"), {
                 jobId: payload.jobId,
-                clientId: profileId,
                 clientProfileId: profileId,
                 rating,
                 comment,
@@ -475,233 +471,13 @@ export default function ServicesPage() {
         />
       )}
 
-      {photosModal && (
-        <PhotosModal
-          job={photosModal.job}
-          onClose={() => setPhotosModal(null)}
+      {detailsModal && (
+        <ServiceDetailsModal
+          job={detailsModal.job}
+          reviewsByJob={reviewsByJob}
+          onClose={() => setDetailsModal(null)}
         />
       )}
-    </div>
-  );
-}
-
-function JobsList({
-  title,
-  jobs,
-  locationNames,
-}: {
-  title: string;
-  jobs: Job[];
-  locationNames: Record<string, string>;
-}) {
-  const [windows, setWindows] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    (async () => {
-      try {
-        if (!getApps().length) initializeApp(firebaseConfig);
-        const db = getFirestore();
-        const map: Record<string, string> = {};
-        for (const j of jobs) {
-          const dt: Date | null = j.serviceDate?.toDate
-            ? j.serviceDate.toDate()
-            : j.serviceDate?.seconds
-            ? new Date(j.serviceDate.seconds * 1000)
-            : null;
-          if (!dt || !j.locationId) {
-            map[j.id] = formatJobWindow(j.serviceDate);
-            continue;
-          }
-          const { start, end } = makeDayBoundsUtil(dt, "America/New_York");
-          try {
-            const qref = query(
-              collection(db, "employeeTimeTracking"),
-              where("locationId", "==", j.locationId),
-              where("clockInTime", ">=", Timestamp.fromDate(start)),
-              where("clockInTime", "<=", Timestamp.fromDate(end)),
-              orderBy("clockInTime", "asc"),
-              limit(10)
-            );
-            const snap = await getDocs(qref);
-            const rows: any[] = [];
-            snap.forEach((d) => rows.push({ id: d.id, ...(d.data() as any) }));
-            const assigned = Array.isArray((j as any).assignedEmployees)
-              ? ((j as any).assignedEmployees as string[])
-              : [];
-            let rec = rows.find((r) =>
-              assigned.includes((r as any).employeeProfileId || "")
-            );
-            if (!rec) rec = rows[0];
-            if (rec?.clockInTime?.toDate && rec?.clockOutTime?.toDate) {
-              map[j.id] = formatJobWindow(j.serviceDate, {
-                start: rec.clockInTime,
-                end: rec.clockOutTime,
-              });
-            } else if (rec?.clockInTime?.toDate && !rec?.clockOutTime) {
-              map[j.id] = formatJobWindow(j.serviceDate);
-            } else {
-              map[j.id] = formatJobWindow(j.serviceDate);
-            }
-          } catch {
-            map[j.id] = formatJobWindow(j.serviceDate);
-          }
-        }
-        setWindows(map);
-      } catch {}
-    })();
-  }, [jobs]);
-
-  return (
-    <div>
-      <div className="text-sm font-semibold mb-2">{title}</div>
-      {jobs.length === 0 ? (
-        <div className="text-xs text-zinc-500">No items</div>
-      ) : (
-        <ul className="space-y-2">
-          {jobs.map((j) => (
-            <li
-              key={j.id}
-              className="rounded-md border border-zinc-200 dark:border-zinc-700 p-2"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-sm">
-                  <div className="font-medium">
-                    {j.serviceDate?.toDate
-                      ? j.serviceDate.toDate().toLocaleDateString("en-US", {
-                          timeZone: "America/New_York",
-                        })
-                      : "—"}{" "}
-                    <span className="text-xs text-zinc-500">
-                      {windows[j.id] || formatJobWindow(j.serviceDate)}
-                    </span>
-                  </div>
-                  <div className="text-xs text-zinc-500">
-                    {locationNames[j.locationId || ""] ||
-                      j.locationId ||
-                      j.clientProfileId ||
-                      j.id}
-                  </div>
-                </div>
-                <span className="text-xs px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-700">
-                  {j.status || "—"}
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function PhotosModal({ job, onClose }: { job: Job; onClose: () => void }) {
-  const [loading, setLoading] = useState(true);
-  const [photos, setPhotos] = useState<
-    Array<{ id: string; photoUrl?: string; uploadedAt?: any }>
-  >([]);
-  const [locationNameResolved, setLocationNameResolved] = useState<string>("");
-
-  useEffect(() => {
-    (async () => {
-      const [name] = await getLocationNames([job.locationId]);
-      setLocationNameResolved(name || job.locationId || "—");
-    })();
-  }, [job.locationId]);
-
-  useEffect(() => {
-    async function loadPhotos() {
-      try {
-        if (!getApps().length) initializeApp(firebaseConfig);
-        const db = getFirestore();
-        const svcDate: Date | null = job.serviceDate?.toDate
-          ? job.serviceDate.toDate()
-          : null;
-        const { start, end } = makeDayBounds(
-          svcDate || new Date(),
-          "America/New_York"
-        );
-        const qref = query(
-          collection(db, "servicePhotos"),
-          where("locationId", "==", job.locationId || ""),
-          where("uploadedAt", ">=", Timestamp.fromDate(start)),
-          where("uploadedAt", "<=", Timestamp.fromDate(end)),
-          where("isClientVisible", "==", true),
-          orderBy("uploadedAt", "desc")
-        );
-        const snap = await getDocs(qref);
-        const list: Array<{ id: string; photoUrl?: string; uploadedAt?: any }> =
-          [];
-        snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
-        setPhotos(list);
-      } catch (e: any) {
-        console.warn("Client photos query may require index", e?.message);
-        setPhotos([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadPhotos();
-  }, [job.id]);
-
-  const dt = job.serviceDate?.toDate ? job.serviceDate.toDate() : null;
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white dark:bg-zinc-900 rounded-lg shadow-elev-2 max-w-3xl w-full p-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <div className="text-lg font-semibold">Service Photos</div>
-          <button
-            className="px-2 py-1 text-sm rounded-md border"
-            onClick={onClose}
-          >
-            Close
-          </button>
-        </div>
-        <div className="text-sm text-zinc-500 mt-1">
-          {dt
-            ? dt.toLocaleString("en-US", { timeZone: "America/New_York" })
-            : "—"}{" "}
-          — {locationNameResolved || job.locationId || "—"}
-        </div>
-        <div className="mt-3 min-h-[120px]">
-          {loading ? (
-            <div className="text-sm text-zinc-500">Loading…</div>
-          ) : photos.length === 0 ? (
-            <div className="text-sm text-zinc-500">
-              No photos for this service.
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {photos.map((p) => (
-                <a
-                  key={p.id}
-                  href={p.photoUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block"
-                >
-                  <img
-                    src={p.photoUrl}
-                    alt="Service photo"
-                    className="w-full h-32 object-cover rounded-md"
-                  />
-                  <div className="mt-1 text-[10px] text-zinc-500">
-                    {p.uploadedAt?.toDate
-                      ? p.uploadedAt.toDate().toLocaleString()
-                      : ""}
-                  </div>
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
@@ -832,6 +608,265 @@ function RatingModal({
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ServiceDetailsModal({
+  job,
+  reviewsByJob,
+  onClose,
+}: {
+  job: Job;
+  reviewsByJob: Record<string, Review>;
+  onClose: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [photos, setPhotos] = useState<
+    Array<{ id: string; photoUrl?: string; uploadedAt?: any }>
+  >([]);
+  const [locationNameResolved, setLocationNameResolved] = useState<string>("");
+  const [assignedNames, setAssignedNames] = useState<string[]>([]);
+  const [adminNote, setAdminNote] = useState<string>("");
+
+  useEffect(() => {
+    (async () => {
+      const [name] = await getLocationNames([job.locationId]);
+      setLocationNameResolved(
+        name ||
+          (job as any).locationName ||
+          (job.locationId ? `Location ${job.locationId.slice(0, 8)}...` : "—")
+      );
+      // Resolve staff names with client-safe precedence:
+      // 1) employeeDisplayNames (preferred)
+      // 2) employeeAssignments[].name (legacy)
+      // 3) assignedEmployees (IDs) → resolver lookup
+      const displayNames = Array.isArray((job as any).employeeDisplayNames)
+        ? ((job as any).employeeDisplayNames as string[]).filter(Boolean)
+        : [];
+      const assignmentNames = Array.isArray((job as any).employeeAssignments)
+        ? ((job as any).employeeAssignments as any[])
+            .map((a) => a?.name || a?.employeeName || a?.uid || "")
+            .filter((v: string) => typeof v === "string" && !!v)
+        : [];
+      if (displayNames.length) {
+        setAssignedNames(Array.from(new Set(displayNames)));
+      } else if (assignmentNames.length) {
+        setAssignedNames(Array.from(new Set(assignmentNames)));
+      } else {
+        const assignedIds = Array.isArray((job as any).assignedEmployees)
+          ? ((job as any).assignedEmployees as string[])
+          : [];
+        try {
+          const names = assignedIds.length
+            ? await getEmployeeNames(assignedIds)
+            : [];
+          setAssignedNames(names.filter(Boolean));
+        } catch {
+          setAssignedNames([]);
+        }
+      }
+      // Prefer top-level adminNotes on the job; else fetch the latest admin job note
+      const jAdmin = (job as any).adminNotes as string | undefined;
+      if (jAdmin && jAdmin.trim()) {
+        setAdminNote(jAdmin.trim());
+      } else {
+        try {
+          if (!getApps().length) initializeApp(firebaseConfig);
+          const db = getFirestore();
+          const nq = query(
+            collection(db, "jobNotes"),
+            where("jobId", "==", job.id),
+            where("authorRole", "==", "admin"),
+            orderBy("createdAt", "desc"),
+            limit(1)
+          );
+          const ns = await getDocs(nq);
+          const doc0 = ns.docs[0];
+          const data: any = doc0 ? doc0.data() : null;
+          setAdminNote((data?.message as string) || "");
+        } catch {
+          setAdminNote("");
+        }
+      }
+    })();
+  }, [job]);
+
+  useEffect(() => {
+    async function loadPhotos() {
+      try {
+        if (!getApps().length) initializeApp(firebaseConfig);
+        const db = getFirestore();
+        const svcDate: Date | null = job.serviceDate?.toDate
+          ? job.serviceDate.toDate()
+          : null;
+        const { start, end } = makeDayBounds(
+          svcDate || new Date(),
+          "America/New_York"
+        );
+        const qref = query(
+          collection(db, "servicePhotos"),
+          where("locationId", "==", job.locationId || ""),
+          where("uploadedAt", ">=", Timestamp.fromDate(start)),
+          where("uploadedAt", "<=", Timestamp.fromDate(end)),
+          where("isClientVisible", "==", true),
+          orderBy("uploadedAt", "desc")
+        );
+        const snap = await getDocs(qref);
+        const list: Array<{ id: string; photoUrl?: string; uploadedAt?: any }> =
+          [];
+        snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
+        console.log(
+          `Loaded ${list.length} photos for service:`,
+          list.map((p) => ({ id: p.id, url: p.photoUrl }))
+        );
+        setPhotos(list);
+      } catch (e: any) {
+        console.warn("Client photos query may require index", e?.message);
+        setPhotos([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadPhotos();
+  }, [job.id]);
+
+  const dt = job.serviceDate?.toDate ? job.serviceDate.toDate() : null;
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-zinc-900 rounded-lg shadow-elev-2 max-w-4xl w-full p-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <div className="text-lg font-semibold">Service Details</div>
+          <button
+            className="px-2 py-1 text-sm rounded-md border"
+            onClick={onClose}
+          >
+            Close
+          </button>
+        </div>
+        <div className="text-sm text-zinc-500 mt-1">
+          {dt
+            ? dt.toLocaleString("en-US", { timeZone: "America/New_York" })
+            : "—"}
+        </div>
+
+        {/* Overview cards */}
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="rounded-md border p-3">
+            <div className="text-sm font-medium mb-1">Location</div>
+            <div className="text-sm">
+              {locationNameResolved || job.locationId || "—"}
+            </div>
+          </div>
+          <div className="rounded-md border p-3">
+            <div className="text-sm font-medium mb-1">Staff Assigned</div>
+            <div className="text-sm">
+              {assignedNames.length ? assignedNames.join(", ") : "—"}
+            </div>
+          </div>
+        </div>
+
+        {/* Photos */}
+        <div className="mt-4">
+          <div className="text-sm font-medium">Photos</div>
+          <div className="text-xs text-zinc-500">Available Images</div>
+          <div className="mt-2">
+            {loading ? (
+              <div className="text-sm text-zinc-500">Loading…</div>
+            ) : photos.length === 0 ? (
+              <div className="text-sm text-zinc-500">
+                No photos for this service.
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between text-xs text-zinc-500 mb-1">
+                  <div>
+                    {photos.length} photo{photos.length === 1 ? "" : "s"}
+                  </div>
+                  {photos.length > 6 ? <div>Scroll for more photos</div> : null}
+                </div>
+                <div className="rounded-md border p-2 max-h-[360px] overflow-y-auto">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {photos.map((p) => (
+                      <a
+                        key={p.id}
+                        href={p.photoUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block"
+                      >
+                        <img
+                          src={p.photoUrl || ""}
+                          alt="Service photo"
+                          className="w-full h-32 object-cover rounded-md"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            console.warn(
+                              `Failed to load image: ${p.photoUrl}`,
+                              e
+                            );
+                            target.src =
+                              "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjgwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMCAyMEg2MFY2MEgyMFYyMFoiIGZpbGw9IiNEMUQ1REIiLz4KPHBhdGggZD0iTTI1IDI1SDU1VjU1SDI1VjI1WiIgZmlsbD0iI0YzRjRGNiIvPgo8Y2lyY2xlIGN4PSIzNSIgY3k9IjM1IiByPSI1IiBmaWxsPSIjOUI5QkEwIi8+CjxwYXRoIGQ9Ik0yMCA1NUwzMCA0NUw0MCA1NUw1MCA0NUw2MCA1NVY2MEgyMFY1NVoiIGZpbGw9IiM5QjlCQTAiLz4KPC9zdmc+";
+                            target.classList.add("opacity-50");
+                          }}
+                          onLoad={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            console.log(
+                              `Successfully loaded image: ${p.photoUrl}`
+                            );
+                            target.classList.remove("opacity-50");
+                            target.classList.add("opacity-100");
+                          }}
+                        />
+                        <div className="mt-1 text-[10px] text-zinc-500">
+                          {p.uploadedAt?.toDate
+                            ? p.uploadedAt.toDate().toLocaleString()
+                            : ""}
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Admin Notes */}
+        <div className="mt-4">
+          <div className="text-sm font-medium">Admin Notes</div>
+          <div className="mt-2 rounded-md border p-3 text-sm bg-zinc-50 dark:bg-zinc-900">
+            {adminNote ? adminNote : "No notes provided"}
+          </div>
+        </div>
+
+        {/* Service Rating */}
+        {reviewsByJob[job.id] && (
+          <div className="mt-4">
+            <div className="text-sm font-medium">Your Rating</div>
+            <div className="mt-2 rounded-md border p-3 text-sm bg-yellow-50 dark:bg-yellow-900/20">
+              <div className="flex items-center gap-2 mb-2">
+                <Stars value={reviewsByJob[job.id].rating} readOnly />
+                <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                  Rated {reviewsByJob[job.id].rating}/5
+                </span>
+              </div>
+              {reviewsByJob[job.id].comment && (
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                  "{reviewsByJob[job.id].comment}"
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

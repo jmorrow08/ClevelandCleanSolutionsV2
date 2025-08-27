@@ -9,6 +9,7 @@ import {
 } from "firebase/firestore";
 import { firebaseConfig } from "../../services/firebase";
 import { Link } from "react-router-dom";
+import EmployeeDetail from "./EmployeeDetail";
 import { RoleGuard } from "../../context/RoleGuard";
 import { NewEmployeeProvider, useNewEmployeeModal } from "./NewEmployeeModal";
 
@@ -56,6 +57,10 @@ function EmployeesListInner() {
   const { open } = useNewEmployeeModal();
   const [nameFilter, setNameFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     async function load() {
@@ -219,7 +224,11 @@ function EmployeesListInner() {
               filtered.map((e, idx) => (
                 <tr
                   key={`${e.id}:${e.email || ""}:${idx}`}
-                  className="border-t border-zinc-100 dark:border-zinc-700"
+                  className="border-t border-zinc-100 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/30 cursor-pointer"
+                  onClick={() => {
+                    setSelectedEmployeeId(e.id);
+                    setDrawerOpen(true);
+                  }}
                 >
                   <td className="px-3 py-2 max-w-[320px]">
                     <div className="truncate" title={displayName(e)}>
@@ -235,12 +244,16 @@ function EmployeesListInner() {
                     </span>
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <Link
-                      to={`/hr/${e.id}`}
+                    <button
                       className="text-blue-600 dark:text-blue-400 underline"
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        setSelectedEmployeeId(e.id);
+                        setDrawerOpen(true);
+                      }}
                     >
                       View
-                    </Link>
+                    </button>
                   </td>
                 </tr>
               ))
@@ -263,6 +276,10 @@ function EmployeesListInner() {
             <div
               key={`${e.id}:${e.email || ""}:${idx}`}
               className="rounded-lg p-3 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1"
+              onClick={() => {
+                setSelectedEmployeeId(e.id);
+                setDrawerOpen(true);
+              }}
             >
               <div className="flex items-center justify-between gap-2">
                 <div
@@ -285,17 +302,44 @@ function EmployeesListInner() {
                 ID: {e.employeeIdString || "—"}
               </div>
               <div className="mt-2 text-right">
-                <Link
-                  to={`/hr/${e.id}`}
+                <button
                   className="text-blue-600 dark:text-blue-400 underline text-sm"
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    setSelectedEmployeeId(e.id);
+                    setDrawerOpen(true);
+                  }}
                 >
                   View
-                </Link>
+                </button>
               </div>
             </div>
           ))
         )}
       </div>
+
+      {drawerOpen && selectedEmployeeId && (
+        <div className="fixed inset-0 z-[100]">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setDrawerOpen(false)}
+          />
+          <div className="absolute top-0 right-0 h-full w-[720px] max-w-[96vw] bg-white dark:bg-zinc-900 shadow-xl translate-x-0 transition-transform">
+            <div className="h-full overflow-y-auto p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-lg font-semibold">Employee Details</h2>
+                <button
+                  className="px-2 py-1 rounded-md border bg-white dark:bg-zinc-800"
+                  onClick={() => setDrawerOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+              <EmployeeDetail employeeId={selectedEmployeeId} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

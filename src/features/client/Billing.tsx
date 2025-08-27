@@ -112,8 +112,8 @@ export default function Billing() {
                 className="py-2 border-b border-zinc-100 dark:border-zinc-700 flex items-center justify-between gap-2"
               >
                 <div>
-                  {inv.id} — {inv.status || "—"} — $
-                  {Number(inv.totalAmount ?? inv.amount ?? 0).toLocaleString()}
+                  Invoice #{inv.invoiceNumber || inv.id} — {inv.status || "—"} —
+                  ${Number(inv.totalAmount ?? inv.amount ?? 0).toLocaleString()}
                 </div>
                 <div className="shrink-0 flex items-center gap-2">
                   <button
@@ -138,11 +138,12 @@ export default function Billing() {
                           id: inv.id,
                           invoiceNumber: (inv as any).invoiceNumber || inv.id,
                           status: inv.status,
-                          dueDate: inv.createdAt,
+                          dueDate: inv.dueDate || inv.createdAt,
                           total:
                             Number(inv.totalAmount ?? inv.amount ?? 0) || 0,
                           payeeEmail: (inv as any)?.payeeEmail || "",
                           clientName: (inv as any).clientName || "",
+                          notes: (inv as any).memo || (inv as any).notes || "",
                         },
                       });
                     }}
@@ -171,11 +172,12 @@ export default function Billing() {
                           id: inv.id,
                           invoiceNumber: (inv as any).invoiceNumber || inv.id,
                           status: inv.status,
-                          dueDate: inv.createdAt,
+                          dueDate: inv.dueDate || inv.createdAt,
                           total:
                             Number(inv.totalAmount ?? inv.amount ?? 0) || 0,
                           payeeEmail: (inv as any)?.payeeEmail || "",
                           clientName: (inv as any).clientName || "",
+                          notes: (inv as any).memo || (inv as any).notes || "",
                         },
                       });
                     }}

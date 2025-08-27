@@ -20,6 +20,41 @@ import { useNewLocationModal } from "./NewLocationModal";
 import ClientEditModal from "./ClientEditModal";
 import { ServiceAgreementModal } from "./ServiceAgreementModal";
 
+// Utility function to determine invoice status and styling
+function getInvoiceStatusInfo(invoice: any) {
+  const status = (invoice.status || "").toLowerCase();
+
+  // If explicitly paid, show as paid
+  if (status === "paid") {
+    return {
+      label: "Paid",
+      className:
+        "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200",
+    };
+  }
+
+  // Check if past due
+  const dueDate = invoice.dueDate?.toDate
+    ? invoice.dueDate.toDate()
+    : invoice.dueDate instanceof Date
+    ? invoice.dueDate
+    : null;
+
+  if (dueDate && dueDate < new Date()) {
+    return {
+      label: "Past Due",
+      className: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200",
+    };
+  }
+
+  // Default to pending
+  return {
+    label: "Pending",
+    className:
+      "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200",
+  };
+}
+
 type Client = {
   id: string;
   companyName?: string;
@@ -443,7 +478,18 @@ export default function ClientDetail() {
                       <td className="px-3 py-2">
                         ${Number(inv.amountDue || inv.total || 0).toFixed(2)}
                       </td>
-                      <td className="px-3 py-2">{inv.status || "—"}</td>
+                      <td className="px-3 py-2">
+                        {(() => {
+                          const statusInfo = getInvoiceStatusInfo(inv);
+                          return (
+                            <span
+                              className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusInfo.className}`}
+                            >
+                              {statusInfo.label}
+                            </span>
+                          );
+                        })()}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -464,7 +510,18 @@ export default function ClientDetail() {
                     ${Number(inv.amountDue || inv.total || 0).toFixed(2)}
                   </div>
                 </div>
-                <div className="text-sm text-zinc-500">{inv.status || "—"}</div>
+                <div className="text-sm text-zinc-500">
+                  {(() => {
+                    const statusInfo = getInvoiceStatusInfo(inv);
+                    return (
+                      <span
+                        className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusInfo.className}`}
+                      >
+                        {statusInfo.label}
+                      </span>
+                    );
+                  })()}
+                </div>
               </div>
             ))}
           </div>

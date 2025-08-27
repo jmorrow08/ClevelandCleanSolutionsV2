@@ -21,6 +21,7 @@ import {
   makeDayBounds as makeDayBoundsUtil,
   formatJobWindow,
 } from "../../utils/time";
+import { deriveAdminStatus } from "../../services/statusMap";
 
 type Job = {
   id: string;
@@ -30,15 +31,46 @@ type Job = {
   locationId?: string;
 };
 
-function mapUiStatus(legacy?: string): string {
-  if (!legacy) return "unknown";
-  // Prompt requirement: legacy 'Completed' → render 'completed_pending_approval'
-  if (legacy === "Completed") return "completed_pending_approval";
-  if (legacy === "Pending Approval") return "completed_pending_approval";
-  if (legacy === "Scheduled") return "scheduled";
-  if (legacy === "In Progress") return "in_progress";
-  if (legacy === "Cancelled") return "canceled";
-  return legacy;
+function StatusChips({ job }: { job: Job }) {
+  const { primary, qa, payroll } = deriveAdminStatus(
+    {
+      status: job.status,
+      serviceDate: job.serviceDate,
+      payrollProcessed: (job as any)?.payrollProcessed,
+    },
+    new Date()
+  );
+  const pill =
+    primary === "completed"
+      ? "bg-green-100 text-green-800"
+      : primary === "in_progress"
+      ? "bg-blue-100 text-blue-800"
+      : primary === "canceled"
+      ? "bg-red-100 text-red-800"
+      : "bg-zinc-100 text-zinc-800";
+  return (
+    <div className="flex items-center gap-1">
+      <span className={`px-2 py-0.5 rounded-md text-xs ${pill}`}>
+        {primary.replace("_", " ")}
+      </span>
+      {primary === "completed" && (
+        <span
+          className={`px-2 py-0.5 rounded-md text-[10px] ${
+            payroll === "processed"
+              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+              : "bg-yellow-50 text-yellow-700 border border-yellow-200"
+          }`}
+        >
+          {payroll === "processed" ? "Payroll Processed" : "Awaiting Payroll"}
+        </span>
+      )}
+      {qa === "needs_approval" && primary !== "completed" && (
+        <span className="px-2 py-0.5 rounded-md text-[10px] bg-yellow-50 text-yellow-700 border border-yellow-200">
+          Pending QA
+        </span>
+      )}
+    </div>
+  );
 }
 
 export default function JobsList({ showAll }: { showAll: boolean }) {
@@ -244,9 +276,7 @@ export default function JobsList({ showAll }: { showAll: boolean }) {
                     </div>
                   </td>
                   <td className="px-3 py-2">
-                    <span className="px-2 py-0.5 rounded-md text-xs bg-zinc-100 dark:bg-zinc-700">
-                      {mapUiStatus(j.status)}
-                    </span>
+                    <StatusChips job={j} />
                   </td>
                   <td className="px-3 py-2 text-right">
                     <Link
@@ -301,9 +331,7 @@ export default function JobsList({ showAll }: { showAll: boolean }) {
                     j.id
                   )}
                 </div>
-                <span className="px-2 py-0.5 rounded-md text-xs bg-zinc-100 dark:bg-zinc-700">
-                  {mapUiStatus(j.status)}
-                </span>
+                <StatusChips job={j} />
               </div>
               <div className="text-xs text-zinc-500 mt-1">
                 {j.serviceDate?.toDate

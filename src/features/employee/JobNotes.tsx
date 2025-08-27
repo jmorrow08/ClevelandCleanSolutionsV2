@@ -11,11 +11,17 @@ import {
   orderBy,
   getDocs,
   serverTimestamp,
+  limit,
 } from "firebase/firestore";
 import { firebaseConfig } from "../../services/firebase";
 import { useAuth } from "../../context/AuthContext";
 
 type LocationItem = { id: string; locationName?: string | null };
+type TimeEntry = {
+  id: string;
+  locationId: string;
+  locationName?: string | null;
+};
 type NoteItem = {
   id: string;
   employeeName?: string;
@@ -29,15 +35,24 @@ export default function JobNotes() {
   const [selectedLocationId, setSelectedLocationId] = useState<string>("");
   const [profileId, setProfileId] = useState<string | null>(null);
   const [employeeName, setEmployeeName] = useState<string>("");
+  const [activeTimeEntryId, setActiveTimeEntryId] = useState<string | null>(
+    null
+  );
+  const [isClockedIn, setIsClockedIn] = useState<boolean>(false);
+  const [activeLocationName, setActiveLocationName] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(true);
   const [notes, setNotes] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [notesLoading, setNotesLoading] = useState(false);
   const [rows, setRows] = useState<NoteItem[]>([]);
 
   useEffect(() => {
     (async () => {
       if (!getApps().length) initializeApp(firebaseConfig);
       const db = getFirestore();
+
+      // First, load locations
+      let locationsList: LocationItem[] = [];
       try {
         const qLoc = query(
           collection(db, "locations"),
@@ -45,25 +60,67 @@ export default function JobNotes() {
           orderBy("locationName", "asc")
         );
         const snap = await getDocs(qLoc);
-        const list: LocationItem[] = [];
-        snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
-        setLocations(list);
-      } catch {}
+        snap.forEach((d) =>
+          locationsList.push({ id: d.id, ...(d.data() as any) })
+        );
+        setLocations(locationsList);
+      } catch (error) {
+        console.error("Failed to load locations:", error);
+      }
 
-      if (!user?.uid) return;
+      if (!user?.uid) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const us = await getDoc(doc(db, "users", user.uid));
         if (us.exists()) {
           const u = us.data() as any;
-          setProfileId(typeof u.profileId === "string" ? u.profileId : null);
+          const profileIdValue =
+            typeof u.profileId === "string" ? u.profileId : null;
+          setProfileId(profileIdValue);
           setEmployeeName(
             [u.firstName, u.lastName].filter(Boolean).join(" ") ||
               user.displayName ||
               user.email ||
               "Employee"
           );
+
+          // Check if employee is currently clocked in
+          if (profileIdValue) {
+            const timeEntryQuery = query(
+              collection(db, "employeeTimeTracking"),
+              where("employeeProfileId", "==", profileIdValue),
+              where("clockOutTime", "==", null),
+              orderBy("clockInTime", "desc"),
+              limit(1)
+            );
+            const timeEntrySnap = await getDocs(timeEntryQuery);
+
+            if (!timeEntrySnap.empty) {
+              const timeEntry = timeEntrySnap.docs[0];
+              const timeEntryData = timeEntry.data() as TimeEntry;
+              setActiveTimeEntryId(timeEntry.id);
+              setIsClockedIn(true);
+              setSelectedLocationId(timeEntryData.locationId);
+
+              // Get location name for display - now using the loaded locationsList
+              const locationName =
+                locationsList.find((l) => l.id === timeEntryData.locationId)
+                  ?.locationName ||
+                timeEntryData.locationName ||
+                "Unknown Location";
+              setActiveLocationName(locationName);
+            } else {
+              setIsClockedIn(false);
+            }
+          }
         }
-      } catch {}
+      } catch (error) {
+        console.error("Failed to load user data:", error);
+      }
+      setLoading(false);
     })();
   }, [user?.uid]);
 
@@ -78,7 +135,7 @@ export default function JobNotes() {
     if (!getApps().length) initializeApp(firebaseConfig);
     const db = getFirestore();
     try {
-      setLoading(true);
+      setNotesLoading(true);
       const qy = query(
         collection(db, "generalJobNotes"),
         where("locationId", "==", selectedLocationId)
@@ -101,7 +158,7 @@ export default function JobNotes() {
       });
       setRows(list);
     } finally {
-      setLoading(false);
+      setNotesLoading(false);
     }
   }
 
@@ -121,9 +178,10 @@ export default function JobNotes() {
         employeeProfileId: profileId,
         employeeName,
         locationId: selectedLocationId,
-        locationName,
+        locationName: isClockedIn ? activeLocationName : locationName,
         notes: notes.trim(),
         createdAt: serverTimestamp(),
+        timeEntryId: activeTimeEntryId || null,
       });
       setNotes("");
       await loadNotes();
@@ -132,30 +190,54 @@ export default function JobNotes() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="p-6 space-y-4">
+        <h1 className="text-xl font-semibold">Job Notes</h1>
+        <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+          <div className="text-sm text-zinc-500">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-xl font-semibold">Job Notes</h1>
 
       <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1 space-y-3">
-        <div className="text-sm">
-          <div className="text-xs text-zinc-500 mb-1">Select location</div>
-          <select
-            className="w-full px-3 py-2 rounded-md border bg-white dark:bg-zinc-900"
-            value={selectedLocationId}
-            onChange={(e) => setSelectedLocationId(e.target.value)}
-          >
-            <option value="">
-              {locations.length
-                ? "-- Select a Location --"
-                : "-- Loading Locations --"}
-            </option>
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.locationName || l.id}
+        {isClockedIn ? (
+          <div className="text-sm">
+            <div className="text-xs text-zinc-500 mb-1">Current Location</div>
+            <div className="px-3 py-2 rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="font-medium">{activeLocationName}</span>
+                <span className="text-xs">(Clocked In)</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-sm">
+            <div className="text-xs text-zinc-500 mb-1">Select location</div>
+            <select
+              className="w-full px-3 py-2 rounded-md border bg-white dark:bg-zinc-900"
+              value={selectedLocationId}
+              onChange={(e) => setSelectedLocationId(e.target.value)}
+            >
+              <option value="">
+                {locations.length
+                  ? "-- Select a Location --"
+                  : "-- Loading Locations --"}
               </option>
-            ))}
-          </select>
-        </div>
+              {locations.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.locationName || l.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="text-sm">
           <div className="text-xs text-zinc-500 mb-1">Your Notes</div>
@@ -164,6 +246,11 @@ export default function JobNotes() {
             className="w-full px-3 py-2 rounded-md border bg-white dark:bg-zinc-900"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
+            placeholder={
+              isClockedIn
+                ? "Add notes about your current work..."
+                : "Add notes about this location..."
+            }
           />
         </div>
 
@@ -175,7 +262,7 @@ export default function JobNotes() {
           >
             {submitting ? "Saving…" : "Save Job Notes"}
           </button>
-          {loading ? (
+          {notesLoading ? (
             <div className="text-xs text-zinc-500">Loading notes…</div>
           ) : null}
         </div>

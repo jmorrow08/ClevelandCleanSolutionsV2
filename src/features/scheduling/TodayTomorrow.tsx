@@ -193,7 +193,7 @@ export default function TodayTomorrow() {
                           {right.join(", ") || "Unassigned"}
                         </span>
                         <Link
-                          to={`/service-history/${j.id}`}
+                          to={`/service-history/${j.id}?from=sched`}
                           className="underline text-blue-600 dark:text-blue-400 text-xs"
                         >
                           View

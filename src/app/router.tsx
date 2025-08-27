@@ -4,12 +4,12 @@ import ProtectedRoute from "./ProtectedRoute";
 import AdminDashboard from "../features/dashboard/AdminDashboard";
 import EmployeeHome from "../features/employee/EmployeeHome";
 import MyJobs from "../features/employee/MyJobs";
-import TimeClock from "../features/employee/TimeClock";
 import UploadPhotos from "../features/employee/UploadPhotos";
 import MyPhotos from "../features/employee/MyPhotos";
 import JobNotes from "../features/employee/JobNotes";
 import PayrollPage from "../features/employee/PayrollPage";
 import EmployeeSettings from "../features/employee/EmployeeSettings";
+
 import ClientHome from "../features/client/ClientHome";
 import InvoicesPage from "../features/client/InvoicesPage";
 import SupportPage from "../features/client/SupportPage";
@@ -17,6 +17,7 @@ import ProfilePage from "../features/client/ProfilePage";
 import ServicesPage from "../features/client/ServicesPage";
 import FinanceHub from "../features/finance/FinanceHub";
 import SchedulingPage from "../features/scheduling/SchedulingPage";
+import DispatchPage from "../features/scheduling/DispatchPage";
 import ServiceHistoryPage from "../features/serviceHistory/ServiceHistoryPage";
 import JobDetail from "../features/serviceHistory/JobDetail";
 import AnalyticsDashboard from "../features/analytics/AnalyticsDashboard";
@@ -35,7 +36,7 @@ import AssetDetail from "../features/media/AssetDetail";
 import OrgSettings from "../features/settings/OrgSettings";
 import AuditLog from "../features/audit/AuditLog";
 import { RoleGuard } from "../context/RoleGuard";
-import EmployeesList from "../features/hr/EmployeesList";
+import HRPage from "../features/hr/HRPage";
 import EmployeeDetail from "../features/hr/EmployeeDetail";
 import ClientDetail from "../features/crm/ClientDetail";
 import LocationDetail from "../features/crm/LocationDetail";
@@ -63,6 +64,7 @@ const router = createBrowserRouter([
           { path: "/finance", element: <FinanceHub /> },
           { path: "/finance/payroll/:id", element: <PayrollRunDetail /> },
           { path: "/scheduling", element: <SchedulingPage /> },
+          { path: "/scheduling/dispatch", element: <DispatchPage /> },
           { path: "/service-history", element: <ServiceHistoryPage /> },
           { path: "/service-history/:jobId", element: <JobDetail /> },
           { path: "/analytics", element: <AnalyticsDashboard /> },
@@ -88,7 +90,11 @@ const router = createBrowserRouter([
           { path: "/training/admin", element: <TrainingAdmin /> },
           {
             path: "/hr",
-            element: <EmployeesList />,
+            element: (
+              <RoleGuard allow={["owner", "admin", "super_admin"]}>
+                <HRPage />
+              </RoleGuard>
+            ),
           },
           { path: "/hr/:id", element: <EmployeeDetail /> },
           { path: "/settings", element: <OrgSettings /> },
@@ -113,7 +119,6 @@ const router = createBrowserRouter([
         children: [
           { path: "/employee", element: <EmployeeHome /> },
           { path: "/employee/jobs", element: <MyJobs /> },
-          { path: "/employee/clock", element: <TimeClock /> },
           { path: "/employee/photos", element: <UploadPhotos /> },
           { path: "/employee/uploads", element: <MyPhotos /> },
           { path: "/employee/notes", element: <JobNotes /> },

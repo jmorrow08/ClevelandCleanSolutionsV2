@@ -49,6 +49,41 @@ function formatDate(ts?: any) {
   return d ? format(d, "MMM d, yyyy") : "—";
 }
 
+// Utility function to determine invoice status and styling
+function getInvoiceStatusInfo(invoice: Invoice) {
+  const status = (invoice.status || "").toLowerCase();
+
+  // If explicitly paid, show as paid
+  if (status === "paid") {
+    return {
+      label: "Paid",
+      className:
+        "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200",
+    };
+  }
+
+  // Check if past due
+  const dueDate = invoice.dueDate?.toDate
+    ? invoice.dueDate.toDate()
+    : invoice.dueDate instanceof Date
+    ? invoice.dueDate
+    : null;
+
+  if (dueDate && dueDate < new Date()) {
+    return {
+      label: "Past Due",
+      className: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200",
+    };
+  }
+
+  // Default to pending
+  return {
+    label: "Pending",
+    className:
+      "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200",
+  };
+}
+
 export default function InvoicesPage() {
   const { claims } = useAuth();
   const location = useLocation();
@@ -84,7 +119,7 @@ export default function InvoicesPage() {
     const params = new URLSearchParams(location.search);
     const qp = params.get("search") || params.get("clientId") || "";
     if (qp) setSearch((prev) => (prev ? prev : qp));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [location.search]);
 
   useEffect(() => {
@@ -292,8 +327,21 @@ export default function InvoicesPage() {
                       key={inv.id}
                       className="border-t border-zinc-100 dark:border-zinc-700"
                     >
-                      <td className="px-3 py-2">{inv.id}</td>
-                      <td className="px-3 py-2">{inv.status || "—"}</td>
+                      <td className="px-3 py-2">
+                        {inv.invoiceNumber || inv.id}
+                      </td>
+                      <td className="px-3 py-2">
+                        {(() => {
+                          const statusInfo = getInvoiceStatusInfo(inv);
+                          return (
+                            <span
+                              className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusInfo.className}`}
+                            >
+                              {statusInfo.label}
+                            </span>
+                          );
+                        })()}
+                      </td>
                       <td className="px-3 py-2">{formatDate(inv.dueDate)}</td>
                       <td className="px-3 py-2">{formatCurrency(amount)}</td>
                       <td className="px-3 py-2 text-right">
@@ -337,7 +385,10 @@ export default function InvoicesPage() {
                                       Number(
                                         inv.totalAmount ?? inv.amount ?? 0
                                       ) || 0,
-                                    notes: (inv as any).memo || "",
+                                    notes:
+                                      (inv as any).memo ||
+                                      (inv as any).notes ||
+                                      "",
                                     payeeEmail: (inv as any).payeeEmail || "",
                                     clientName: (inv as any).clientName || "",
                                   },
@@ -383,7 +434,10 @@ export default function InvoicesPage() {
                                       Number(
                                         inv.totalAmount ?? inv.amount ?? 0
                                       ) || 0,
-                                    notes: (inv as any).memo || "",
+                                    notes:
+                                      (inv as any).memo ||
+                                      (inv as any).notes ||
+                                      "",
                                     payeeEmail: (inv as any).payeeEmail || "",
                                     clientName: (inv as any).clientName || "",
                                   },
@@ -462,11 +516,25 @@ export default function InvoicesPage() {
                   className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="font-medium">{inv.id}</div>
+                    <div className="font-medium">
+                      {inv.invoiceNumber || inv.id}
+                    </div>
                     <div className="text-sm">{formatCurrency(amount)}</div>
                   </div>
                   <div className="text-xs text-zinc-500 mt-1 flex items-center justify-between">
-                    <span>Status: {inv.status || "—"}</span>
+                    <div className="flex items-center gap-2">
+                      <span>Status:</span>
+                      {(() => {
+                        const statusInfo = getInvoiceStatusInfo(inv);
+                        return (
+                          <span
+                            className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusInfo.className}`}
+                          >
+                            {statusInfo.label}
+                          </span>
+                        );
+                      })()}
+                    </div>
                     <span>Due: {formatDate(inv.dueDate)}</span>
                   </div>
                   <div className="mt-2 flex items-center justify-end gap-2">

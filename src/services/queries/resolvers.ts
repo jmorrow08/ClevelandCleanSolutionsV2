@@ -75,11 +75,17 @@ export async function getLocationName(
       const ref = doc(db, "locations", locationId);
       const snap = await getDoc(ref);
       const d = snap.data() || {};
-      const name = (d as any).locationName || (d as any).name || "Location";
+      let name = (d as any).locationName || (d as any).name || "Location";
+
+      // If the name is just the ID or empty, provide a more user-friendly fallback
+      if (!name || name === locationId || name === "Location") {
+        name = `Location ${locationId.slice(0, 8)}...`;
+      }
+
       locationNameCache.set(locationId, name);
       return name;
     } catch (e) {
-      const fallback = locationId;
+      const fallback = `Location ${locationId.slice(0, 8)}...`;
       locationNameCache.set(locationId, fallback);
       return fallback;
     } finally {
@@ -252,12 +258,21 @@ export async function getLocationNames(
       const found = new Set<string>();
       snap.forEach((d) => {
         const data = d.data() as any;
-        const name = data?.locationName || data?.name || d.id;
+        let name = data?.locationName || data?.name || d.id;
+
+        // If the name is just the ID or empty, provide a more user-friendly fallback
+        if (!name || name === d.id || name === "Location") {
+          name = `Location ${d.id.slice(0, 8)}...`;
+        }
+
         locationNameCache.set(d.id, name);
         found.add(d.id);
       });
       batchIds.forEach((id) => {
-        if (!found.has(id)) locationNameCache.set(id, id);
+        if (!found.has(id)) {
+          const fallback = `Location ${id.slice(0, 8)}...`;
+          locationNameCache.set(id, fallback);
+        }
       });
     });
     const pending = Promise.all(batchPromises).finally(() => {
@@ -325,21 +340,25 @@ export async function getEmployeeNames(
         employeeNameCache.set(d.id, name);
         found.add(d.id);
       });
-      // Fallback to users
+      // Fallback to users (chunked for 'in' limit of 10)
       const missing = batchIds.filter((id) => !found.has(id));
       if (missing.length) {
-        const userQ = query(userCol, where(documentId(), "in", missing));
-        const userSnap = await getDocs(userQ);
-        const userFound = new Set<string>();
-        userSnap.forEach((d) => {
-          const v = d.data() as any;
-          const name = v?.displayName || v?.name || d.id;
-          employeeNameCache.set(d.id, name);
-          userFound.add(d.id);
+        const userBatches = chunkArray(missing, 10);
+        const userPromises = userBatches.map(async (ids) => {
+          const userQ = query(userCol, where(documentId(), "in", ids));
+          const userSnap = await getDocs(userQ);
+          const userFound = new Set<string>();
+          userSnap.forEach((d) => {
+            const v = d.data() as any;
+            const name = v?.displayName || v?.name || d.id;
+            employeeNameCache.set(d.id, name);
+            userFound.add(d.id);
+          });
+          ids.forEach((id) => {
+            if (!userFound.has(id)) employeeNameCache.set(id, id);
+          });
         });
-        missing.forEach((id) => {
-          if (!userFound.has(id)) employeeNameCache.set(id, id);
-        });
+        await Promise.all(userPromises);
       }
     });
     const pending = Promise.all(batchPromises).finally(() => {

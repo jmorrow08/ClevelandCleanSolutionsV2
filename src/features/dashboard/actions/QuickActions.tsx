@@ -20,7 +20,10 @@ export default function QuickActions() {
       </button>
       <button
         className="px-3 py-2 text-sm rounded-md border border-zinc-300 dark:border-zinc-700"
-        onClick={() => open()}
+        onClick={() => {
+          navigate("/scheduling");
+          setTimeout(() => open(), 0);
+        }}
       >
         Schedule Job
       </button>

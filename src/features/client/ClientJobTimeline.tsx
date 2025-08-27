@@ -17,6 +17,7 @@ import {
 } from "../../utils/time";
 import { useAuth } from "../../context/AuthContext";
 import { getLocationName } from "../../services/queries/resolvers";
+import { deriveClientStatus } from "../../services/statusMap";
 
 type Job = {
   id: string;
@@ -40,9 +41,7 @@ function formatDateTimeInET(d?: Date | null): string {
 export default function ClientJobTimeline() {
   const { profileId } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [completed, setCompleted] = useState<Job[]>([]);
-  const [inProgress, setInProgress] = useState<Job[]>([]);
-  const [upcoming, setUpcoming] = useState<Job[]>([]);
+  const [allJobs, setAllJobs] = useState<Job[]>([]);
   const [modal, setModal] = useState<null | { type: "photos"; job: Job }>(null);
 
   useEffect(() => {
@@ -51,54 +50,30 @@ export default function ClientJobTimeline() {
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
         if (!profileId) {
-          setCompleted([]);
-          setInProgress([]);
-          setUpcoming([]);
+          setAllJobs([]);
           return;
         }
 
+        // Load all jobs for this client and categorize them using deriveClientStatus
         try {
-          const qCompleted = query(
+          const qAll = query(
             collection(db, "serviceHistory"),
             where("clientProfileId", "==", profileId),
-            where("status", "==", "Completed"),
             orderBy("serviceDate", "desc"),
-            limit(20)
+            limit(50) // Increased limit to get more jobs for proper categorization
           );
-          const s = await getDocs(qCompleted);
-          setCompleted(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
-        } catch (e: any) {
-          console.warn("Client completed jobs may require index", e?.message);
-        }
-
-        try {
-          const qIp = query(
-            collection(db, "serviceHistory"),
-            where("clientProfileId", "==", profileId),
-            where("status", "in", ["In Progress", "Started"]),
-            orderBy("serviceDate", "desc")
+          const s = await getDocs(qAll);
+          const jobs = s.docs.map((d) => ({
+            id: d.id,
+            ...(d.data() as Record<string, unknown>),
+          }));
+          setAllJobs(jobs);
+        } catch (e: unknown) {
+          console.warn(
+            "Client jobs query may require index",
+            (e as Error)?.message
           );
-          const s = await getDocs(qIp);
-          setInProgress(
-            s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
-          );
-        } catch (e: any) {
-          console.warn("Client in-progress jobs may require index", e?.message);
-        }
-
-        try {
-          const now = new Date();
-          const qUpcoming = query(
-            collection(db, "serviceHistory"),
-            where("clientProfileId", "==", profileId),
-            where("status", "==", "Scheduled"),
-            where("serviceDate", ">=", Timestamp.fromDate(now)),
-            orderBy("serviceDate", "asc")
-          );
-          const s = await getDocs(qUpcoming);
-          setUpcoming(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
-        } catch (e: any) {
-          console.warn("Client upcoming jobs may require index", e?.message);
+          setAllJobs([]);
         }
       } finally {
         setLoading(false);
@@ -106,6 +81,46 @@ export default function ClientJobTimeline() {
     }
     load();
   }, [profileId]);
+
+  // Categorize jobs using deriveClientStatus
+  const { completed, inProgress, upcoming } = useMemo(() => {
+    const now = new Date();
+    const categorized = {
+      completed: [] as Job[],
+      inProgress: [] as Job[],
+      upcoming: [] as Job[],
+    };
+
+    allJobs.forEach((job) => {
+      const clientStatus = deriveClientStatus(job, now);
+      if (clientStatus === "completed") {
+        categorized.completed.push(job);
+      } else if (clientStatus === "in_progress") {
+        categorized.inProgress.push(job);
+      } else if (clientStatus === "upcoming") {
+        categorized.upcoming.push(job);
+      }
+    });
+
+    // Sort each category appropriately
+    categorized.completed.sort((a, b) => {
+      const aDate = a.serviceDate?.toDate?.() || new Date(0);
+      const bDate = b.serviceDate?.toDate?.() || new Date(0);
+      return bDate.getTime() - aDate.getTime(); // newest first
+    });
+    categorized.inProgress.sort((a, b) => {
+      const aDate = a.serviceDate?.toDate?.() || new Date(0);
+      const bDate = b.serviceDate?.toDate?.() || new Date(0);
+      return bDate.getTime() - aDate.getTime(); // newest first
+    });
+    categorized.upcoming.sort((a, b) => {
+      const aDate = a.serviceDate?.toDate?.() || new Date(0);
+      const bDate = b.serviceDate?.toDate?.() || new Date(0);
+      return aDate.getTime() - bDate.getTime(); // oldest first
+    });
+
+    return categorized;
+  }, [allJobs]);
 
   const empty = useMemo(
     () => !completed.length && !inProgress.length && !upcoming.length,
@@ -161,6 +176,9 @@ function TimelineColumn({
   onSelect: (j: Job) => void;
 }) {
   const [windows, setWindows] = useState<Record<string, string>>({});
+  const [locationNames, setLocationNames] = useState<Record<string, string>>(
+    {}
+  );
 
   useEffect(() => {
     (async () => {
@@ -214,6 +232,31 @@ function TimelineColumn({
         }
         setWindows(map);
       } catch {}
+
+      // Resolve location names
+      try {
+        const locationMap: Record<string, string> = {};
+        for (const j of jobs) {
+          if (j.locationId) {
+            try {
+              const name = await getLocationName(j.locationId);
+              locationMap[j.id] = name;
+            } catch (error) {
+              console.warn(
+                "Failed to resolve location name for job:",
+                j.id,
+                error
+              );
+              locationMap[j.id] = j.locationId || "Unknown Location";
+            }
+          } else {
+            locationMap[j.id] = "Unknown Location";
+          }
+        }
+        setLocationNames(locationMap);
+      } catch (error) {
+        console.warn("Failed to resolve location names:", error);
+      }
     })();
   }, [jobs]);
 
@@ -234,18 +277,16 @@ function TimelineColumn({
                 <div className="min-w-0 flex-1">
                   <div className="truncate">
                     {(j.serviceDate?.toDate
-                      ? j.serviceDate
-                          .toDate()
-                          .toLocaleDateString("en-US", {
-                            timeZone: "America/New_York",
-                          })
+                      ? j.serviceDate.toDate().toLocaleDateString("en-US", {
+                          timeZone: "America/New_York",
+                        })
                       : "—") + " "}
                     <span className="text-xs text-zinc-500">
                       {windows[j.id] || formatJobWindow(j.serviceDate)}
                     </span>
                   </div>
                   <div className="text-xs text-zinc-500 truncate mt-0.5">
-                    {j.locationId || j.clientProfileId || j.id}
+                    {locationNames[j.id] || "Loading..."}
                   </div>
                 </div>
                 <span className={`px-2 py-0.5 rounded-md text-xs ${accent}`}>
@@ -295,6 +336,10 @@ function PhotosModal({ job, onClose }: { job: Job; onClose: () => void }) {
         const snap = await getDocs(qref);
         const list: Photo[] = [];
         snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
+        console.log(
+          `Loaded ${list.length} photos for timeline:`,
+          list.map((p) => ({ id: p.id, url: p.photoUrl }))
+        );
         setPhotos(list);
       } catch (e: any) {
         console.warn("Client photos query may require index", e?.message);
@@ -348,9 +393,22 @@ function PhotosModal({ job, onClose }: { job: Job; onClose: () => void }) {
                   className="block"
                 >
                   <img
-                    src={p.photoUrl}
+                    src={p.photoUrl || ""}
                     alt="Service photo"
                     className="w-full h-32 object-cover rounded-md"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      console.warn(`Failed to load image: ${p.photoUrl}`, e);
+                      target.src =
+                        "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjgwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMCAyMEg2MFY2MEgyMFYyMFoiIGZpbGw9IiNEMUQ1REIiLz4KPHBhdGggZD0iTTI1IDI1SDU1VjU1SDI1VjI1WiIgZmlsbD0iI0YzRjRGNiIvPgo8Y2lyY2xlIGN4PSIzNSIgY3k9IjM1IiByPSI1IiBmaWxsPSIjOUI5QkEwIi8+CjxwYXRoIGQ9Ik0yMCA1NUwzMCA0NUw0MCA1NUw1MCA0NUw2MCA1NVY2MEgyMFY1NVoiIGZpbGw9IiM5QjlCQTAiLz4KPC9zdmc+";
+                      target.classList.add("opacity-50");
+                    }}
+                    onLoad={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      console.log(`Successfully loaded image: ${p.photoUrl}`);
+                      target.classList.remove("opacity-50");
+                      target.classList.add("opacity-100");
+                    }}
                   />
                   <div className="mt-1 text-[10px] text-zinc-500">
                     {p.uploadedAt?.toDate
