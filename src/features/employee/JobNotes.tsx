@@ -12,6 +12,7 @@ import {
   getDocs,
   serverTimestamp,
   limit,
+  Timestamp,
 } from "firebase/firestore";
 import { firebaseConfig } from "../../services/firebase";
 import { useAuth } from "../../context/AuthContext";
@@ -136,26 +137,38 @@ export default function JobNotes() {
     const db = getFirestore();
     try {
       setNotesLoading(true);
+
+      // Get current day start and end timestamps
+      const now = new Date();
+      const start = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        0,
+        0,
+        0,
+        0
+      );
+      const end = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        23,
+        59,
+        59,
+        999
+      );
+
       const qy = query(
         collection(db, "generalJobNotes"),
-        where("locationId", "==", selectedLocationId)
+        where("locationId", "==", selectedLocationId),
+        where("createdAt", ">=", Timestamp.fromDate(start)),
+        where("createdAt", "<=", Timestamp.fromDate(end)),
+        orderBy("createdAt", "desc")
       );
       const snap = await getDocs(qy);
       const list: NoteItem[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
-      list.sort((a, b) => {
-        const ad = a.createdAt?.toDate
-          ? a.createdAt.toDate()
-          : a.createdAt?.seconds
-          ? new Date(a.createdAt.seconds * 1000)
-          : 0;
-        const bd = b.createdAt?.toDate
-          ? b.createdAt.toDate()
-          : b.createdAt?.seconds
-          ? new Date(b.createdAt.seconds * 1000)
-          : 0;
-        return (bd as any) - (ad as any);
-      });
       setRows(list);
     } finally {
       setNotesLoading(false);
@@ -193,7 +206,7 @@ export default function JobNotes() {
   if (loading) {
     return (
       <div className="p-6 space-y-4">
-        <h1 className="text-xl font-semibold">Job Notes</h1>
+        <h1 className="text-xl font-semibold">Job Notes (Today)</h1>
         <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
           <div className="text-sm text-zinc-500">Loading...</div>
         </div>
@@ -203,7 +216,7 @@ export default function JobNotes() {
 
   return (
     <div className="p-6 space-y-4">
-      <h1 className="text-xl font-semibold">Job Notes</h1>
+      <h1 className="text-xl font-semibold">Job Notes (Today)</h1>
 
       <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1 space-y-3">
         {isClockedIn ? (
@@ -252,6 +265,9 @@ export default function JobNotes() {
                 : "Add notes about this location..."
             }
           />
+          <div className="text-xs text-zinc-400 mt-1">
+            Only today's notes are shown and will clear daily.
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -268,9 +284,12 @@ export default function JobNotes() {
         </div>
 
         {rows.length === 0 ? (
-          <div className="text-sm text-zinc-500">No notes yet.</div>
+          <div className="text-sm text-zinc-500">No notes for today yet.</div>
         ) : (
           <div className="space-y-2">
+            <div className="text-xs text-zinc-500 font-medium">
+              Today's Notes:
+            </div>
             {rows.map((n) => (
               <div
                 key={n.id}

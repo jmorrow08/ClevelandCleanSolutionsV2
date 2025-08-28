@@ -108,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await setDoc(
           doc(db, "presence", uid),
           {
-            uid,
+            uid: uid,
             displayName:
               user.displayName || (user as any)?.name || user.email || "User",
             online: true,
@@ -118,7 +118,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
       } catch (error) {
         console.warn("Failed to update presence:", error);
-        // Don't retry immediately on error
+        // Don't retry immediately on error, but log more details for debugging
+        if (error instanceof Error) {
+          console.warn("Presence update error details:", {
+            code: (error as any).code,
+            message: error.message,
+            uid: uid,
+          });
+        }
         return;
       }
 
@@ -131,6 +138,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
       } catch (error) {
         console.warn("Failed to update user presence:", error);
+        // Log more details for debugging
+        if (error instanceof Error) {
+          console.warn("User presence update error details:", {
+            code: (error as any).code,
+            message: error.message,
+            uid: uid,
+          });
+        }
       }
     }
 
@@ -171,11 +186,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           await setDoc(
             doc(db, "presence", uid),
-            { online: false, lastActive: serverTimestamp() },
+            {
+              uid: uid,
+              online: false,
+              lastActive: serverTimestamp(),
+            },
             { merge: true }
           );
         } catch (error) {
           console.warn("Failed to mark offline in presence:", error);
+          if (error instanceof Error) {
+            console.warn("Offline presence update error details:", {
+              code: (error as any).code,
+              message: error.message,
+              uid: uid,
+            });
+          }
         }
         try {
           await setDoc(
@@ -185,6 +211,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           );
         } catch (error) {
           console.warn("Failed to mark offline in users:", error);
+          if (error instanceof Error) {
+            console.warn("Offline users presence update error details:", {
+              code: (error as any).code,
+              message: error.message,
+              uid: uid,
+            });
+          }
         }
       })();
     };

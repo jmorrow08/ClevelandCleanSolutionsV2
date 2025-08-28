@@ -21,6 +21,7 @@ import {
   calculateRunTotals,
 } from "../../services/queries/payroll";
 import { useAuth } from "../../context/AuthContext";
+import type { Timesheet } from "../../types/timesheet";
 
 type RunDoc = {
   id: string;
@@ -28,16 +29,6 @@ type RunDoc = {
   periodStart?: any;
   periodEnd?: any;
   totals?: any;
-};
-
-type Timesheet = {
-  id: string;
-  employeeId: string;
-  jobId?: string | null;
-  start?: any;
-  end?: any;
-  hours?: number;
-  approvedInRunId?: string | null;
 };
 
 export default function PayrollRunDetail() {
@@ -51,6 +42,7 @@ export default function PayrollRunDetail() {
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
+  const [requireEmployeeApproval, setRequireEmployeeApproval] = useState(true);
 
   useEffect(() => {
     const canRead = !!(claims?.admin || claims?.owner || claims?.super_admin);
@@ -107,14 +99,49 @@ export default function PayrollRunDetail() {
     [timesheets, id]
   );
 
+  const readyForApprovalCount = useMemo(() => {
+    return timesheets.filter((t) => {
+      const adminApproved = t.adminApproved === true;
+      const employeeApproved = t.employeeApproved === true;
+      const notAlreadyApproved = t.approvedInRunId !== id;
+
+      if (requireEmployeeApproval) {
+        return adminApproved && employeeApproved && notAlreadyApproved;
+      }
+      return adminApproved && notAlreadyApproved;
+    }).length;
+  }, [timesheets, id, requireEmployeeApproval]);
+
+  const isTimesheetSelectable = (timesheet: Timesheet): boolean => {
+    const adminApproved = timesheet.adminApproved === true;
+    const employeeApproved = timesheet.employeeApproved === true;
+    const notAlreadyApproved = timesheet.approvedInRunId !== id;
+
+    if (requireEmployeeApproval) {
+      return adminApproved && employeeApproved && notAlreadyApproved;
+    }
+    return adminApproved && notAlreadyApproved;
+  };
+
   async function doApproveSelected() {
     if (!id) return;
     const ids = Object.keys(selected).filter((k) => selected[k]);
-    if (ids.length === 0) return;
+    if (ids.length === 0) {
+      show({
+        type: "warning",
+        message: "Please select timesheets to approve.",
+      });
+      return;
+    }
     try {
       setBusy(true);
       const res = await approveTimesheets(id, ids);
-      show({ type: "success", message: `Approved ${res.count} entries.` });
+      show({
+        type: "success",
+        message: `Successfully approved ${res.count} timesheet${
+          res.count !== 1 ? "s" : ""
+        }.`,
+      });
       // Refresh list
       const db = getFirestore();
       const runRef = doc(db, "payrollRuns", id);
@@ -150,8 +177,31 @@ export default function PayrollRunDetail() {
         totalEarnings: totals.totalEarnings,
         updatedAt: serverTimestamp(),
       } as any);
-      show({ type: "success", message: "Run locked with totals." });
+
+      show({
+        type: "success",
+        message: `Run locked successfully! Total earnings: $${Number(
+          totals.totalEarnings || 0
+        ).toFixed(2)}`,
+      });
+
+      // Refresh the run data
       setRun((prev) => (prev ? { ...prev, status: "locked", totals } : prev));
+
+      // Refresh timesheets list
+      const runRef = doc(db, "payrollRuns", id);
+      const runSnap = await getDoc(runRef);
+      const r: any = runSnap.data() || {};
+      const qy = query(
+        collection(db, "timesheets"),
+        where("start", ">=", r?.periodStart),
+        where("start", "<", r?.periodEnd),
+        orderBy("start", "desc")
+      );
+      const snap = await getDocs(qy);
+      const list: Timesheet[] = [];
+      snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
+      setTimesheets(list);
     } catch (e: any) {
       show({ type: "error", message: e?.message || "Lock failed" });
     } finally {
@@ -259,8 +309,24 @@ export default function PayrollRunDetail() {
       <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1">
         <div className="flex items-center justify-between">
           <div className="font-medium">Timesheets in Period</div>
-          <div className="text-sm text-zinc-500">Approved: {approvedCount}</div>
+          <div className="text-sm text-zinc-500">
+            Approved: {approvedCount} | Ready: {readyForApprovalCount}
+          </div>
         </div>
+
+        <RoleGuard allow={["owner", "super_admin"]}>
+          <div className="mt-2 flex items-center gap-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={requireEmployeeApproval}
+                onChange={(e) => setRequireEmployeeApproval(e.target.checked)}
+                className="rounded"
+              />
+              Require Employee Approval
+            </label>
+          </div>
+        </RoleGuard>
 
         {tsLoading ? (
           <div className="text-sm text-zinc-500 mt-2">Loading…</div>
@@ -276,13 +342,17 @@ export default function PayrollRunDetail() {
                   <th className="px-2 py-1">Start</th>
                   <th className="px-2 py-1">End</th>
                   <th className="px-2 py-1">Hours</th>
+                  <th className="px-2 py-1">Units</th>
                   <th className="px-2 py-1">Job</th>
-                  <th className="px-2 py-1">Approved</th>
+                  <th className="px-2 py-1">Emp Approved</th>
+                  <th className="px-2 py-1">Admin Approved</th>
+                  <th className="px-2 py-1">In Run</th>
                 </tr>
               </thead>
               <tbody>
                 {timesheets.map((t) => {
                   const isApproved = t.approvedInRunId === id;
+                  const isSelectable = isTimesheetSelectable(t);
                   const start = t.start?.toDate
                     ? t.start.toDate().toLocaleString()
                     : "—";
@@ -299,7 +369,7 @@ export default function PayrollRunDetail() {
                           <input
                             type="checkbox"
                             disabled={
-                              isApproved || busy || run?.status === "locked"
+                              !isSelectable || busy || run?.status === "locked"
                             }
                             checked={!!selected[t.id]}
                             onChange={(e) =>
@@ -317,8 +387,43 @@ export default function PayrollRunDetail() {
                       <td className="px-2 py-1">
                         {Number(t.hours || 0).toFixed(2)}
                       </td>
+                      <td className="px-2 py-1">
+                        {Number(t.units || 1).toFixed(0)}
+                      </td>
                       <td className="px-2 py-1">{t.jobId || "—"}</td>
-                      <td className="px-2 py-1">{isApproved ? "Yes" : "No"}</td>
+                      <td className="px-2 py-1">
+                        <span
+                          className={`px-1 py-0.5 rounded text-xs ${
+                            t.employeeApproved
+                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                              : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                          }`}
+                        >
+                          {t.employeeApproved ? "Yes" : "No"}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1">
+                        <span
+                          className={`px-1 py-0.5 rounded text-xs ${
+                            t.adminApproved
+                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                              : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                          }`}
+                        >
+                          {t.adminApproved ? "Yes" : "No"}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1">
+                        <span
+                          className={`px-1 py-0.5 rounded text-xs ${
+                            isApproved
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                              : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
+                          }`}
+                        >
+                          {isApproved ? "Yes" : "No"}
+                        </span>
+                      </td>
                     </tr>
                   );
                 })}

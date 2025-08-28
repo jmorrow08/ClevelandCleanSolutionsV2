@@ -172,12 +172,9 @@ export default function PayrollPage() {
         </div>
       </div>
 
-      {/* Timesheet Section */}
+      {/* Enhanced Timesheet Section with Period Summary and History */}
       <div className="bg-white dark:bg-zinc-800 border border-border rounded-lg shadow-sm">
         <div className="p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            My Timesheets (30 days)
-          </h2>
           <TimesheetView />
         </div>
       </div>

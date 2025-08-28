@@ -572,7 +572,15 @@ export default function AssignmentsReadOnly({
                           </td>
                           <td className="px-3 py-2">
                             <span className="px-2 py-0.5 rounded-md text-xs bg-zinc-100 dark:bg-zinc-700">
-                              {mapUiStatus(j.status)}
+                              {(() => {
+                                const { primary } = deriveAdminStatus({
+                                  status: j.status,
+                                  serviceDate: j.serviceDate,
+                                  payrollProcessed: (j as any)
+                                    ?.payrollProcessed,
+                                });
+                                return primary.replace("_", " ");
+                              })()}
                             </span>
                           </td>
                           {compareClock ? (

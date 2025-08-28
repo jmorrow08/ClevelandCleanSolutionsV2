@@ -98,6 +98,7 @@ export default function PasswordChange() {
               className="border rounded-md px-3 py-2 bg-white dark:bg-zinc-900 flex-1"
               placeholder="Enter current password"
               required
+              autoComplete="current-password"
             />
             <button
               type="button"
@@ -126,6 +127,7 @@ export default function PasswordChange() {
               placeholder="Enter new password"
               minLength={6}
               required
+              autoComplete="new-password"
             />
             <button
               type="button"
@@ -154,6 +156,7 @@ export default function PasswordChange() {
               placeholder="Confirm new password"
               minLength={6}
               required
+              autoComplete="new-password"
             />
             <button
               type="button"

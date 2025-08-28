@@ -4,7 +4,6 @@ import { AuthProvider } from "./context/AuthContext";
 import { SettingsProvider } from "./context/SettingsContext";
 import { ToastProvider } from "./context/ToastContext";
 import { QuickActionsProvider } from "./context/QuickActionsContext";
-import { ScheduleJobProvider } from "./features/scheduling/ScheduleJobModal";
 import { NewClientProvider } from "./features/crm/NewClientModal";
 import { NewLocationProvider } from "./features/crm/NewLocationModal";
 import "./index.css";
@@ -16,13 +15,11 @@ export default function App() {
         <SettingsProvider>
           <ToastProvider>
             <QuickActionsProvider>
-              <ScheduleJobProvider>
-                <NewClientProvider>
-                  <NewLocationProvider>
-                    <AppRouter />
-                  </NewLocationProvider>
-                </NewClientProvider>
-              </ScheduleJobProvider>
+              <NewClientProvider>
+                <NewLocationProvider>
+                  <AppRouter />
+                </NewLocationProvider>
+              </NewClientProvider>
             </QuickActionsProvider>
           </ToastProvider>
         </SettingsProvider>

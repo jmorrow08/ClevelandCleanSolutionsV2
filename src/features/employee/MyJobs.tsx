@@ -104,31 +104,18 @@ export default function MyJobs() {
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
 
-        console.log("DEBUG MyJobs: User claims:", claims);
-        console.log(
-          "DEBUG MyJobs: User has employee claim:",
-          (claims as any)?.employee
-        );
-        console.log(
-          "DEBUG MyJobs: User has admin claim:",
-          (claims as any)?.admin
-        );
-
         // Resolve employee profileId if available (for legacy assignments)
         let profileId: string | null = null;
         try {
           const us = await getDoc(doc(db, "users", user.uid));
           const userData = us.exists() ? (us.data() as any) : {};
-          console.log("DEBUG MyJobs: User data:", userData);
-          console.log("DEBUG MyJobs: User role:", userData.role);
-          console.log("DEBUG MyJobs: User profileId:", userData.profileId);
           profileId =
             us.exists() && typeof userData.profileId === "string"
               ? userData.profileId
               : null;
           setProfileId(profileId);
         } catch (e) {
-          console.error("DEBUG MyJobs: Error fetching user data:", e);
+          // Silently handle user data fetch error
         }
 
         // Build range for current week
@@ -219,10 +206,6 @@ export default function MyJobs() {
 
     (async () => {
       try {
-        console.log(
-          "DEBUG MyJobs: Checking active time entry for profileId:",
-          profileId
-        );
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
 
@@ -235,12 +218,9 @@ export default function MyJobs() {
           )
         );
 
-        console.log("DEBUG MyJobs: Found active entries:", activeEntries.size);
-
         if (!activeEntries.empty) {
           const activeEntry = activeEntries.docs[0];
           const data = activeEntry.data() as any;
-          console.log("DEBUG MyJobs: Active entry data:", data);
           setActiveEntryId(activeEntry.id);
           const t = data?.clockInTime?.toDate
             ? data.clockInTime.toDate()
@@ -251,14 +231,6 @@ export default function MyJobs() {
           // Store both locationName and locationId for matching
           setClockInLocName(data?.locationName || "");
           setClockInLocationId(data?.locationId || "");
-          console.log(
-            "DEBUG MyJobs: Set clockInLocName to:",
-            data?.locationName || ""
-          );
-          console.log(
-            "DEBUG MyJobs: Set clockInLocationId to:",
-            data?.locationId || ""
-          );
         } else {
           setActiveEntryId(null);
           setClockInAt(null);
@@ -401,11 +373,6 @@ export default function MyJobs() {
   }
 
   async function clockIn(job: JobItem) {
-    console.log("DEBUG MyJobs: Attempting to clock in for job:", job);
-    console.log("DEBUG MyJobs: User UID:", user?.uid);
-    console.log("DEBUG MyJobs: Profile ID:", profileId);
-    console.log("DEBUG MyJobs: Job location ID:", job.locationId);
-
     if (!user?.uid || !profileId || !job.locationId) {
       setMessage("System error or missing job data.");
       return;
@@ -454,19 +421,9 @@ export default function MyJobs() {
         updatedAt: serverTimestamp(),
       };
 
-      console.log(
-        "DEBUG MyJobs: Creating time entry with data:",
-        timeEntryData
-      );
-
       const ref = await addDoc(
         collection(db, "employeeTimeTracking"),
         timeEntryData
-      );
-
-      console.log(
-        "DEBUG MyJobs: Successfully created time entry with ID:",
-        ref.id
       );
 
       setActiveEntryId(ref.id);
@@ -475,7 +432,6 @@ export default function MyJobs() {
       setClockInLocationId(job.locationId || "");
       setMessage("Clocked In!");
     } catch (e: any) {
-      console.error("DEBUG MyJobs: Error clocking in:", e);
       setMessage(e?.message || "Error clocking in.");
     } finally {
       setSaving(false);
@@ -568,24 +524,6 @@ export default function MyJobs() {
               !!activeEntryId &&
               (clockInLocName === j.locationName ||
                 clockInLocationId === j.locationId);
-
-            // Debug logging for location matching
-            if (!!activeEntryId) {
-              console.log(
-                "DEBUG MyJobs: Location matching for job:",
-                j.locationName
-              );
-              console.log("DEBUG MyJobs: Job locationId:", j.locationId);
-              console.log("DEBUG MyJobs: ClockInLocName:", clockInLocName);
-              console.log(
-                "DEBUG MyJobs: ClockInLocationId:",
-                clockInLocationId
-              );
-              console.log(
-                "DEBUG MyJobs: Is currently clocked in:",
-                isCurrentlyClockedIn
-              );
-            }
 
             const jobCompleted = isJobCompleted(j.serviceDate);
             const isToday = isJobToday(j.serviceDate);

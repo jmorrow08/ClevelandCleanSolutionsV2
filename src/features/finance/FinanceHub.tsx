@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import InvoicesPage from "./InvoicesPage";
 import PaymentsPage from "./PaymentsPage";
 import ExpensesPage from "./ExpensesPage";
 import PayrollRunsTab from "./PayrollRunsTab";
+import PayrollPrepTab from "./PayrollPrepTab";
 import ARAgingTab from "./ARAgingTab";
 import CashflowTab from "./CashflowTab";
 
@@ -11,12 +13,22 @@ const tabs = [
   { key: "payments", label: "Payments" },
   { key: "expenses", label: "Expenses" },
   { key: "payroll", label: "Payroll Runs" },
+  { key: "payroll-prep", label: "Payroll Prep" },
   { key: "ar", label: "AR Aging" },
   { key: "cashflow", label: "Cashflow" },
 ];
 
 export default function FinanceHub() {
+  const location = useLocation();
   const [active, setActive] = useState<string>(tabs[0].key);
+
+  // Handle route-based tab selection
+  useEffect(() => {
+    if (location.pathname === "/finance/payroll-prep") {
+      setActive("payroll-prep");
+    }
+  }, [location.pathname]);
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Finance</h1>
@@ -42,6 +54,7 @@ export default function FinanceHub() {
         {active === "payments" && <PaymentsPage />}
         {active === "expenses" && <ExpensesPage />}
         {active === "payroll" && <PayrollRunsTab />}
+        {active === "payroll-prep" && <PayrollPrepTab />}
         {active === "ar" && <ARAgingTab />}
         {active === "cashflow" && <CashflowTab />}
       </div>

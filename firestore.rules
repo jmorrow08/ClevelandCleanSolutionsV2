@@ -62,12 +62,22 @@ service cloud.firestore {
 
     // --- users Collection Rules ---
     match /users/{userId} {
+      function userCanUpdatePresence() {
+        return request.auth.uid == userId && 
+               request.resource.data.diff(resource.data).affectedKeys().hasOnly(['presence']) &&
+               request.resource.data.presence is map &&
+               (request.resource.data.presence.online == null || request.resource.data.presence.online is bool) &&
+               (request.resource.data.presence.lastActive == null || request.resource.data.presence.lastActive is timestamp);
+      }
+      
       // Allow users to read their own document without requiring custom claims (for login flow)
       // OR admin/owner to read any document
       allow read: if isLoggedIn() && (request.auth.uid == userId || hasClaim('admin') || isOwner());
       // Allow users to create their own document if it doesn't exist (for self-registration)
       allow create: if isLoggedIn() && request.auth.uid == userId && !resource.exists;
-      allow update: if hasClaim('admin') || hasClaim('super_admin') || isOwner(); // Only admins/owners can update user docs directly
+      // Allow users to update their own presence field, or admins/owners to update anything
+      allow update: if (request.auth.uid == userId && (userCanUpdatePresence() || !resource.exists)) || 
+                       hasClaim('admin') || hasClaim('super_admin') || isOwner();
       allow delete: if false; // Deletion handled by Cloud Function
     }
 
@@ -422,7 +432,13 @@ service cloud.firestore {
 
     // --- payrollRecords Collection Rules ---
     match /payrollRecords/{payrollId} {
-      allow read, write, delete: if hasClaim('admin') || isOwner();
+      function isPayrollRecordOwner() {
+        return request.auth != null && resource.data.employeeId == request.auth.uid;
+      }
+      
+      // Allow read: employees can read their own records, admins can read all
+      allow read: if hasClaim('admin') || isOwner() || isPayrollRecordOwner();
+      allow write, delete: if hasClaim('admin') || isOwner();
     }
 
     // --- serviceReviews Collection Rules ---
@@ -502,8 +518,22 @@ service cloud.firestore {
     // --- presence Collection Rules (V2 - FIXED) ---
     // Allow any authenticated user to write their own presence document; everyone authenticated may read
     match /presence/{uid} {
+      function isValidPresenceData(data) {
+        return data.uid is string && data.uid == uid &&
+               (data.displayName == null || data.displayName is string) &&
+               (data.online == null || data.online is bool) &&
+               (data.lastActive == null || data.lastActive is timestamp);
+      }
+      
+      // Allow any authenticated user to read presence documents
       allow read: if request.auth != null;
-      allow create, update: if request.auth != null && request.auth.uid == uid;
+      
+      // Allow users to create/update their own presence document with valid schema
+      allow create, update: if request.auth != null && 
+                              request.auth.uid == uid && 
+                              isValidPresenceData(request.resource.data);
+      
+      // Only super admin can delete presence documents
       allow delete: if isSuperAdmin();
     }
 
@@ -568,17 +598,55 @@ service cloud.firestore {
     }
 
     // --- V2: timesheets ---
-    // Functions-only writes; read restricted to Admin/Owner/Super Admin
+    // Employees can read/write their own timesheets; admins can manage everything
     match /timesheets/{tsId} {
-      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
-      allow create, update, delete: if false;
+      function isTimesheetOwner() {
+        return request.auth != null && resource.data.employeeId == request.auth.uid;
+      }
+      
+      function isTimesheetOwnerForCreate(data) {
+        return request.auth != null && data.employeeId == request.auth.uid;
+      }
+      
+      function employeeCanUpdateFields(data) {
+        // Employees can only update specific fields
+        let allowedFields = ['start', 'end', 'hours', 'jobId', 'employeeApproved', 'employeeComment'];
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedFields);
+      }
+      
+      function isValidTimesheetData(data) {
+        return data.employeeId is string && data.employeeId != '' &&
+               data.start is timestamp &&
+               (data.end == null || data.end is timestamp) &&
+               data.hours is number && data.hours >= 0;
+      }
+      
+      // Allow read: employees can read their own timesheets, admins can read all
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') || isTimesheetOwner() || isEmployeeV2();
+      
+      // Allow create: employees can create their own timesheets, admins can create any
+      allow create: if (request.auth != null && isTimesheetOwnerForCreate(request.resource.data) && isValidTimesheetData(request.resource.data)) ||
+                       hasClaim('admin') || isOwner() || hasClaim('super_admin');
+      
+      // Allow update: employees can update their own timesheets with restrictions, admins can update any
+      allow update: if (isTimesheetOwner() && employeeCanUpdateFields(request.resource.data)) ||
+                       hasClaim('admin') || isOwner() || hasClaim('super_admin');
+      
+      allow delete: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
     }
 
     // --- V2: payrollRuns ---
-    // Admin/Owner can create/update/read; delete restricted to super_admin
+    // Employees can read locked runs and their own summaries; admins can manage everything
     match /payrollRuns/{runId} {
-      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
-      allow create, update: if hasClaim('admin') || isOwner();
+      function isLockedRun() {
+        return resource.data.status == 'locked';
+      }
+      
+      // Allow read: signed-in users; employees only need to read locked runs and their own per-employee summaries
+      allow read: if request.auth != null;
+      
+      // Allow write: admin roles only
+      allow create, update: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
       allow delete: if hasClaim('super_admin');
     }
 
@@ -726,6 +794,66 @@ service cloud.firestore {
     match /settings/{docId} {
       allow read: if request.auth != null; // any authenticated user may read
       allow create, update: if isOwner() || isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- V2: trainingAssignments ---
+    // Employees can read their own assignments; admins can manage all
+    match /trainingAssignments/{assignmentId} {
+      function isAssignmentOwner() {
+        return request.auth != null && resource.data.userId == request.auth.uid;
+      }
+      
+      function isAssignmentOwnerForCreate(data) {
+        return request.auth != null && data.userId == request.auth.uid;
+      }
+      
+      function isValidAssignmentData(data) {
+        return data.userId is string && data.userId != '' &&
+               data.moduleId is string && data.moduleId != '' &&
+               (data.assignedAt == null || data.assignedAt is timestamp) &&
+               (data.dueAt == null || data.dueAt is timestamp);
+      }
+      
+      // Allow read: employees can read their own assignments, admins can read all
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') || isAssignmentOwner() || isEmployeeV2();
+      
+      // Allow create: admins can create any assignment, employees can create their own
+      allow create: if (request.auth != null && isAssignmentOwnerForCreate(request.resource.data) && isValidAssignmentData(request.resource.data)) ||
+                       hasClaim('admin') || isOwner() || hasClaim('super_admin');
+      
+      // Allow update: admins can update any assignment
+      allow update: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
+      
+      allow delete: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
+    }
+
+    // --- V2: trainingModules ---
+    // Employees can read modules; admins can manage all
+    match /trainingModules/{moduleId} {
+      function isValidModuleData(data) {
+        return data.title is string && data.title != '' &&
+               (data.description == null || data.description is string) &&
+               data.audience in ['employees', 'clients'] &&
+               (data.assetIds == null || data.assetIds is list) &&
+               (data.passScore == null || data.passScore is number);
+      }
+      
+      // Allow read: employees can read modules, admins can read all
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') || isEmployeeV2();
+      
+      // Allow create/update: admins only
+      allow create, update: if hasClaim('admin') || isOwner() || hasClaim('super_admin') && isValidModuleData(request.resource.data);
+      
+      allow delete: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
+    }
+
+    // --- V2: templates (Marketing) ---
+    // Templates for email campaigns and other marketing materials
+    match /templates/{templateId} {
+      allow read: if isAdmin() || isOwner() || isMarketing();
+      allow create: if isAdmin() || isOwner() || isMarketing();
+      allow update: if isAdmin() || isOwner() || isMarketing();
       allow delete: if isSuperAdmin();
     }
 

@@ -1,12 +1,14 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { ScheduleJobProvider } from "../features/scheduling/ScheduleJobModal";
 
 type NavItem = { label: string; to: string };
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", to: "/" },
   { label: "Finance", to: "/finance" },
+  { label: "Payroll Prep", to: "/finance/payroll-prep" },
   { label: "Inventory", to: "/inventory" },
   { label: "Scheduling", to: "/scheduling" },
   { label: "Service History", to: "/service-history" },
@@ -166,22 +168,24 @@ export default function AppLayout() {
   const isClient = Boolean((claims as any)?.client) || role === "client";
   const isAdminOrAbove = isSuperAdmin || isOwner || isAdmin;
   return (
-    <div className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
-      <div className="flex">
-        {isAdminOrAbove ? (
-          <AdminSidebar />
-        ) : isEmployee ? (
-          <EmployeeSidebar />
-        ) : isClient ? (
-          <ClientSidebar />
-        ) : null}
-        <main className="flex-1 min-w-0">
-          <Topbar />
-          <div className="p-4">
-            <Outlet />
-          </div>
-        </main>
+    <ScheduleJobProvider>
+      <div className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
+        <div className="flex">
+          {isAdminOrAbove ? (
+            <AdminSidebar />
+          ) : isEmployee ? (
+            <EmployeeSidebar />
+          ) : isClient ? (
+            <ClientSidebar />
+          ) : null}
+          <main className="flex-1 min-w-0">
+            <Topbar />
+            <div className="p-4">
+              <Outlet />
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </ScheduleJobProvider>
   );
 }

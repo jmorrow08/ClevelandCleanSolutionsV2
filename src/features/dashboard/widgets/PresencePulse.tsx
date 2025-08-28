@@ -191,7 +191,10 @@ export default function PresencePulse() {
               currentOnline = list;
               computeAndSet();
             },
-            (err) => setError(err?.message || "Presence listener failed")
+            (err) => {
+              console.warn("Presence collection online listener failed:", err);
+              setError(err?.message || "Presence listener failed");
+            }
           );
           unsubRecent = onSnapshot(
             query(presenceCol, orderBy("lastActive", "desc"), limit(200)),
@@ -231,7 +234,10 @@ export default function PresencePulse() {
               currentOnline = list;
               computeAndSet();
             },
-            (err) => setError(err?.message || "Presence listener failed")
+            (err) => {
+              console.warn("Users collection presence listener failed:", err);
+              setError(err?.message || "Presence listener failed");
+            }
           );
           unsubRecent = onSnapshot(
             query(usersCol, orderBy("presence.lastActive", "desc"), limit(200)),
@@ -255,6 +261,7 @@ export default function PresencePulse() {
           );
         }
       } catch (e: any) {
+        console.error("Failed to subscribe to presence:", e);
         setError(e?.message || "Failed to subscribe to presence");
         setLoading(false);
       }

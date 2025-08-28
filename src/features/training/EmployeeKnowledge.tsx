@@ -79,21 +79,27 @@ export default function EmployeeKnowledge() {
         setModuleMap(mods);
 
         // HR Docs visible to employees or targeted to this employee
-        const hrSnap = await getDocs(
-          query(collection(db, "mediaAssets"), where("category", "==", "hr"))
-        );
-        const hrList: Asset[] = [];
-        hrSnap.forEach((d) => {
-          const v: any = d.data();
-          const aud = v.audience || "internal";
-          const rel = v.relatedEntities || {};
-          const include =
-            aud === "employees" ||
-            (Array.isArray(rel.employeeIds) &&
-              rel.employeeIds.includes(user.uid));
-          if (include) hrList.push({ id: d.id, ...(v as any) });
-        });
-        setHrDocs(hrList);
+        try {
+          const hrSnap = await getDocs(
+            query(collection(db, "mediaAssets"), where("category", "==", "hr"))
+          );
+          const hrList: Asset[] = [];
+          hrSnap.forEach((d) => {
+            const v: any = d.data();
+            const aud = v.audience || "internal";
+            const rel = v.relatedEntities || {};
+            const include =
+              aud === "employees" ||
+              (Array.isArray(rel.employeeIds) &&
+                rel.employeeIds.includes(user.uid));
+            if (include) hrList.push({ id: d.id, ...(v as any) });
+          });
+          setHrDocs(hrList);
+        } catch (error) {
+          console.error("Error loading HR docs:", error);
+          // Set empty array if permission denied or other error
+          setHrDocs([]);
+        }
       } finally {
         setLoading(false);
       }
@@ -212,9 +218,3 @@ export default function EmployeeKnowledge() {
     </div>
   );
 }
-
-
-
-
-
-

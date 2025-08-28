@@ -7,9 +7,6 @@ import {
   query,
   orderBy,
   getDocs,
-  addDoc,
-  serverTimestamp,
-  Timestamp,
   where,
 } from "firebase/firestore";
 import {
@@ -23,6 +20,10 @@ import { RoleGuard } from "../../context/RoleGuard";
 import { useAuth } from "../../context/AuthContext";
 import { useSettings } from "../../context/SettingsContext";
 import { computeLastCompletedPeriod } from "../../services/payrollPeriods";
+import {
+  createPayrollRun,
+  backfillRateSnapshots,
+} from "../../services/queries/payroll";
 
 type Run = {
   id: string;
@@ -67,14 +68,17 @@ export default function PayrollRunsTab() {
   const { settings } = useSettings();
   const [loading, setLoading] = useState(true);
   const [runs, setRuns] = useState<Run[]>([]);
-  const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [creatingRun, setCreatingRun] = useState(false);
   const [periodStartInput, setPeriodStartInput] = useState<string>("");
   const [periodEndInput, setPeriodEndInput] = useState<string>("");
   const [scan, setScan] = useState<ScanPreview | null>(null);
   const [drawerRun, setDrawerRun] = useState<Run | null>(null);
   const [drawerRows, setDrawerRows] = useState<DrawerRow[]>([]);
   const [drawerLoading, setDrawerLoading] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillStartDate, setBackfillStartDate] = useState<string>("");
+  const [backfillEndDate, setBackfillEndDate] = useState<string>("");
   const { show } = useToast();
 
   useEffect(() => {
@@ -204,6 +208,46 @@ export default function PayrollRunsTab() {
     }
   }
 
+  async function doCreatePayrollRun() {
+    try {
+      setCreatingRun(true);
+      const start = toDateFromInput(periodStartInput);
+      const end = toDateFromInput(periodEndInput);
+      if (!start || !end) throw new Error("Select a valid start/end date.");
+
+      const result = await createPayrollRun(start, end);
+
+      show({
+        type: "success",
+        message: `Payroll run created successfully with ID: ${result.id}`,
+      });
+
+      // Refresh runs list
+      const db = getFirestore();
+      const qy = query(
+        collection(db, "payrollRuns"),
+        orderBy("periodEnd", "desc")
+      );
+      const snap = await getDocs(qy);
+      const fresh: Run[] = [];
+      snap.forEach((d) => fresh.push({ id: d.id, ...(d.data() as any) }));
+      setRuns(fresh);
+
+      // Navigate to the new run detail
+      window.location.href = `/finance/payroll/${result.id}`;
+    } catch (e: any) {
+      console.error("Create payroll run error:", e);
+      show({
+        type: "error",
+        message:
+          e?.message ||
+          "Failed to create payroll run. Please check your permissions and try again.",
+      });
+    } finally {
+      setCreatingRun(false);
+    }
+  }
+
   async function openDrawer(run: Run) {
     try {
       setDrawerRun(run);
@@ -229,6 +273,34 @@ export default function PayrollRunsTab() {
     setDrawerRun(null);
     setDrawerRows([]);
     setDrawerLoading(false);
+  }
+
+  async function handleBackfill() {
+    if (!backfillStartDate || !backfillEndDate) {
+      show("Please select start and end dates");
+      return;
+    }
+
+    setBackfilling(true);
+    try {
+      const startDate = new Date(backfillStartDate);
+      const endDate = new Date(backfillEndDate);
+
+      const result = await backfillRateSnapshots(startDate, endDate);
+
+      show(
+        `Backfill completed: ${result.updated} updated, ${result.skipped} skipped, ${result.errors} errors`
+      );
+
+      // Reset form
+      setBackfillStartDate("");
+      setBackfillEndDate("");
+    } catch (error) {
+      console.error("Backfill error:", error);
+      show(error instanceof Error ? error.message : "Backfill failed");
+    } finally {
+      setBackfilling(false);
+    }
   }
 
   function fmt(ts: any): string {
@@ -284,6 +356,17 @@ export default function PayrollRunsTab() {
               >
                 Generate Timesheets (Draft)
               </button>
+              <button
+                className={`px-3 py-1.5 rounded-md text-white ${
+                  creatingRun
+                    ? "bg-zinc-400"
+                    : "bg-green-600 hover:bg-green-700"
+                }`}
+                onClick={doCreatePayrollRun}
+                disabled={creatingRun}
+              >
+                {creatingRun ? "Creating…" : "Create Payroll Run"}
+              </button>
             </div>
           </div>
 
@@ -332,6 +415,49 @@ export default function PayrollRunsTab() {
               </div>
             </div>
           )}
+        </div>
+      </RoleGuard>
+
+      <RoleGuard allow={["admin", "owner", "super_admin"]}>
+        <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 mt-4">
+          <div className="text-sm font-medium mb-2">
+            Backfill Rate Snapshots
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
+            <label className="block">
+              <div className="text-xs text-zinc-500">Start Date</div>
+              <input
+                type="date"
+                className="mt-1 w-full px-2 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                value={backfillStartDate}
+                onChange={(e) => setBackfillStartDate(e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <div className="text-xs text-zinc-500">End Date</div>
+              <input
+                type="date"
+                className="mt-1 w-full px-2 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                value={backfillEndDate}
+                onChange={(e) => setBackfillEndDate(e.target.value)}
+              />
+            </label>
+            <div className="md:col-span-2">
+              <button
+                className={`w-full px-3 py-1.5 rounded-md text-white ${
+                  backfilling ? "bg-zinc-400" : "bg-blue-600 hover:bg-blue-700"
+                }`}
+                onClick={handleBackfill}
+                disabled={backfilling}
+              >
+                {backfilling ? "Backfilling…" : "Backfill Rate Snapshots"}
+              </button>
+            </div>
+          </div>
+          <div className="text-xs text-zinc-500 mt-2">
+            This will scan timesheets in the date range and add missing rate
+            snapshots.
+          </div>
         </div>
       </RoleGuard>
 
