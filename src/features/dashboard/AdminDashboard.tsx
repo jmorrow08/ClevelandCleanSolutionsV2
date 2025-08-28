@@ -6,6 +6,7 @@ import CashSnapshot from "./widgets/CashSnapshot";
 import MyQueue from "./widgets/MyQueue";
 import PresencePulse from "./widgets/PresencePulse";
 import QuickActions from "./actions/QuickActions";
+import QuickAddPanel from "./QuickAddPanel";
 
 export default function AdminDashboard() {
   return (
@@ -14,6 +15,7 @@ export default function AdminDashboard() {
         <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
         <QuickActions />
       </div>
+      <QuickAddPanel />
       <KPIStrip />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <TodayBoard />

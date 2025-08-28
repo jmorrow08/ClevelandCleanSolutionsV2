@@ -7,6 +7,7 @@ import {
   where,
   orderBy,
   getDocs,
+  onSnapshot,
   Timestamp,
 } from "firebase/firestore";
 import { firebaseConfig } from "../../../services/firebase";
@@ -54,7 +55,8 @@ export default function TodayBoard() {
   );
 
   useEffect(() => {
-    async function load() {
+    let unsub: undefined | (() => void);
+    (async () => {
       try {
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
@@ -66,18 +68,31 @@ export default function TodayBoard() {
           where("serviceDate", "<", Timestamp.fromDate(end)),
           orderBy("serviceDate", "asc")
         );
-        const snap = await getDocs(q);
-        const list: Job[] = [];
-        snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
-        setJobs(list);
+        unsub = onSnapshot(
+          q,
+          (snap) => {
+            const list: Job[] = [];
+            snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
+            setJobs(list);
+            setLoading(false);
+          },
+          (err) => {
+            console.warn("Today/Tomorrow jobs may require index", err?.message);
+            setError(err?.message || "Failed to load jobs");
+            setLoading(false);
+          }
+        );
       } catch (e: any) {
         console.warn("Today/Tomorrow jobs may require index", e?.message);
         setError(e?.message || "Failed to load jobs");
-      } finally {
         setLoading(false);
       }
-    }
-    load();
+    })();
+    return () => {
+      try {
+        unsub && unsub();
+      } catch {}
+    };
   }, []);
 
   useEffect(() => {
