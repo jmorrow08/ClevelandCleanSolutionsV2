@@ -22,6 +22,10 @@
   --elev-3: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
+:root {
+  /* Ensure browsers render native inputs/selects with light palette by default */
+  color-scheme: light;
+}
 .dark {
   color-scheme: dark;
 }
@@ -54,4 +58,41 @@ body {
 }
 @utility shadow-elev-3 {
   @apply shadow-[0_8px_24px_rgba(0,0,0,0.12)];
+}
+
+/* ---------- Form control baseline (light + dark) ---------- */
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+input[type="password"],
+input[type="date"],
+input[type="datetime-local"],
+input[type="number"],
+select,
+textarea {
+  @apply w-full px-3 py-2 rounded-md text-sm border bg-white text-gray-900 border-zinc-300;
+}
+
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="tel"],
+.dark input[type="password"],
+.dark input[type="date"],
+.dark input[type="datetime-local"],
+.dark input[type="number"],
+.dark select,
+.dark textarea {
+  @apply bg-zinc-800 text-zinc-100 border-zinc-700;
+}
+
+/* Improve focus ring parity with the existing .focus-ring util */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white;
+}
+.dark input:focus-visible,
+.dark select:focus-visible,
+.dark textarea:focus-visible {
+  @apply ring-offset-zinc-900;
 }
