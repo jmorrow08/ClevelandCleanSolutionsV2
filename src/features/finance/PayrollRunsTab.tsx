@@ -160,7 +160,7 @@ export default function PayrollRunsTab() {
       const mr = (res.data?.missingRates || []) as any[];
       if (mr.length)
         show({
-          type: "warning",
+          type: "info",
           message: `${mr.length} assignments are missing rates.`,
         });
       else
@@ -277,7 +277,7 @@ export default function PayrollRunsTab() {
 
   async function handleBackfill() {
     if (!backfillStartDate || !backfillEndDate) {
-      show("Please select start and end dates");
+      show({ type: "error", message: "Please select start and end dates" });
       return;
     }
 
@@ -288,16 +288,20 @@ export default function PayrollRunsTab() {
 
       const result = await backfillRateSnapshots(startDate, endDate);
 
-      show(
-        `Backfill completed: ${result.updated} updated, ${result.skipped} skipped, ${result.errors} errors`
-      );
+      show({
+        type: "success",
+        message: `Backfill completed: ${result.updated} updated, ${result.skipped} skipped, ${result.errors} errors`,
+      });
 
       // Reset form
       setBackfillStartDate("");
       setBackfillEndDate("");
     } catch (error) {
       console.error("Backfill error:", error);
-      show(error instanceof Error ? error.message : "Backfill failed");
+      show({
+        type: "error",
+        message: error instanceof Error ? error.message : "Backfill failed",
+      });
     } finally {
       setBackfilling(false);
     }

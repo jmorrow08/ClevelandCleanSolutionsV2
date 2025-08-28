@@ -128,7 +128,7 @@ export default function PayrollRunDetail() {
     const ids = Object.keys(selected).filter((k) => selected[k]);
     if (ids.length === 0) {
       show({
-        type: "warning",
+        type: "info",
         message: "Please select timesheets to approve.",
       });
       return;

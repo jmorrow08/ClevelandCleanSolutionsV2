@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { firebaseConfig } from "../../services/firebase";
 import { useToast } from "../../context/ToastContext";
+import { useFirestoreErrorHandler } from "../../utils/firestoreErrors";
 import { useAuth } from "../../context/AuthContext";
 
 type Asset = {
@@ -26,6 +27,7 @@ type Asset = {
 export default function ClientResources() {
   const { user, claims } = useAuth();
   const { show } = useToast();
+  const { handleFirestoreError } = useFirestoreErrorHandler();
   const [loading, setLoading] = useState(true);
   const [companyAssets, setCompanyAssets] = useState<Asset[]>([]);
   const [publicGuides, setPublicGuides] = useState<Asset[]>([]);
@@ -80,11 +82,7 @@ export default function ClientResources() {
           setPublicGuides([]);
         }
       } catch (error) {
-        console.error("Failed to load resources:", error);
-        show({
-          type: "error",
-          message: "Failed to load resources. Please try again later.",
-        });
+        handleFirestoreError(error);
       } finally {
         setLoading(false);
       }
@@ -113,19 +111,7 @@ export default function ClientResources() {
       });
       show({ type: "success", message: "Resource acknowledged successfully" });
     } catch (e: any) {
-      console.error("Failed to acknowledge asset:", e);
-      if (e.code === "permission-denied") {
-        show({
-          type: "error",
-          message: "You don't have permission to acknowledge this resource.",
-        });
-      } else {
-        show({
-          type: "error",
-          message:
-            e?.message || "Failed to acknowledge resource. Please try again.",
-        });
-      }
+      handleFirestoreError(e);
     }
   }
 

@@ -104,7 +104,7 @@ export default function PayrollPrepTab() {
 
       if (result.missingRates.length > 0) {
         show({
-          type: "warning",
+          type: "info",
           message: `${result.missingRates.length} assignments are missing rates. Generation will skip those.`,
         });
       } else {
