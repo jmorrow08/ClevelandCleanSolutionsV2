@@ -159,7 +159,7 @@ export default function UploadPhotos() {
       const db = getFirestore();
 
       // First, load locations
-      let locationsList: LocationItem[] = [];
+      const locationsList: LocationItem[] = [];
       try {
         const qLoc = query(
           collection(db, "locations"),

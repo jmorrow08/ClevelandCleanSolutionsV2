@@ -1,11 +1,11 @@
 import { useNavigate } from "react-router-dom";
 import { useQuickActions } from "../../../context/QuickActionsContext";
-import { useScheduleJobModal } from "../../scheduling/ScheduleJobModal";
+import { useQuickAddModal } from "../QuickAddPanel";
 
 export default function QuickActions() {
   const navigate = useNavigate();
   const { requestNewInvoice } = useQuickActions();
-  const { open } = useScheduleJobModal();
+  const { open } = useQuickAddModal();
   return (
     <div className="flex gap-2">
       <button
@@ -20,13 +20,22 @@ export default function QuickActions() {
       </button>
       <button
         className="px-3 py-2 text-sm rounded-md border border-zinc-300 dark:border-zinc-700"
-        onClick={() => {
-          navigate("/scheduling");
-          setTimeout(() => open(), 0);
-        }}
+        onClick={() => open()}
       >
-        Schedule Job
+        Quick Add
       </button>
     </div>
+  );
+}
+
+export function SchedulingQuickActions() {
+  const { open } = useQuickAddModal();
+  return (
+    <button
+      className="px-3 py-2 text-sm rounded-md border border-zinc-300 dark:border-zinc-700"
+      onClick={() => open()}
+    >
+      Quick Add
+    </button>
   );
 }

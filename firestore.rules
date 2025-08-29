@@ -9,7 +9,15 @@ service cloud.firestore {
     }
     
     function hasClaim(role) {
-      return request.auth != null && request.auth.token != null && request.auth.token[role] == true;
+      return request.auth != null && (
+        (
+          request.auth.token != null && (
+            request.auth.token[role] == true ||
+            request.auth.token.role == role
+          )
+        ) ||
+        hasRoleInFirestore(request.auth.uid, role)
+      );
     }
     
     function isOwner() {
@@ -235,7 +243,7 @@ service cloud.firestore {
       function isValidTimeEntryDataForCreate(entryData) {
         let userDocData = getUserData(request.auth.uid);
         return isLoggedIn() &&
-               hasRoleInFirestore(request.auth.uid, 'employee') && // User's role in /users is 'employee'
+               (hasClaim('employee') || hasRoleInFirestore(request.auth.uid, 'employee')) && // Accept claim or stored role
                userDocData != null &&
                entryData.employeeProfileId == userDocData.profileId && // Creating for themselves
                entryData.locationId is string && entryData.locationId != '' &&
@@ -253,7 +261,7 @@ service cloud.firestore {
         // Check that they are only modifying specific fields for clock-out
         let allowedUpdateKeys = ['clockOutTime', 'status', 'clockOutCoordinates', 'updatedAt'];
         return isLoggedIn() &&
-               hasRoleInFirestore(request.auth.uid, 'employee') &&
+               (hasClaim('employee') || hasRoleInFirestore(request.auth.uid, 'employee')) &&
                userDocData != null &&
                resource.data.employeeProfileId == userDocData.profileId && // Must own the record
                updatedEntryData.status == "Clocked Out" &&
@@ -264,7 +272,7 @@ service cloud.firestore {
       }
 
       allow read: if hasClaim('admin') || isOwner() ||
-                    (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee') && isTimeEntryOwner());
+                    (isLoggedIn() && (hasClaim('employee') || hasRoleInFirestore(request.auth.uid, 'employee')) && isTimeEntryOwner());
 
       allow create: if hasClaim('admin') || isOwner() || isValidTimeEntryDataForCreate(request.resource.data);
 
@@ -308,8 +316,8 @@ service cloud.firestore {
                jobData.serviceDate is timestamp &&
                (jobData.employeeAssignments == null || jobData.employeeAssignments is list) &&
                jobData.status is string && jobData.status != '' &&
-               jobData.createdAt is timestamp &&
-               jobData.updatedAt is timestamp;
+               (jobData.createdAt is timestamp || jobData.createdAt == request.time) &&
+               (jobData.updatedAt is timestamp || jobData.updatedAt == request.time);
       }
 
       // Allow employees to read serviceHistory documents (UI filters client-side to their own jobs).
@@ -317,13 +325,21 @@ service cloud.firestore {
       allow read: if hasClaim('admin') || isOwner() || hasClaim('employee') ||
                     (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee')) ||
                     isJobClient() || isAssignedEmployee();
-      // Creates allowed only from Scheduling UI session (or Admin SDK bypasses rules)
-      allow create: if (hasClaim('admin') || isOwner()) && isScheduleSessionActive() && isValidServiceHistoryData(request.resource.data);
+      // Creates allowed directly by admin/owner/super_admin (Quick Add)
+      allow create: if request.auth != null && (
+        hasClaim('admin') || 
+        hasClaim('owner') || 
+        hasClaim('super_admin') ||
+        hasRoleInFirestore(request.auth.uid, 'admin') ||
+        hasRoleInFirestore(request.auth.uid, 'owner') ||
+        hasRoleInFirestore(request.auth.uid, 'super_admin')
+      );
 
       // Updates:
       // - General admin/owner/super_admin updates are allowed for non-scheduling fields
       // - Scheduling-sensitive fields (assignedEmployees, serviceDate, statusV2)
       //   require an active scheduling session
+      // - Archive operations (archived, archivedAt, archivedBy) are allowed for admins/owners
       allow update: if hasClaim('admin') || isOwner() || hasClaim('super_admin') &&
         (
           // If touching scheduling fields, require active session
@@ -331,6 +347,11 @@ service cloud.firestore {
             request.resource.data.diff(resource.data).affectedKeys().hasAny(['assignedEmployees','serviceDate','statusV2'])
               ? isScheduleSessionActive()
               : true
+          ) &&
+          // Archive fields can be updated by admins/owners without session restrictions
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archived', 'archivedAt', 'archivedBy']) ||
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['archived', 'archivedAt', 'archivedBy'])
           )
         );
       allow delete: if hasClaim('admin') || isOwner();

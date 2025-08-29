@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  createContext,
+  useCallback,
+  useContext,
+  type ReactNode,
+} from "react";
 import { initializeApp, getApps } from "firebase/app";
 import {
   getFirestore,
@@ -10,6 +18,8 @@ import {
   where,
   orderBy,
   Timestamp,
+  getDoc,
+  doc,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { firebaseConfig } from "../../services/firebase";
@@ -24,7 +34,7 @@ type Option = { id: string; label: string };
 const CREATE_USER_URL =
   "https://us-central1-cleveland-clean-portal.cloudfunctions.net/createNewUser_v1";
 
-export default function QuickAddPanel() {
+export function QuickAddModal({ onClose }: { onClose: () => void }) {
   const { show } = useToast();
   const { user } = useAuth();
 
@@ -234,9 +244,9 @@ export default function QuickAddPanel() {
     if (!getApps().length) initializeApp(firebaseConfig);
     const db = getFirestore();
 
+    let payload: any = {};
     try {
       setSaving(true);
-      let payload: any = {};
       let clientId: string | null = null;
       let locationId: string | null = null;
       let clientName: string | null = null;
@@ -254,6 +264,63 @@ export default function QuickAddPanel() {
           });
           return;
         }
+
+        // Resolve client and location names for regular services
+        const selectedClient = clients.find((c) => c.id === clientId);
+        const selectedLocation = locations.find((l) => l.id === locationId);
+
+        // Get client name from actual document to ensure we get the correct name
+        if (clientId) {
+          try {
+            const clientDoc = await getDoc(
+              doc(db, "clientMasterList", clientId)
+            );
+            if (clientDoc.exists()) {
+              const clientData = clientDoc.data() as any;
+              clientName =
+                clientData.companyName ||
+                clientData.name ||
+                clientData.contactName ||
+                selectedClient?.label ||
+                null;
+            } else {
+              clientName = selectedClient?.label || null;
+            }
+          } catch (error) {
+            console.error("Error fetching client data:", error);
+            clientName = selectedClient?.label || null;
+          }
+        }
+
+        // For location name, fetch the actual document to ensure we get the correct name
+        if (locationId) {
+          try {
+            const locationDoc = await getDoc(doc(db, "locations", locationId));
+            if (locationDoc.exists()) {
+              const locationData = locationDoc.data() as any;
+              locationName =
+                locationData.locationName ||
+                locationData.address ||
+                locationData.name ||
+                selectedLocation?.label ||
+                null;
+            } else {
+              locationName = selectedLocation?.label || null;
+            }
+          } catch (error) {
+            console.error("Error fetching location data:", error);
+            locationName = selectedLocation?.label || null;
+          }
+        }
+
+        console.log("Job creation debug:", {
+          clientId,
+          clientName,
+          locationId,
+          locationName,
+          selectedClient,
+          selectedLocation,
+        });
       } else {
         isCustomJob = true;
         clientName = customClientName.trim();
@@ -283,9 +350,7 @@ export default function QuickAddPanel() {
         locationId: locationId,
         locationName: locationName || null,
         serviceDate: when,
-        serviceType:
-          serviceNotes ||
-          (isCustomJob ? "Custom Service" : "Scheduled Service"),
+        serviceType: isCustomJob ? "Custom Service" : "Scheduled Service",
         serviceNotes: null,
         adminNotes: null,
         assignedEmployees: serviceAssigned,
@@ -307,10 +372,38 @@ export default function QuickAddPanel() {
           : `Contact: ${customContact.trim()}`;
       }
 
-      await addDoc(collection(db, "serviceHistory"), payload);
+      const jobRef = await addDoc(collection(db, "serviceHistory"), payload);
+
+      // Create a note if serviceNotes is provided
+      if (serviceNotes.trim()) {
+        const auth = getAuth();
+        const claims = (await auth.currentUser?.getIdTokenResult(true))
+          ?.claims as any;
+        let authorRole: string = "employee";
+        if (claims?.admin || claims?.owner || claims?.super_admin)
+          authorRole = "admin";
+
+        const notePayload = {
+          jobId: jobRef.id,
+          locationId: locationId || null,
+          message: serviceNotes.trim(),
+          authorRole,
+          createdAt: serverTimestamp(),
+          date: serverTimestamp(),
+        };
+
+        await addDoc(collection(db, "jobNotes"), notePayload);
+      }
+
       show({ type: "success", message: "Service scheduled" });
       resetAll();
     } catch (e: any) {
+      console.error("Quick Add job creation error:", e);
+      console.error("Error details:", {
+        code: e?.code,
+        message: e?.message,
+        payload: payload,
+      });
       show({ type: "error", message: e?.message || "Failed to schedule" });
     } finally {
       setSaving(false);
@@ -470,426 +563,511 @@ export default function QuickAddPanel() {
   }
 
   return (
-    <div className="card border border-zinc-200 dark:border-zinc-800 rounded-md">
-      <div className="p-4 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="text-lg font-medium">Quick Add Panel</div>
-      </div>
-      <div className="p-4 space-y-4">
-        <div>
-          <label className="block text-sm mb-1">Select Mode</label>
-          <select
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-            value={mode}
-            onChange={(e) => setMode(e.target.value as Mode)}
-          >
-            <option value="new-service">Add New Job</option>
-            <option value="new-client">Add New Client</option>
-            <option value="new-location">Add New Location</option>
-            <option value="new-employee">Add New Employee</option>
-          </select>
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={() => !saving && onClose()}
+      />
+      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3">
+        <div className="p-6 border-b border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center justify-between">
+            <div className="text-lg font-medium">Quick Add</div>
+            <button
+              onClick={() => !saving && onClose()}
+              className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+            >
+              ✕
+            </button>
+          </div>
         </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm mb-1">Select Mode</label>
+            <select
+              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+              value={mode}
+              onChange={(e) => setMode(e.target.value as Mode)}
+            >
+              <option value="new-service">Add New Job</option>
+              <option value="new-client">Add New Client</option>
+              <option value="new-location">Add New Location</option>
+              <option value="new-employee">Add New Employee</option>
+            </select>
+          </div>
 
-        {mode === "new-service" && (
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm mb-1">Service Type</label>
-              <div className="flex gap-3 text-sm">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="qas-service-mode"
-                    checked={serviceType === "regular"}
-                    onChange={() => setServiceType("regular")}
-                  />
-                  Regular Service
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="qas-service-mode"
-                    checked={serviceType === "custom"}
-                    onChange={() => setServiceType("custom")}
-                  />
-                  Custom Job
-                </label>
+          {mode === "new-service" && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm mb-1">Service Type</label>
+                <div className="flex gap-3 text-sm">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="qas-service-mode"
+                      checked={serviceType === "regular"}
+                      onChange={() => setServiceType("regular")}
+                    />
+                    Regular Service
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="qas-service-mode"
+                      checked={serviceType === "custom"}
+                      onChange={() => setServiceType("custom")}
+                    />
+                    Custom Job
+                  </label>
+                </div>
+              </div>
+
+              {serviceType === "regular" ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm mb-1">Client</label>
+                    <select
+                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      value={serviceClientId}
+                      onChange={(e) => setServiceClientId(e.target.value)}
+                    >
+                      <option value="">Select client</option>
+                      {clients.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1">Location</label>
+                    <select
+                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      value={serviceLocationId}
+                      onChange={(e) => setServiceLocationId(e.target.value)}
+                      disabled={!serviceClientId}
+                    >
+                      <option value="">
+                        {serviceClientId
+                          ? "Select location"
+                          : "Select client first"}
+                      </option>
+                      {locations.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1">
+                      Service Date & Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      value={serviceDateTime}
+                      onChange={(e) => setServiceDateTime(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1">
+                      Assigned employees
+                    </label>
+                    <select
+                      multiple
+                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900 min-h-[120px]"
+                      value={serviceAssigned}
+                      onChange={(e) =>
+                        setServiceAssigned(
+                          Array.from(e.target.selectedOptions).map(
+                            (o) => o.value
+                          )
+                        )
+                      }
+                    >
+                      {employees.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm mb-1">
+                      Service Type / Notes
+                    </label>
+                    <input
+                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      value={serviceNotes}
+                      onChange={(e) => setServiceNotes(e.target.value)}
+                      placeholder="e.g., Standard cleaning"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm mb-1">Client Name</label>
+                    <input
+                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      value={customClientName}
+                      onChange={(e) => setCustomClientName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1">Location Name</label>
+                    <input
+                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      value={customLocationName}
+                      onChange={(e) => setCustomLocationName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1">
+                      Contact (optional)
+                    </label>
+                    <input
+                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      value={customContact}
+                      onChange={(e) => setCustomContact(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1">
+                      Custom Price (optional)
+                    </label>
+                    <input
+                      type="number"
+                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      value={customPrice}
+                      onChange={(e) => setCustomPrice(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1">
+                      Service Date & Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      value={serviceDateTime}
+                      onChange={(e) => setServiceDateTime(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1">
+                      Assigned employees
+                    </label>
+                    <select
+                      multiple
+                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900 min-h-[120px]"
+                      value={serviceAssigned}
+                      onChange={(e) =>
+                        setServiceAssigned(
+                          Array.from(e.target.selectedOptions).map(
+                            (o) => o.value
+                          )
+                        )
+                      }
+                    >
+                      {employees.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm mb-1">
+                      Service Type / Notes
+                    </label>
+                    <input
+                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      value={serviceNotes}
+                      onChange={(e) => setServiceNotes(e.target.value)}
+                      placeholder="e.g., Deep clean"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <button
+                  className="px-3 py-2 text-sm rounded-md bg-brand-600 text-white disabled:opacity-50"
+                  onClick={createService}
+                  disabled={saving}
+                >
+                  {saving ? "Saving…" : "Create"}
+                </button>
               </div>
             </div>
+          )}
 
-            {serviceType === "regular" ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm mb-1">Client</label>
-                  <select
-                    className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                    value={serviceClientId}
-                    onChange={(e) => setServiceClientId(e.target.value)}
-                  >
-                    <option value="">Select client</option>
-                    {clients.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm mb-1">Location</label>
-                  <select
-                    className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                    value={serviceLocationId}
-                    onChange={(e) => setServiceLocationId(e.target.value)}
-                    disabled={!serviceClientId}
-                  >
-                    <option value="">
-                      {serviceClientId
-                        ? "Select location"
-                        : "Select client first"}
+          {mode === "new-client" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm mb-1">Company Name</label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={clientCompanyName}
+                  onChange={(e) => setClientCompanyName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Contact Name</label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={clientContactName}
+                  onChange={(e) => setClientContactName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Client ID String</label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={clientIdString}
+                  onChange={(e) => setClientIdString(e.target.value)}
+                  placeholder="e.g., CCS-1001"
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Email</label>
+                <input
+                  type="email"
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={clientEmail}
+                  onChange={(e) => setClientEmail(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Phone</label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={clientPhone}
+                  onChange={(e) => setClientPhone(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Initial Password</label>
+                <input
+                  type="password"
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={clientPassword}
+                  onChange={(e) => setClientPassword(e.target.value)}
+                  minLength={6}
+                />
+              </div>
+              <div className="md:col-span-2 flex justify-end">
+                <button
+                  className="px-3 py-2 text-sm rounded-md bg-brand-600 text-white disabled:opacity-50"
+                  onClick={createClient}
+                  disabled={saving}
+                >
+                  {saving ? "Creating…" : "Create Client"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === "new-location" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm mb-1">Client</label>
+                <select
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={locClientId}
+                  onChange={(e) => setLocClientId(e.target.value)}
+                >
+                  <option value="">Select client</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
                     </option>
-                    {locations.map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm mb-1">
-                    Service Date & Time
-                  </label>
-                  <input
-                    type="datetime-local"
-                    className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                    value={serviceDateTime}
-                    onChange={(e) => setServiceDateTime(e.target.value)}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm mb-1">
-                    Service Type / Notes
-                  </label>
-                  <input
-                    className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                    value={serviceNotes}
-                    onChange={(e) => setServiceNotes(e.target.value)}
-                    placeholder="e.g., Standard cleaning"
-                  />
-                </div>
+                  ))}
+                </select>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm mb-1">Client Name</label>
-                  <input
-                    className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                    value={customClientName}
-                    onChange={(e) => setCustomClientName(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm mb-1">Location Name</label>
-                  <input
-                    className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                    value={customLocationName}
-                    onChange={(e) => setCustomLocationName(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm mb-1">
-                    Contact (optional)
-                  </label>
-                  <input
-                    className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                    value={customContact}
-                    onChange={(e) => setCustomContact(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm mb-1">
-                    Custom Price (optional)
-                  </label>
-                  <input
-                    type="number"
-                    className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                    value={customPrice}
-                    onChange={(e) => setCustomPrice(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm mb-1">
-                    Service Date & Time
-                  </label>
-                  <input
-                    type="datetime-local"
-                    className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                    value={serviceDateTime}
-                    onChange={(e) => setServiceDateTime(e.target.value)}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm mb-1">
-                    Service Type / Notes
-                  </label>
-                  <input
-                    className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                    value={serviceNotes}
-                    onChange={(e) => setServiceNotes(e.target.value)}
-                    placeholder="e.g., Deep clean"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm mb-1">Location Name</label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={locName}
+                  onChange={(e) => setLocName(e.target.value)}
+                />
               </div>
-            )}
+              <div>
+                <label className="block text-sm mb-1">Location ID String</label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={locIdString}
+                  onChange={(e) => setLocIdString(e.target.value)}
+                  placeholder="e.g., CCS-LOC-2001"
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Address Line 1</label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={locLine1}
+                  onChange={(e) => setLocLine1(e.target.value)}
+                  placeholder="Street address"
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">City</label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={locCity}
+                  onChange={(e) => setLocCity(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">State</label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={locState}
+                  onChange={(e) => setLocState(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">ZIP</label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={locZip}
+                  onChange={(e) => setLocZip(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">
+                  Contact Name (optional)
+                </label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={locContactName}
+                  onChange={(e) => setLocContactName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">
+                  Contact Phone (optional)
+                </label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={locContactPhone}
+                  onChange={(e) => setLocContactPhone(e.target.value)}
+                />
+              </div>
+              <div className="md:col-span-2 flex justify-end">
+                <button
+                  className="px-3 py-2 text-sm rounded-md bg-brand-600 text-white disabled:opacity-50"
+                  onClick={createLocation}
+                  disabled={saving}
+                >
+                  {saving ? "Saving…" : "Create Location"}
+                </button>
+              </div>
+            </div>
+          )}
 
-            <div className="flex justify-end">
-              <button
-                className="px-3 py-2 text-sm rounded-md bg-brand-600 text-white disabled:opacity-50"
-                onClick={createService}
-                disabled={saving}
-              >
-                {saving ? "Saving…" : "Create"}
-              </button>
+          {mode === "new-employee" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm mb-1">First Name</label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={empFirst}
+                  onChange={(e) => setEmpFirst(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Last Name</label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={empLast}
+                  onChange={(e) => setEmpLast(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Employee ID String</label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={empIdString}
+                  onChange={(e) => setEmpIdString(e.target.value)}
+                  placeholder="e.g., EMP-1201"
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Email</label>
+                <input
+                  type="email"
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={empEmail}
+                  onChange={(e) => setEmpEmail(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Phone</label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={empPhone}
+                  onChange={(e) => setEmpPhone(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Job Title</label>
+                <input
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={empJobTitle}
+                  onChange={(e) => setEmpJobTitle(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Initial Password</label>
+                <input
+                  type="password"
+                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  value={empPassword}
+                  onChange={(e) => setEmpPassword(e.target.value)}
+                  minLength={6}
+                />
+              </div>
+              <div className="md:col-span-2 flex justify-end">
+                <button
+                  className="px-3 py-2 text-sm rounded-md bg-brand-600 text-white disabled:opacity-50"
+                  onClick={createEmployee}
+                  disabled={saving}
+                >
+                  {saving ? "Creating…" : "Create Employee"}
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-
-        {mode === "new-client" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm mb-1">Company Name</label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={clientCompanyName}
-                onChange={(e) => setClientCompanyName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Contact Name</label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={clientContactName}
-                onChange={(e) => setClientContactName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Client ID String</label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={clientIdString}
-                onChange={(e) => setClientIdString(e.target.value)}
-                placeholder="e.g., CCS-1001"
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Email</label>
-              <input
-                type="email"
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={clientEmail}
-                onChange={(e) => setClientEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Phone</label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={clientPhone}
-                onChange={(e) => setClientPhone(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Initial Password</label>
-              <input
-                type="password"
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={clientPassword}
-                onChange={(e) => setClientPassword(e.target.value)}
-                minLength={6}
-              />
-            </div>
-            <div className="md:col-span-2 flex justify-end">
-              <button
-                className="px-3 py-2 text-sm rounded-md bg-brand-600 text-white disabled:opacity-50"
-                onClick={createClient}
-                disabled={saving}
-              >
-                {saving ? "Creating…" : "Create Client"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {mode === "new-location" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm mb-1">Client</label>
-              <select
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={locClientId}
-                onChange={(e) => setLocClientId(e.target.value)}
-              >
-                <option value="">Select client</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Location Name</label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={locName}
-                onChange={(e) => setLocName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Location ID String</label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={locIdString}
-                onChange={(e) => setLocIdString(e.target.value)}
-                placeholder="e.g., CCS-LOC-2001"
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Address Line 1</label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={locLine1}
-                onChange={(e) => setLocLine1(e.target.value)}
-                placeholder="Street address"
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">City</label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={locCity}
-                onChange={(e) => setLocCity(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">State</label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={locState}
-                onChange={(e) => setLocState(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">ZIP</label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={locZip}
-                onChange={(e) => setLocZip(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">
-                Contact Name (optional)
-              </label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={locContactName}
-                onChange={(e) => setLocContactName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">
-                Contact Phone (optional)
-              </label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={locContactPhone}
-                onChange={(e) => setLocContactPhone(e.target.value)}
-              />
-            </div>
-            <div className="md:col-span-2 flex justify-end">
-              <button
-                className="px-3 py-2 text-sm rounded-md bg-brand-600 text-white disabled:opacity-50"
-                onClick={createLocation}
-                disabled={saving}
-              >
-                {saving ? "Saving…" : "Create Location"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {mode === "new-employee" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm mb-1">First Name</label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={empFirst}
-                onChange={(e) => setEmpFirst(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Last Name</label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={empLast}
-                onChange={(e) => setEmpLast(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Employee ID String</label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={empIdString}
-                onChange={(e) => setEmpIdString(e.target.value)}
-                placeholder="e.g., EMP-1201"
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Email</label>
-              <input
-                type="email"
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={empEmail}
-                onChange={(e) => setEmpEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Phone</label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={empPhone}
-                onChange={(e) => setEmpPhone(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Job Title</label>
-              <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={empJobTitle}
-                onChange={(e) => setEmpJobTitle(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Initial Password</label>
-              <input
-                type="password"
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
-                value={empPassword}
-                onChange={(e) => setEmpPassword(e.target.value)}
-                minLength={6}
-              />
-            </div>
-            <div className="md:col-span-2 flex justify-end">
-              <button
-                className="px-3 py-2 text-sm rounded-md bg-brand-600 text-white disabled:opacity-50"
-                onClick={createEmployee}
-                disabled={saving}
-              >
-                {saving ? "Creating…" : "Create Employee"}
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+type QuickAddContextValue = {
+  open: () => void;
+};
+
+const QuickAddContext = createContext<QuickAddContextValue>({
+  open: () => {},
+});
+
+export function useQuickAddModal() {
+  return useContext(QuickAddContext);
+}
+
+export function QuickAddProvider({ children }: { children: ReactNode }) {
+  const [openState, setOpenState] = useState(false);
+  const open = useCallback(() => setOpenState(true), []);
+  const close = useCallback(() => setOpenState(false), []);
+
+  return (
+    <QuickAddContext.Provider value={{ open }}>
+      {children}
+      {openState && <QuickAddModal onClose={close} />}
+    </QuickAddContext.Provider>
   );
 }

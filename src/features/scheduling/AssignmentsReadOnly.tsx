@@ -145,7 +145,7 @@ export default function AssignmentsReadOnly({
   // Keep URL in sync for deep-linking
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
-    next.set("tab", "assignments");
+    next.set("tab", "Schedules");
     next.set("start", startDate);
     next.set("end", endDate);
     if (employeeId && employeeId !== "all") next.set("employeeId", employeeId);
@@ -262,45 +262,64 @@ export default function AssignmentsReadOnly({
 
       const empIds = Object.keys(empGroups).filter((k) => k !== "unassigned");
       const ann: Record<string, string> = {};
-      const thresholdMs = 5 * 60 * 1000;
+      const thresholdMs = 15 * 60 * 1000; // 15 minutes threshold
 
-      // Helper to annotate single job per employee
-      function annotate(empId: string, job: Job, entries: TimeEntry[]) {
+      // Helper to annotate single job per employee with improved logic
+      function annotateClockStatus(
+        empId: string,
+        job: Job,
+        entries: TimeEntry[]
+      ) {
         const planned = toDateSafe(job.serviceDate);
-        if (!planned) return;
+        if (!planned) {
+          ann[`${empId}:${job.id}`] = "no-schedule";
+          return;
+        }
+
         const dayKey = ymd(planned);
         const dayEntries = entries.filter((e) => {
           const t = toDateSafe(e.clockInTime);
           return !!t && ymd(t) === dayKey;
         });
+
         if (!dayEntries.length) {
           ann[`${empId}:${job.id}`] = "missed";
           return;
         }
-        // Prefer entries for the same locationId; else mark out-of-fence
+
+        // Check location matching first
         const locMatches = dayEntries.filter(
           (e) => (e.locationId || "") === (job.locationId || "")
         );
-        const targetList = locMatches.length ? locMatches : dayEntries;
-        const first = targetList
-          .map((e) => ({ e, t: toDateSafe(e.clockInTime)! }))
-          .sort((a, b) => a.t.getTime() - b.t.getTime())[0];
+
         if (!locMatches.length) {
-          ann[`${empId}:${job.id}`] = "out-of-fence";
+          ann[`${empId}:${job.id}`] = "wrong-location";
           return;
         }
-        if (
-          first &&
-          planned &&
-          first.t.getTime() - planned.getTime() > thresholdMs
-        ) {
+
+        // Check timing - find earliest clock-in for the day
+        const firstEntry = locMatches
+          .map((e) => ({ e, t: toDateSafe(e.clockInTime)! }))
+          .filter(({ t }) => t) // Ensure we have valid timestamps
+          .sort((a, b) => a.t.getTime() - b.t.getTime())[0];
+
+        if (!firstEntry) {
+          ann[`${empId}:${job.id}`] = "invalid-data";
+          return;
+        }
+
+        const timeDiff = firstEntry.t.getTime() - planned.getTime();
+
+        if (timeDiff > thresholdMs) {
           ann[`${empId}:${job.id}`] = "late";
-        } else {
+        } else if (Math.abs(timeDiff) <= thresholdMs) {
           ann[`${empId}:${job.id}`] = "on-time";
+        } else {
+          ann[`${empId}:${job.id}`] = "early";
         }
       }
 
-      // Fetch entries per employee to keep queries index-friendly
+      // Fetch entries per employee with better error handling
       for (const empId of empIds) {
         try {
           const qy = query(
@@ -313,10 +332,28 @@ export default function AssignmentsReadOnly({
           const snap = await getDocs(qy);
           const rows: TimeEntry[] = [];
           snap.forEach((d) => rows.push({ id: d.id, ...(d.data() as any) }));
-          for (const job of empGroups[empId] || []) annotate(empId, job, rows);
-        } catch {
-          for (const job of empGroups[empId] || [])
-            ann[`${empId}:${job.id}`] = "unknown";
+
+          // Process each job for this employee
+          for (const job of empGroups[empId] || []) {
+            try {
+              annotateClockStatus(empId, job, rows);
+            } catch (jobError) {
+              console.error(
+                `Error processing job ${job.id} for employee ${empId}:`,
+                jobError
+              );
+              ann[`${empId}:${job.id}`] = "error";
+            }
+          }
+        } catch (queryError) {
+          console.error(
+            `Error fetching time tracking data for employee ${empId}:`,
+            queryError
+          );
+          // Mark all jobs for this employee as having query issues
+          for (const job of empGroups[empId] || []) {
+            ann[`${empId}:${job.id}`] = "query-failed";
+          }
         }
       }
       setAnnotations(ann);
@@ -353,14 +390,14 @@ export default function AssignmentsReadOnly({
 
   const deepLink = useMemo(() => {
     const p = new URLSearchParams();
-    p.set("tab", "assignments");
+    p.set("tab", "Schedules");
     p.set("start", startDate);
     p.set("end", endDate);
     if (employeeId && employeeId !== "all") p.set("employeeId", employeeId);
     if (locationId && locationId !== "all") p.set("locationId", locationId);
     if (status && status !== "all") p.set("status", status);
     if (compareClock) p.set("compare", "1");
-    return `/scheduling?${p.toString()}`;
+    return `/hr?${p.toString()}`;
   }, [startDate, endDate, employeeId, locationId, status, compareClock]);
 
   const absoluteDeepLink = useMemo(() => {
@@ -448,7 +485,7 @@ export default function AssignmentsReadOnly({
             to={deepLink}
             className="px-3 py-2 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm"
           >
-            Open in Scheduler
+            Open in HR
           </Link>
           <button
             type="button"
@@ -589,18 +626,57 @@ export default function AssignmentsReadOnly({
                                 <span
                                   className={`px-2 py-0.5 rounded-md text-xs ${
                                     annValue === "late"
-                                      ? "bg-yellow-100 text-yellow-800"
+                                      ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
                                       : annValue === "missed"
-                                      ? "bg-red-100 text-red-800"
-                                      : annValue === "out-of-fence"
-                                      ? "bg-orange-100 text-orange-800"
-                                      : "bg-emerald-100 text-emerald-800"
+                                      ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                                      : annValue === "wrong-location"
+                                      ? "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                                      : annValue === "on-time"
+                                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+                                      : annValue === "early"
+                                      ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                      : annValue === "no-schedule"
+                                      ? "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
+                                      : annValue === "invalid-data" ||
+                                        annValue === "error" ||
+                                        annValue === "query-failed"
+                                      ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                                      : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
                                   }`}
+                                  title={(() => {
+                                    switch (annValue) {
+                                      case "late":
+                                        return "Clocked in more than 15 minutes after scheduled time";
+                                      case "missed":
+                                        return "No clock-in recorded for this job";
+                                      case "wrong-location":
+                                        return "Clocked in at a different location";
+                                      case "on-time":
+                                        return "Clocked in within 15 minutes of scheduled time";
+                                      case "early":
+                                        return "Clocked in before scheduled time";
+                                      case "no-schedule":
+                                        return "No scheduled time available for comparison";
+                                      case "invalid-data":
+                                        return "Clock data is corrupted or invalid";
+                                      case "error":
+                                        return "Error processing clock data";
+                                      case "query-failed":
+                                        return "Failed to retrieve clock data";
+                                      default:
+                                        return annValue;
+                                    }
+                                  })()}
                                 >
-                                  {annValue}
+                                  {annValue.replace("-", " ")}
                                 </span>
                               ) : (
-                                <span className="text-zinc-500 text-xs">—</span>
+                                <span
+                                  className="text-zinc-500 text-xs"
+                                  title="No clock data available"
+                                >
+                                  —
+                                </span>
                               )}
                             </td>
                           ) : null}

@@ -8,6 +8,45 @@ const db = admin.firestore();
 
 // Payroll Functions
 
+// Helper to check whether the caller has finance/admin privileges.
+async function userHasFinanceAdmin(
+  context: functions.https.CallableContext
+): Promise<boolean> {
+  if (!context.auth) return false;
+
+  // Prefer custom claims on the ID token
+  const token = (context.auth.token || {}) as Record<string, unknown>;
+  const claimAdmin = Boolean(token["admin"]);
+  const claimOwner = Boolean(token["owner"]);
+  const claimSuper = Boolean(token["super_admin"]);
+  if (claimAdmin || claimOwner || claimSuper) return true;
+
+  // Fallback to roles stored in the users document (supports legacy schemas)
+  const userDoc = await db.collection("users").doc(context.auth.uid).get();
+  if (!userDoc.exists) return false;
+  const userData = userDoc.data() || {};
+  const legacyFlags =
+    Boolean((userData as any).admin) ||
+    Boolean((userData as any).owner) ||
+    Boolean((userData as any).super_admin);
+  if (legacyFlags) return true;
+
+  const role = ((userData as any).role as string) || "";
+  if (role === "admin" || role === "owner" || role === "super_admin") {
+    return true;
+  }
+
+  const roles = ((userData as any).roles as unknown as string[]) || [];
+  if (
+    Array.isArray(roles) &&
+    roles.some((r) => ["admin", "owner", "super_admin"].includes(String(r)))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export const createPayrollRun = functions
   .region("us-central1")
   .https.onCall(async (data, context) => {
@@ -29,18 +68,7 @@ export const createPayrollRun = functions
         );
       }
 
-      // Check if user has admin/owner/super_admin role
-      const userDoc = await db.collection("users").doc(context.auth.uid).get();
-      if (!userDoc.exists) {
-        throw new functions.https.HttpsError(
-          "permission-denied",
-          "User not found"
-        );
-      }
-
-      const userData = userDoc.data();
-      const hasPermission =
-        userData?.admin || userData?.owner || userData?.super_admin;
+      const hasPermission = await userHasFinanceAdmin(context);
       if (!hasPermission) {
         throw new functions.https.HttpsError(
           "permission-denied",
@@ -99,17 +127,7 @@ export const recalcPayrollRun = functions
         );
       }
 
-      const userDoc = await db.collection("users").doc(context.auth.uid).get();
-      if (!userDoc.exists) {
-        throw new functions.https.HttpsError(
-          "permission-denied",
-          "User not found"
-        );
-      }
-
-      const userData = userDoc.data();
-      const hasPermission =
-        userData?.admin || userData?.owner || userData?.super_admin;
+      const hasPermission = await userHasFinanceAdmin(context);
       if (!hasPermission) {
         throw new functions.https.HttpsError(
           "permission-denied",
@@ -261,17 +279,7 @@ export const payrollScan = functions
         );
       }
 
-      const userDoc = await db.collection("users").doc(context.auth.uid).get();
-      if (!userDoc.exists) {
-        throw new functions.https.HttpsError(
-          "permission-denied",
-          "User not found"
-        );
-      }
-
-      const userData = userDoc.data();
-      const hasPermission =
-        userData?.admin || userData?.owner || userData?.super_admin;
+      const hasPermission = await userHasFinanceAdmin(context);
       if (!hasPermission) {
         throw new functions.https.HttpsError(
           "permission-denied",
@@ -369,17 +377,7 @@ export const payrollGenerate = functions
         );
       }
 
-      const userDoc = await db.collection("users").doc(context.auth.uid).get();
-      if (!userDoc.exists) {
-        throw new functions.https.HttpsError(
-          "permission-denied",
-          "User not found"
-        );
-      }
-
-      const userData = userDoc.data();
-      const hasPermission =
-        userData?.admin || userData?.owner || userData?.super_admin;
+      const hasPermission = await userHasFinanceAdmin(context);
       if (!hasPermission) {
         throw new functions.https.HttpsError(
           "permission-denied",
@@ -479,17 +477,7 @@ export const approveTimesheetsInRun = functions
         );
       }
 
-      const userDoc = await db.collection("users").doc(context.auth.uid).get();
-      if (!userDoc.exists) {
-        throw new functions.https.HttpsError(
-          "permission-denied",
-          "User not found"
-        );
-      }
-
-      const userData = userDoc.data();
-      const hasPermission =
-        userData?.admin || userData?.owner || userData?.super_admin;
+      const hasPermission = await userHasFinanceAdmin(context);
       if (!hasPermission) {
         throw new functions.https.HttpsError(
           "permission-denied",
@@ -515,6 +503,7 @@ export const approveTimesheetsInRun = functions
         const timesheetRef = db.collection("timesheets").doc(id);
         batch.update(timesheetRef, {
           approvedInRunId: runId,
+          adminApproved: true, // Automatically set when approving into run
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         count += 1;
@@ -556,17 +545,7 @@ export const backfillRateSnapshots = functions
         );
       }
 
-      const userDoc = await db.collection("users").doc(context.auth.uid).get();
-      if (!userDoc.exists) {
-        throw new functions.https.HttpsError(
-          "permission-denied",
-          "User not found"
-        );
-      }
-
-      const userData = userDoc.data();
-      const hasPermission =
-        userData?.admin || userData?.owner || userData?.super_admin;
+      const hasPermission = await userHasFinanceAdmin(context);
       if (!hasPermission) {
         throw new functions.https.HttpsError(
           "permission-denied",

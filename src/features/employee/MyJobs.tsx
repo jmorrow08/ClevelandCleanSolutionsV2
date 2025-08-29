@@ -22,11 +22,13 @@ import {
   makeDayBounds as makeDayBoundsUtil,
   formatJobWindow,
 } from "../../utils/time";
+import { getLocationNames } from "../../services/queries/resolvers";
 import JobDetailsModal from "./JobDetailsModal";
 
 type JobItem = {
   id: string;
   clientName?: string;
+  clientProfileId?: string;
   locationId?: string;
   locationName?: string;
   serviceDate?: any;
@@ -75,6 +77,9 @@ export default function MyJobs() {
   const [error, setError] = useState<string>("");
   const [rows, setRows] = useState<JobItem[]>([]);
   const [timeWindows, setTimeWindows] = useState<Record<string, string>>({});
+  const [locationNames, setLocationNames] = useState<Record<string, string>>(
+    {}
+  );
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -199,6 +204,38 @@ export default function MyJobs() {
       }
     })();
   }, [user?.uid, currentWeekDates]);
+
+  // Resolve location and client names
+  useEffect(() => {
+    if (!rows.length) return;
+
+    (async () => {
+      try {
+        // Resolve location names (employees have permission to read locations)
+        const uniqueLocIds = Array.from(
+          new Set(
+            rows
+              .map((j) => j.locationId)
+              .filter((v): v is string => typeof v === "string" && !!v)
+          )
+        );
+        if (uniqueLocIds.length) {
+          const names = await getLocationNames(uniqueLocIds);
+          setLocationNames((prev) => {
+            const next = { ...prev };
+            uniqueLocIds.forEach((id, i) => (next[id] = names[i] || id));
+            return next;
+          });
+        }
+
+        // Note: Client name resolution is skipped for employees due to Firestore permissions
+        // Employees don't have read access to clientMasterList collection
+        // Client names will be displayed from the job data if available, otherwise fallback to "Unknown Client"
+      } catch (e) {
+        console.error("Error resolving location names:", e);
+      }
+    })();
+  }, [rows]);
 
   // Check current active time entry
   useEffect(() => {
@@ -538,6 +575,7 @@ export default function MyJobs() {
                   <div className="flex-1">
                     <div className="font-medium">
                       {j.locationName ||
+                        (j.locationId && locationNames[j.locationId]) ||
                         (j.locationId
                           ? `Location ${j.locationId.slice(0, 8)}...`
                           : "Unknown Location")}
@@ -622,17 +660,15 @@ export default function MyJobs() {
                   </div>
                 )}
 
-                {/* Click to view details for non-today jobs */}
-                {!isToday && (
-                  <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
-                    <button
-                      className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                      onClick={() => handleJobClick(j.id)}
-                    >
-                      View Details →
-                    </button>
-                  </div>
-                )}
+                {/* View Details link for all jobs */}
+                <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
+                  <button
+                    className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                    onClick={() => handleJobClick(j.id)}
+                  >
+                    View Details →
+                  </button>
+                </div>
               </div>
             );
           })}

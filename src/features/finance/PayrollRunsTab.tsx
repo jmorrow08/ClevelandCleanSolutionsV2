@@ -321,104 +321,14 @@ export default function PayrollRunsTab() {
     <div className="space-y-3">
       <RoleGuard allow={["admin", "owner", "super_admin"]}>
         <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1">
-          <div className="text-sm font-medium mb-2">Payroll Prep</div>
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
-            <label className="block md:col-span-2">
-              <div className="text-xs text-zinc-500">Period Start</div>
-              <input
-                type="date"
-                className="mt-1 w-full px-2 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
-                value={periodStartInput}
-                onChange={(e) => setPeriodStartInput(e.target.value)}
-              />
-            </label>
-            <label className="block md:col-span-2">
-              <div className="text-xs text-zinc-500">Period End</div>
-              <input
-                type="date"
-                className="mt-1 w-full px-2 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
-                value={periodEndInput}
-                onChange={(e) => setPeriodEndInput(e.target.value)}
-              />
-            </label>
-            <div className="md:col-span-2 flex gap-2">
-              <button
-                className={`px-3 py-1.5 rounded-md text-white ${
-                  busy ? "bg-zinc-400" : "bg-indigo-600 hover:bg-indigo-700"
-                }`}
-                onClick={doScan}
-                disabled={busy}
-              >
-                {busy ? "Working…" : "Scan Jobs"}
-              </button>
-              <button
-                className={`px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900 ${
-                  busy ? "opacity-60" : ""
-                }`}
-                onClick={doGenerate}
-                disabled={busy || !scan}
-              >
-                Generate Timesheets (Draft)
-              </button>
-              <button
-                className={`px-3 py-1.5 rounded-md text-white ${
-                  creatingRun
-                    ? "bg-zinc-400"
-                    : "bg-green-600 hover:bg-green-700"
-                }`}
-                onClick={doCreatePayrollRun}
-                disabled={creatingRun}
-              >
-                {creatingRun ? "Creating…" : "Create Payroll Run"}
-              </button>
-            </div>
+          <div className="text-sm font-medium mb-2">Payroll Runs</div>
+          <div className="text-sm text-zinc-600 dark:text-zinc-300">
+            For scanning jobs and generating timesheets, use{" "}
+            <a href="/finance/payroll-prep" className="underline">
+              Payroll Prep
+            </a>
+            .
           </div>
-
-          {scan && (
-            <div className="mt-3 text-sm">
-              <div className="text-xs text-zinc-500">Preview</div>
-              <div className="mt-1">
-                Jobs: {scan.jobsCount} · Assignments: {scan.assignmentsCount}
-              </div>
-              <div className="mt-1">
-                Total $:{" "}
-                {Number(scan.previewTotals?.totalAmount || 0).toFixed(2)}
-              </div>
-              {scan.missingRates?.length ? (
-                <div className="mt-1 text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 text-xs">
-                  {scan.missingRates.length} missing rates detected. Generation
-                  will skip those.
-                </div>
-              ) : null}
-              <div className="overflow-x-auto mt-2">
-                <table className="min-w-full text-sm">
-                  <thead className="text-left text-zinc-500">
-                    <tr>
-                      <th className="px-2 py-1">Employee</th>
-                      <th className="px-2 py-1"># Jobs</th>
-                      <th className="px-2 py-1">Total $</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scan.employees.map((e) => (
-                      <tr
-                        key={e.employeeId}
-                        className="border-t border-zinc-100 dark:border-zinc-700"
-                      >
-                        <td className="px-2 py-1">
-                          {e.employeeName || e.employeeId}
-                        </td>
-                        <td className="px-2 py-1">{e.jobs}</td>
-                        <td className="px-2 py-1">
-                          {Number(e.totalAmount || 0).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </div>
       </RoleGuard>
 

@@ -15,6 +15,10 @@ import {
 } from "firebase/firestore";
 import { firebaseConfig } from "../../services/firebase";
 import { useAuth } from "../../context/AuthContext";
+import {
+  getClientName,
+  getLocationName,
+} from "../../services/queries/resolvers";
 
 type JobDetailsModalProps = {
   isOpen: boolean;
@@ -25,6 +29,7 @@ type JobDetailsModalProps = {
 type JobData = {
   id: string;
   clientName?: string;
+  clientProfileId?: string;
   locationId?: string;
   locationName?: string;
   serviceDate?: any;
@@ -84,7 +89,33 @@ export default function JobDetailsModal({
           setMessage("Job not found.");
           return;
         }
-        setJobData({ id: jobDoc.id, ...(jobDoc.data() as any) });
+        const raw = { id: jobDoc.id, ...(jobDoc.data() as any) } as any;
+
+        // Debug: log available fields to see what client reference we have
+        console.log("Job document fields:", Object.keys(raw));
+        console.log("Client fields:", {
+          clientProfileId: raw.clientProfileId,
+          clientId: raw.clientId,
+          clientName: raw.clientName,
+        });
+
+        // Resolve friendly names from master collections
+        const [resolvedClientName, resolvedLocationName] = await Promise.all([
+          raw.clientProfileId
+            ? getClientName(raw.clientProfileId)
+            : raw.clientId
+            ? getClientName(raw.clientId)
+            : Promise.resolve(raw.clientName),
+          raw.locationId
+            ? getLocationName(raw.locationId)
+            : Promise.resolve(raw.locationName),
+        ]);
+
+        setJobData({
+          ...raw,
+          clientName: resolvedClientName || raw.clientName,
+          locationName: resolvedLocationName || raw.locationName,
+        });
 
         // Resolve employee profileId
         if (user?.uid) {

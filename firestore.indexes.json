@@ -196,6 +196,136 @@
         { "fieldPath": "channel", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "timesheets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeId", "order": "ASCENDING" },
+        { "fieldPath": "jobId", "order": "ASCENDING" },
+        { "fieldPath": "start", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeRates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeId", "order": "ASCENDING" },
+        { "fieldPath": "effectiveDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeRates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeId", "order": "ASCENDING" },
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "effectiveDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeRates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeId", "order": "ASCENDING" },
+        { "fieldPath": "clientProfileId", "order": "ASCENDING" },
+        { "fieldPath": "effectiveDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeRates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeRates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeId", "order": "ASCENDING" },
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeRates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeId", "order": "ASCENDING" },
+        { "fieldPath": "clientProfileId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeRates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeProfileId", "order": "ASCENDING" },
+        { "fieldPath": "effectiveDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeRates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeProfileId", "order": "ASCENDING" },
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "effectiveDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeRates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeProfileId", "order": "ASCENDING" },
+        { "fieldPath": "clientProfileId", "order": "ASCENDING" },
+        { "fieldPath": "effectiveDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeRates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeProfileId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeRates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeProfileId", "order": "ASCENDING" },
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeRates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeProfileId", "order": "ASCENDING" },
+        { "fieldPath": "clientProfileId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeTimeTracking",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeProfileId", "order": "ASCENDING" },
+        { "fieldPath": "clockInTime", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeTimeTracking",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeProfileId", "order": "ASCENDING" },
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "clockInTime", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

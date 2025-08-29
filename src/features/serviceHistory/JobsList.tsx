@@ -29,6 +29,9 @@ type Job = {
   serviceDate?: any;
   clientProfileId?: string;
   locationId?: string;
+  archived?: boolean;
+  archivedAt?: any;
+  archivedBy?: string;
 };
 
 function StatusChips({ job }: { job: Job }) {
@@ -69,11 +72,22 @@ function StatusChips({ job }: { job: Job }) {
           Pending QA
         </span>
       )}
+      {job.archived && (
+        <span className="px-2 py-0.5 rounded-md text-[10px] bg-gray-50 text-gray-700 border border-gray-200">
+          Archived
+        </span>
+      )}
     </div>
   );
 }
 
-export default function JobsList({ showAll }: { showAll: boolean }) {
+export default function JobsList({
+  showAll,
+  includeArchived = false,
+}: {
+  showAll: boolean;
+  includeArchived?: boolean;
+}) {
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [, setError] = useState<string | null>(null);
@@ -88,26 +102,56 @@ export default function JobsList({ showAll }: { showAll: boolean }) {
         const db = getFirestore();
         let qref;
         if (showAll) {
-          qref = query(
-            collection(db, "serviceHistory"),
-            orderBy("serviceDate", "desc"),
-            limit(100)
-          );
+          if (includeArchived) {
+            // Show all records including archived
+            qref = query(
+              collection(db, "serviceHistory"),
+              orderBy("serviceDate", "desc"),
+              limit(100)
+            );
+          } else {
+            // Show only non-archived records
+            // Note: We'll filter in code since Firestore doesn't handle undefined well
+            qref = query(
+              collection(db, "serviceHistory"),
+              orderBy("serviceDate", "desc"),
+              limit(100)
+            );
+          }
         } else {
           const end = new Date();
           const start = subDays(end, 90);
-          qref = query(
-            collection(db, "serviceHistory"),
-            where("serviceDate", ">=", Timestamp.fromDate(start)),
-            where("serviceDate", "<", Timestamp.fromDate(end)),
-            orderBy("serviceDate", "desc"),
-            limit(100)
-          );
+          if (includeArchived) {
+            // Show records in date range including archived
+            qref = query(
+              collection(db, "serviceHistory"),
+              where("serviceDate", ">=", Timestamp.fromDate(start)),
+              where("serviceDate", "<", Timestamp.fromDate(end)),
+              orderBy("serviceDate", "desc"),
+              limit(100)
+            );
+          } else {
+            // Show only non-archived records in date range
+            // Note: We'll filter in code since Firestore doesn't handle undefined well
+            qref = query(
+              collection(db, "serviceHistory"),
+              where("serviceDate", ">=", Timestamp.fromDate(start)),
+              where("serviceDate", "<", Timestamp.fromDate(end)),
+              orderBy("serviceDate", "desc"),
+              limit(100)
+            );
+          }
         }
         const snap = await getDocs(qref);
         const list: Job[] = [];
         snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
-        setJobs(list);
+
+        // Filter archived records based on includeArchived flag
+        const filteredList = includeArchived
+          ? list
+          : list.filter((job) => job.archived !== true);
+
+        setJobs(filteredList);
       } catch (e: any) {
         console.warn("Service history index may be required", e?.message);
         setError(e?.message || "Failed to load jobs");
@@ -116,7 +160,7 @@ export default function JobsList({ showAll }: { showAll: boolean }) {
       }
     }
     load();
-  }, [showAll]);
+  }, [showAll, includeArchived]);
 
   useEffect(() => {
     if (!jobs.length) return;

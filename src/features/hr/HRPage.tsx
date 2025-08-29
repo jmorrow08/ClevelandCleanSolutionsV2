@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import EmployeesList from "./EmployeesList";
 import TimesheetView from "../employee/TimesheetView";
 import TimeLocationAdmin from "./TimeLocationAdmin";
@@ -29,7 +30,26 @@ const tabs: Array<{ key: TabKey; label: string }> = [
 ];
 
 export default function HRPage() {
-  const [active, setActive] = useState<TabKey>(tabs[0].key);
+  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const initialTab = params.get("tab") || tabs[0].key;
+  const [active, setActive] = useState<TabKey>(initialTab as TabKey);
+
+  // Update active tab when URL changes
+  useEffect(() => {
+    const tabParam = params.get("tab");
+    if (tabParam && tabs.some((t) => t.key === tabParam)) {
+      setActive(tabParam as TabKey);
+    }
+  }, [params]);
+
+  const handleTabChange = (tabKey: TabKey) => {
+    setActive(tabKey);
+    const newParams = new URLSearchParams(params);
+    newParams.set("tab", tabKey);
+    navigate(`/hr?${newParams.toString()}`, { replace: true });
+  };
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">HR</h1>
@@ -45,7 +65,7 @@ export default function HRPage() {
                   ? "border-zinc-900 dark:border-zinc-100"
                   : "border-transparent text-zinc-500"
               }`}
-              onClick={() => setActive(t.key)}
+              onClick={() => handleTabChange(t.key)}
             >
               {t.label}
             </button>
@@ -80,7 +100,16 @@ export default function HRPage() {
           </div>
         )}
 
-        {active === "Schedules" && <AssignmentsReadOnly />}
+        {active === "Schedules" && (
+          <AssignmentsReadOnly
+            initialStart={params.get("start")}
+            initialEnd={params.get("end")}
+            initialEmployeeId={params.get("employeeId")}
+            initialLocationId={params.get("locationId")}
+            initialStatus={params.get("status")}
+            initialCompare={params.get("compare")}
+          />
+        )}
 
         {active === "Rates" && <EmployeeRatesOverview />}
 

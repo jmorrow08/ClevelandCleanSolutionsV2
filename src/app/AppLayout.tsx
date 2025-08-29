@@ -8,7 +8,6 @@ type NavItem = { label: string; to: string };
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", to: "/" },
   { label: "Finance", to: "/finance" },
-  { label: "Payroll Prep", to: "/finance/payroll-prep" },
   { label: "Inventory", to: "/inventory" },
   { label: "Scheduling", to: "/scheduling" },
   { label: "Service History", to: "/service-history" },

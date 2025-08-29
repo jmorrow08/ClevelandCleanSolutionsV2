@@ -105,6 +105,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!isOnline) return; // Don't write if we're offline
 
       try {
+        // Check if user is still authenticated before writing
+        if (!getAuth().currentUser) return;
+
         await setDoc(
           doc(db, "presence", uid),
           {
@@ -184,6 +187,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Mark offline on sign-out
       (async () => {
         try {
+          // If auth state already cleared, skip writes to avoid permission-denied
+          if (!getAuth().currentUser) return;
           await setDoc(
             doc(db, "presence", uid),
             {
@@ -204,6 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
         try {
+          if (!getAuth().currentUser) return;
           await setDoc(
             doc(db, "users", uid),
             { presence: { online: false, lastActive: serverTimestamp() } },

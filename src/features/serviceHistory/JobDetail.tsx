@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { initializeApp, getApps } from "firebase/app";
 import {
   getFirestore,
@@ -13,6 +13,7 @@ import {
   addDoc,
   serverTimestamp,
   updateDoc,
+  deleteDoc,
   Timestamp,
   writeBatch,
   limit,
@@ -33,9 +34,9 @@ import {
   type CanonicalStatus,
 } from "../../services/statusMap";
 import { RoleGuard } from "../../context/RoleGuard";
-import JobEditForm from "./JobEditForm";
 import EmployeeAssignmentForm from "./EmployeeAssignmentForm";
 import { useToast } from "../../context/ToastContext";
+import { useAuth } from "../../context/AuthContext";
 import { makeDayBounds, mergePhotoResults } from "../../services/firebase";
 
 type JobRecord = {
@@ -57,7 +58,9 @@ type Note = {
 
 export default function JobDetail() {
   const { jobId } = useParams();
-  const location = useLocation();
+  const navigate = useNavigate();
+  const { claims } = useAuth();
+
   const [loading, setLoading] = useState(true);
   const [job, setJob] = useState<JobRecord | null>(null);
   const [clientName, setClientName] = useState<string>("");
@@ -66,7 +69,11 @@ export default function JobDetail() {
   const [newNote, setNewNote] = useState<string>("");
   const [postingNote, setPostingNote] = useState(false);
   const [assignedDisplay, setAssignedDisplay] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
   const { show } = useToast();
+
+  // Check if user has admin permissions
+  const isAdmin = claims?.admin || claims?.owner || claims?.super_admin;
 
   // UI tabs: Overview vs Approval
   const [activeTab, setActiveTab] = useState<"overview" | "approval">(
@@ -96,15 +103,6 @@ export default function JobDetail() {
   const [statusLegacy, setStatusLegacy] = useState<string>("");
   const [savingApproval, setSavingApproval] = useState(false);
   const [timeWindow, setTimeWindow] = useState<string>("");
-  const [canEditScheduling, setCanEditScheduling] = useState<boolean>(false);
-  const fromScheduling = useMemo(() => {
-    try {
-      const sp = new URLSearchParams(location.search);
-      return sp.get("from") === "sched";
-    } catch {
-      return false;
-    }
-  }, [location.search]);
 
   useEffect(() => {
     async function load() {
@@ -124,18 +122,52 @@ export default function JobDetail() {
           setClientName(await getClientName(j.clientProfileId));
         if (j.locationId) setLocationName(await getLocationName(j.locationId));
 
-        // Load notes for this job
+        // Load notes for this job (admin/client notes from jobNotes + employee day notes)
         try {
-          const nq = query(
-            collection(db, "jobNotes"),
-            where("jobId", "==", jobId),
-            orderBy("createdAt", "desc")
-          );
-          const ns = await getDocs(nq);
           const list: Note[] = [];
+          // 1) jobNotes linked to this job (no orderBy to avoid composite index)
+          const ns = await getDocs(
+            query(collection(db, "jobNotes"), where("jobId", "==", jobId))
+          );
           ns.forEach((d) =>
             list.push({ id: d.id, ...(d.data() as any) } as Note)
           );
+          // 2) employee day notes for same location and service date
+          if (j.locationId && j.serviceDate) {
+            const dt: Date = j.serviceDate?.toDate
+              ? j.serviceDate.toDate()
+              : (j.serviceDate as any)?.seconds
+              ? new Date((j.serviceDate as any).seconds * 1000)
+              : new Date();
+            const { start, end } = makeDayBoundsUtil(dt, "America/New_York");
+            const ns2 = await getDocs(
+              query(
+                collection(db, "generalJobNotes"),
+                where("locationId", "==", j.locationId),
+                where("createdAt", ">=", Timestamp.fromDate(start)),
+                where("createdAt", "<=", Timestamp.fromDate(end))
+              )
+            );
+            ns2.forEach((d) => {
+              const data = d.data() as any;
+              list.push({
+                id: d.id,
+                message: data.notes,
+                createdAt: data.createdAt,
+                authorRole: "employee",
+              });
+            });
+          }
+          // Sort newest first by createdAt, handling Firestore Timestamp-like values
+          list.sort((a, b) => {
+            const getMs = (t: any) =>
+              t?.toDate
+                ? t.toDate().getTime()
+                : t?.seconds
+                ? t.seconds * 1000
+                : 0;
+            return getMs(b.createdAt) - getMs(a.createdAt);
+          });
           setNotes(list);
         } catch {
           setNotes([]);
@@ -154,55 +186,6 @@ export default function JobDetail() {
     }
     load();
   }, [jobId]);
-
-  // Determine if a short-lived scheduling session is active for this user
-  useEffect(() => {
-    (async () => {
-      try {
-        if (!getApps().length) initializeApp(firebaseConfig);
-        const auth = getAuth();
-        const uid = auth.currentUser?.uid;
-        if (!uid) {
-          setCanEditScheduling(false);
-          return;
-        }
-        const db = getFirestore();
-        const snap = await getDoc(doc(db, "scheduleSessions", uid));
-        const data: any = snap.exists() ? snap.data() : null;
-        const exp = data?.expiresAt?.toDate ? data.expiresAt.toDate() : null;
-        let active = !!exp && exp.getTime() > Date.now();
-        // If opened from Scheduling and there's no active session, start one
-        if (!active && fromScheduling) {
-          try {
-            const fns = (await import("firebase/functions")).getFunctions();
-            try {
-              if (
-                import.meta.env.DEV &&
-                (import.meta.env as any).VITE_USE_FIREBASE_EMULATOR === "true"
-              )
-                (await import("firebase/functions")).connectFunctionsEmulator(
-                  fns,
-                  "127.0.0.1",
-                  5001
-                );
-            } catch {}
-            const start = (await import("firebase/functions")).httpsCallable(
-              fns,
-              "startScheduleSession"
-            );
-            await start({ ttlMinutes: 20 });
-            active = true;
-          } catch (error) {
-            console.warn("Failed to start scheduling session:", error);
-            // Continue without session - editing will be disabled
-          }
-        }
-        setCanEditScheduling(active);
-      } catch {
-        setCanEditScheduling(false);
-      }
-    })();
-  }, [fromScheduling]);
 
   // Compute time window for header
   useEffect(() => {
@@ -513,6 +496,35 @@ export default function JobDetail() {
     }
   }, [activeTab, job, jobId]);
 
+  const handleDelete = async () => {
+    if (!jobId) return;
+
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this job? This action cannot be undone."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setDeleting(true);
+      if (!getApps().length) initializeApp(firebaseConfig);
+      const db = getFirestore();
+
+      await deleteDoc(doc(db, "serviceHistory", jobId));
+      show({ message: "Job deleted successfully", type: "success" });
+      navigate("/service-history");
+    } catch (error: any) {
+      console.error("Error deleting job:", error);
+      show({
+        message: `Failed to delete job: ${error.message}`,
+        type: "error",
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-3">
       <div className="text-sm">
@@ -555,10 +567,15 @@ export default function JobDetail() {
                 ) : null}
               </div>
               <div className="shrink-0 flex items-center gap-2">
-                {canEditScheduling && fromScheduling && (
-                  <div className="px-2 py-1 rounded-md text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
-                    Scheduling Session Active
-                  </div>
+                {isAdmin && (
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting || loading}
+                    className="px-3 py-1 rounded-md bg-red-600 hover:bg-red-700 text-white disabled:bg-zinc-400 disabled:cursor-not-allowed text-sm"
+                    title="Delete this job"
+                  >
+                    {deleting ? "Deleting…" : "Delete"}
+                  </button>
                 )}
               </div>
             </div>
@@ -643,24 +660,15 @@ export default function JobDetail() {
                     </div>
                   </div>
 
-                  {/* Employee Assignment Editing - Only from Scheduling */}
-                  {canEditScheduling && fromScheduling ? (
-                    <RoleGuard allow={["admin", "owner", "super_admin"]}>
-                      <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
-                        <div className="text-sm font-medium mb-3">
-                          Edit Employee Assignments
-                        </div>
-                        <EmployeeAssignmentForm job={job} onSave={handleSave} />
-                      </div>
-                    </RoleGuard>
-                  ) : (
+                  {/* Employee Assignment Editing - Always available for admins */}
+                  <RoleGuard allow={["admin", "owner", "super_admin"]}>
                     <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
-                      <div className="rounded-md p-3 bg-zinc-50 dark:bg-zinc-900 text-xs text-zinc-600 dark:text-zinc-300">
-                        Employee assignments can be edited from the Scheduling
-                        page.
+                      <div className="text-sm font-medium mb-3">
+                        Edit Employee Assignments
                       </div>
+                      <EmployeeAssignmentForm job={job} onSave={handleSave} />
                     </div>
-                  )}
+                  </RoleGuard>
                 </div>
 
                 <div className="border-t border-zinc-200 dark:border-zinc-700 pt-3">

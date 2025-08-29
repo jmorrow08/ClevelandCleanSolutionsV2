@@ -13,7 +13,11 @@ import {
   serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import {
+  getFunctions,
+  httpsCallable,
+  connectFunctionsEmulator,
+} from "firebase/functions";
 import { firebaseConfig } from "../firebase";
 
 export type RunTotals = {
@@ -27,6 +31,21 @@ export type RunTotals = {
 
 function ensureApp() {
   if (!getApps().length) initializeApp(firebaseConfig);
+}
+
+function getCallableFunctions() {
+  ensureApp();
+  // Always use explicit region to match deployed functions
+  const fns = getFunctions(undefined as any, "us-central1");
+  try {
+    if (
+      import.meta.env.DEV &&
+      (import.meta.env as any).VITE_USE_FIREBASE_EMULATOR === "true"
+    ) {
+      connectFunctionsEmulator(fns, "127.0.0.1", 5001);
+    }
+  } catch {}
+  return fns;
 }
 
 async function getEffectiveHourlyRate(
@@ -43,9 +62,36 @@ async function getEffectiveHourlyRate(
     limit(1)
   );
   const snap = await getDocs(qy);
-  if (snap.empty) return 0;
-  const d = snap.docs[0].data() as Record<string, unknown>;
-  return Number(d?.hourlyRate || 0) || 0;
+  if (!snap.empty) {
+    const d = snap.docs[0].data() as Record<string, unknown>;
+    const amount =
+      (typeof (d as any)?.hourlyRate === "number"
+        ? (d as any).hourlyRate
+        : null) ??
+      (typeof (d as any)?.amount === "number" ? (d as any).amount : null) ??
+      (typeof (d as any)?.rate === "number" ? (d as any).rate : null) ??
+      0;
+    return Number(amount || 0) || 0;
+  }
+  // Fallback to createdAt-based historical records (for legacy docs)
+  const qyCreated = query(
+    collection(db, "employeeRates"),
+    where("employeeId", "==", employeeId),
+    where("createdAt", "<=", effectiveAt),
+    orderBy("createdAt", "desc"),
+    limit(1)
+  );
+  const snapCreated = await getDocs(qyCreated);
+  if (snapCreated.empty) return 0;
+  const d2 = snapCreated.docs[0].data() as Record<string, unknown>;
+  const amount2 =
+    (typeof (d2 as any)?.hourlyRate === "number"
+      ? (d2 as any).hourlyRate
+      : null) ??
+    (typeof (d2 as any)?.amount === "number" ? (d2 as any).amount : null) ??
+    (typeof (d2 as any)?.rate === "number" ? (d2 as any).rate : null) ??
+    0;
+  return Number(amount2 || 0) || 0;
 }
 
 export async function calculateRunTotals(runId: string): Promise<RunTotals> {
@@ -142,7 +188,7 @@ export async function approveTimesheets(
     return { count: 0 };
 
   ensureApp();
-  const functions = getFunctions();
+  const functions = getCallableFunctions();
 
   try {
     const approveTimesheetsCallable = httpsCallable(
@@ -168,7 +214,7 @@ export async function createPayrollRun(
     throw new Error("periodStart and periodEnd are required");
 
   ensureApp();
-  const functions = getFunctions();
+  const functions = getCallableFunctions();
 
   try {
     const createPayrollRunCallable = httpsCallable(
@@ -218,7 +264,7 @@ export async function recalcPayrollRun(runId: string): Promise<RunTotals> {
   if (!runId) throw new Error("runId required");
 
   ensureApp();
-  const functions = getFunctions();
+  const functions = getCallableFunctions();
 
   try {
     const recalcPayrollRunCallable = httpsCallable(
@@ -263,6 +309,32 @@ export async function recalcPayrollRun(runId: string): Promise<RunTotals> {
   }
 }
 
+// Helper to normalize a rate document into a usable snapshot
+function normalizeRateDoc(data: Record<string, unknown>) {
+  const rawRateType = (data as any)?.rateType as
+    | "per_visit"
+    | "hourly"
+    | "monthly"
+    | undefined;
+  const numericAmount =
+    (typeof (data as any)?.amount === "number" ? (data as any).amount : null) ??
+    (typeof (data as any)?.perVisitRate === "number"
+      ? (data as any).perVisitRate
+      : null) ??
+    (typeof (data as any)?.hourlyRate === "number"
+      ? (data as any).hourlyRate
+      : null) ??
+    (typeof (data as any)?.rate === "number" ? (data as any).rate : null) ??
+    0;
+  let type: "per_visit" | "hourly" =
+    rawRateType === "hourly" ? "hourly" : "per_visit";
+  if (!rawRateType) {
+    if (typeof (data as any)?.hourlyRate === "number") type = "hourly";
+    else type = "per_visit";
+  }
+  return { type, amount: Number(numericAmount || 0) } as const;
+}
+
 // Helper function to get effective rate for an employee at a specific date
 async function getEffectiveRate(
   employeeId: string,
@@ -273,69 +345,114 @@ async function getEffectiveRate(
   ensureApp();
   const db = getFirestore();
 
-  // First try to find scoped rates (location or client specific)
-  let qy = query(
-    collection(db, "employeeRates"),
-    where("employeeId", "==", employeeId),
-    where("effectiveDate", "<=", effectiveAt),
-    orderBy("effectiveDate", "desc"),
-    limit(1)
-  );
+  // We'll try two identifier fields for backward-compatibility:
+  // 1) employeeId (newer schema)
+  // 2) employeeProfileId (legacy schema where this equals the employee profile doc id)
+  const idFields: Array<"employeeId" | "employeeProfileId"> = [
+    "employeeId",
+    "employeeProfileId",
+  ];
 
-  if (locationId) {
-    qy = query(
+  // Search order:
+  // a) scoped by location/client using effectiveDate
+  // b) scoped by location/client using createdAt (legacy)
+  // c) global by effectiveDate
+  // d) global by createdAt
+  for (const idField of idFields) {
+    // a) Scoped effectiveDate
+    let qy = query(
       collection(db, "employeeRates"),
-      where("employeeId", "==", employeeId),
-      where("locationId", "==", locationId),
+      where(idField, "==", employeeId),
       where("effectiveDate", "<=", effectiveAt),
       orderBy("effectiveDate", "desc"),
       limit(1)
     );
-  } else if (clientProfileId) {
-    qy = query(
-      collection(db, "employeeRates"),
-      where("employeeId", "==", employeeId),
-      where("clientProfileId", "==", clientProfileId),
-      where("effectiveDate", "<=", effectiveAt),
-      orderBy("effectiveDate", "desc"),
-      limit(1)
-    );
-  }
-
-  const snap = await getDocs(qy);
-  if (!snap.empty) {
-    const data = snap.docs[0].data() as Record<string, unknown>;
-    if (data?.rateType === "per_visit" && data?.perVisitRate) {
-      return { type: "per_visit", amount: Number(data.perVisitRate) || 0 };
-    } else if (data?.rateType === "hourly" && data?.hourlyRate) {
-      return { type: "hourly", amount: Number(data.hourlyRate) || 0 };
+    if (locationId) {
+      qy = query(
+        collection(db, "employeeRates"),
+        where(idField, "==", employeeId),
+        where("locationId", "==", locationId),
+        where("effectiveDate", "<=", effectiveAt),
+        orderBy("effectiveDate", "desc"),
+        limit(1)
+      );
+    } else if (clientProfileId) {
+      qy = query(
+        collection(db, "employeeRates"),
+        where(idField, "==", employeeId),
+        where("clientProfileId", "==", clientProfileId),
+        where("effectiveDate", "<=", effectiveAt),
+        orderBy("effectiveDate", "desc"),
+        limit(1)
+      );
     }
-  }
+    const snap = await getDocs(qy);
+    if (!snap.empty) return normalizeRateDoc(snap.docs[0].data() as any);
 
-  // Fallback to global rates if no scoped rate found
-  if (locationId || clientProfileId) {
-    const globalQy = query(
+    // b) Scoped createdAt (legacy)
+    let createdQy = query(
       collection(db, "employeeRates"),
-      where("employeeId", "==", employeeId),
-      where("effectiveDate", "<=", effectiveAt),
-      orderBy("effectiveDate", "desc"),
+      where(idField, "==", employeeId),
+      where("createdAt", "<=", effectiveAt),
+      orderBy("createdAt", "desc"),
       limit(1)
     );
-    const globalSnap = await getDocs(globalQy);
-    if (!globalSnap.empty) {
-      const data = globalSnap.docs[0].data() as Record<string, unknown>;
-      if (data?.rateType === "per_visit" && data?.perVisitRate) {
-        return { type: "per_visit", amount: Number(data.perVisitRate) || 0 };
-      } else if (data?.rateType === "hourly" && data?.hourlyRate) {
-        return { type: "hourly", amount: Number(data.hourlyRate) || 0 };
-      }
+    if (locationId) {
+      createdQy = query(
+        collection(db, "employeeRates"),
+        where(idField, "==", employeeId),
+        where("locationId", "==", locationId),
+        where("createdAt", "<=", effectiveAt),
+        orderBy("createdAt", "desc"),
+        limit(1)
+      );
+    } else if (clientProfileId) {
+      createdQy = query(
+        collection(db, "employeeRates"),
+        where(idField, "==", employeeId),
+        where("clientProfileId", "==", clientProfileId),
+        where("createdAt", "<=", effectiveAt),
+        orderBy("createdAt", "desc"),
+        limit(1)
+      );
+    }
+    const createdSnap = await getDocs(createdQy);
+    if (!createdSnap.empty)
+      return normalizeRateDoc(createdSnap.docs[0].data() as any);
+
+    // c) Global by effectiveDate (only if scope provided)
+    if (locationId || clientProfileId) {
+      const globalQy = query(
+        collection(db, "employeeRates"),
+        where(idField, "==", employeeId),
+        where("effectiveDate", "<=", effectiveAt),
+        orderBy("effectiveDate", "desc"),
+        limit(1)
+      );
+      const globalSnap = await getDocs(globalQy);
+      if (!globalSnap.empty)
+        return normalizeRateDoc(globalSnap.docs[0].data() as any);
+
+      // d) Global by createdAt (legacy)
+      const globalCreatedQy = query(
+        collection(db, "employeeRates"),
+        where(idField, "==", employeeId),
+        where("createdAt", "<=", effectiveAt),
+        orderBy("createdAt", "desc"),
+        limit(1)
+      );
+      const globalCreatedSnap = await getDocs(globalCreatedQy);
+      if (!globalCreatedSnap.empty)
+        return normalizeRateDoc(globalCreatedSnap.docs[0].data() as any);
     }
   }
 
   return null;
 }
 
-// Helper function to check if timesheet exists for employee+job+date
+// Helper function to check if timesheet exists for employee+job+date.
+// Uses an index-friendly query on (employeeId, start range) and filters by jobId
+// client-side to avoid requiring a 3-field composite index.
 async function checkTimesheetExists(
   employeeId: string,
   jobId: string,
@@ -352,13 +469,17 @@ async function checkTimesheetExists(
   const qy = query(
     collection(db, "timesheets"),
     where("employeeId", "==", employeeId),
-    where("jobId", "==", jobId),
     where("start", ">=", Timestamp.fromDate(startOfDay)),
     where("start", "<=", Timestamp.fromDate(endOfDay))
   );
 
   const snap = await getDocs(qy);
-  return !snap.empty;
+  let exists = false;
+  snap.forEach((doc) => {
+    const data = doc.data() as Record<string, unknown>;
+    if (String(data?.jobId || "") === jobId) exists = true;
+  });
+  return exists;
 }
 
 export async function scanJobsForPeriod(
@@ -390,6 +511,8 @@ export async function scanJobsForPeriod(
     employeeId: string;
     jobId: string;
     locationId?: string;
+    clientProfileId?: string;
+    serviceDate?: Date;
   }>;
 }> {
   if (!periodStart || !periodEnd) {
@@ -471,6 +594,8 @@ export async function scanJobsForPeriod(
     employeeId: string;
     jobId: string;
     locationId?: string;
+    clientProfileId?: string;
+    serviceDate?: Date;
   }> = [];
 
   for (const assignment of jobAssignments) {
@@ -498,6 +623,8 @@ export async function scanJobsForPeriod(
         employeeId: assignment.employeeId,
         jobId: assignment.jobId,
         locationId: assignment.locationId,
+        clientProfileId: assignment.clientProfileId,
+        serviceDate: assignment.serviceDate,
       });
       continue;
     }
@@ -607,7 +734,7 @@ export async function backfillRateSnapshots(
   }
 
   ensureApp();
-  const functions = getFunctions();
+  const functions = getCallableFunctions();
 
   try {
     const backfillRateSnapshotsCallable = httpsCallable(

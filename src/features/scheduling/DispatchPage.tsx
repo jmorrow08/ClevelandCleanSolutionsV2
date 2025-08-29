@@ -1,11 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import { initializeApp, getApps } from "firebase/app";
-import {
-  getFunctions,
-  httpsCallable,
-  connectFunctionsEmulator,
-} from "firebase/functions";
-import { firebaseConfig } from "../../services/firebase";
+import { useMemo, useState } from "react";
 import TodayTomorrow from "./TodayTomorrow";
 import { RoleGuard } from "../../context/RoleGuard";
 import { Link } from "react-router-dom";
@@ -18,27 +11,6 @@ export default function DispatchPage() {
     } catch {
       return "/scheduling/dispatch";
     }
-  }, []);
-  // Start a short-lived scheduling session for day-of dispatch changes
-  useEffect(() => {
-    (async () => {
-      try {
-        if (!getApps().length) initializeApp(firebaseConfig);
-        const fns = getFunctions();
-        try {
-          if (
-            import.meta.env.DEV &&
-            (import.meta.env as any).VITE_USE_FIREBASE_EMULATOR === "true"
-          )
-            connectFunctionsEmulator(fns, "127.0.0.1", 5001);
-        } catch {}
-        const start = httpsCallable(fns, "startScheduleSession");
-        await start({ ttlMinutes: 20 });
-      } catch (error) {
-        console.warn("Failed to start scheduling session:", error);
-        // Continue without session - user can still view dispatch
-      }
-    })();
   }, []);
 
   return (

@@ -380,9 +380,15 @@ export default function ClientDashboard() {
       {
         label: "Next Service",
         value: nextService?.serviceDate?.toDate
-          ? nextService.serviceDate
-              .toDate()
-              .toLocaleString("en-US", { timeZone: "America/New_York" })
+          ? nextService.serviceDate.toDate().toLocaleString("en-US", {
+              timeZone: "America/New_York",
+              year: "numeric",
+              month: "numeric",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+              hour12: true,
+            })
           : "No upcoming service",
         hint: nextService?.locationName
           ? `@ ${nextService.locationName}`

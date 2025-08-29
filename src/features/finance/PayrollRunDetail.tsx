@@ -101,26 +101,22 @@ export default function PayrollRunDetail() {
 
   const readyForApprovalCount = useMemo(() => {
     return timesheets.filter((t) => {
-      const adminApproved = t.adminApproved === true;
       const employeeApproved = t.employeeApproved === true;
       const notAlreadyApproved = t.approvedInRunId !== id;
-
       if (requireEmployeeApproval) {
-        return adminApproved && employeeApproved && notAlreadyApproved;
+        return employeeApproved && notAlreadyApproved;
       }
-      return adminApproved && notAlreadyApproved;
+      return notAlreadyApproved;
     }).length;
   }, [timesheets, id, requireEmployeeApproval]);
 
   const isTimesheetSelectable = (timesheet: Timesheet): boolean => {
-    const adminApproved = timesheet.adminApproved === true;
     const employeeApproved = timesheet.employeeApproved === true;
     const notAlreadyApproved = timesheet.approvedInRunId !== id;
-
     if (requireEmployeeApproval) {
-      return adminApproved && employeeApproved && notAlreadyApproved;
+      return employeeApproved && notAlreadyApproved;
     }
-    return adminApproved && notAlreadyApproved;
+    return notAlreadyApproved;
   };
 
   async function doApproveSelected() {

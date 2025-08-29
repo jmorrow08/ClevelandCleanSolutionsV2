@@ -1,3 +1,16 @@
+import { initializeApp } from "firebase/app";
+import {
+  getFirestore,
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs,
+  Timestamp,
+  writeBatch as firestoreWriteBatch,
+} from "firebase/firestore";
+
 // Firebase init shared with V1 project (no migrations). Paste your existing config into .env.
 // Expected env vars:
 // VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID,
@@ -104,4 +117,68 @@ export function mergePhotoResults<T extends { id: string }>(
     if (!seen.has(f.id)) merged.push(f);
   }
   return merged;
+}
+
+/**
+ * Archive service records before a specific date
+ */
+export async function archiveServiceRecords(
+  cutoffDate: Date
+): Promise<{ archived: number; errors: number }> {
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  try {
+    // Query for records before the cutoff date that are not already archived
+    // Note: We need to handle both undefined and false values for archived field
+    const q = query(
+      collection(db, "serviceHistory"),
+      where("serviceDate", "<", Timestamp.fromDate(cutoffDate))
+      // We'll filter out archived records in the code since Firestore doesn't handle undefined well
+    );
+
+    const snapshot = await getDocs(q);
+
+    // Filter out already archived records (handle both undefined and false values)
+    const docsToArchive = snapshot.docs.filter((doc) => {
+      const data = doc.data();
+      return data.archived !== true; // Only archive if archived is not explicitly true
+    });
+
+    console.log(`Found ${snapshot.size} total records before cutoff date`);
+    console.log(
+      `Found ${docsToArchive.length} records to archive (excluding already archived)`
+    );
+
+    const batchSize = 10; // Firestore batch write limit is 500, but we'll use smaller batches
+    let archived = 0;
+    let errors = 0;
+
+    // Process in batches to avoid hitting Firestore limits
+    for (let i = 0; i < docsToArchive.length; i += batchSize) {
+      const batch = docsToArchive.slice(i, i + batchSize);
+      const batchWrite = firestoreWriteBatch(db);
+
+      batch.forEach((doc) => {
+        batchWrite.update(doc.ref, {
+          archived: true,
+          archivedAt: Timestamp.now(),
+          archivedBy: "system", // You might want to pass the current user here
+        });
+      });
+
+      try {
+        await batchWrite.commit();
+        archived += batch.length;
+      } catch (error) {
+        console.error("Error archiving batch:", error);
+        errors += batch.length;
+      }
+    }
+
+    return { archived, errors };
+  } catch (error) {
+    console.error("Error archiving service records:", error);
+    throw error;
+  }
 }

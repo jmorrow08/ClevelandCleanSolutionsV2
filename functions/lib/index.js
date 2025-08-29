@@ -7,6 +7,38 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 const db = admin.firestore();
 // Payroll Functions
+// Helper to check whether the caller has finance/admin privileges.
+async function userHasFinanceAdmin(context) {
+    if (!context.auth)
+        return false;
+    // Prefer custom claims on the ID token
+    const token = (context.auth.token || {});
+    const claimAdmin = Boolean(token["admin"]);
+    const claimOwner = Boolean(token["owner"]);
+    const claimSuper = Boolean(token["super_admin"]);
+    if (claimAdmin || claimOwner || claimSuper)
+        return true;
+    // Fallback to roles stored in the users document (supports legacy schemas)
+    const userDoc = await db.collection("users").doc(context.auth.uid).get();
+    if (!userDoc.exists)
+        return false;
+    const userData = userDoc.data() || {};
+    const legacyFlags = Boolean(userData.admin) ||
+        Boolean(userData.owner) ||
+        Boolean(userData.super_admin);
+    if (legacyFlags)
+        return true;
+    const role = userData.role || "";
+    if (role === "admin" || role === "owner" || role === "super_admin") {
+        return true;
+    }
+    const roles = userData.roles || [];
+    if (Array.isArray(roles) &&
+        roles.some((r) => ["admin", "owner", "super_admin"].includes(String(r)))) {
+        return true;
+    }
+    return false;
+}
 exports.createPayrollRun = functions
     .region("us-central1")
     .https.onCall(async (data, context) => {
@@ -20,13 +52,7 @@ exports.createPayrollRun = functions
         if (!context.auth) {
             throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
         }
-        // Check if user has admin/owner/super_admin role
-        const userDoc = await db.collection("users").doc(context.auth.uid).get();
-        if (!userDoc.exists) {
-            throw new functions.https.HttpsError("permission-denied", "User not found");
-        }
-        const userData = userDoc.data();
-        const hasPermission = (userData === null || userData === void 0 ? void 0 : userData.admin) || (userData === null || userData === void 0 ? void 0 : userData.owner) || (userData === null || userData === void 0 ? void 0 : userData.super_admin);
+        const hasPermission = await userHasFinanceAdmin(context);
         if (!hasPermission) {
             throw new functions.https.HttpsError("permission-denied", "Insufficient permissions");
         }
@@ -69,12 +95,7 @@ exports.recalcPayrollRun = functions
         if (!context.auth) {
             throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
         }
-        const userDoc = await db.collection("users").doc(context.auth.uid).get();
-        if (!userDoc.exists) {
-            throw new functions.https.HttpsError("permission-denied", "User not found");
-        }
-        const userData = userDoc.data();
-        const hasPermission = (userData === null || userData === void 0 ? void 0 : userData.admin) || (userData === null || userData === void 0 ? void 0 : userData.owner) || (userData === null || userData === void 0 ? void 0 : userData.super_admin);
+        const hasPermission = await userHasFinanceAdmin(context);
         if (!hasPermission) {
             throw new functions.https.HttpsError("permission-denied", "Insufficient permissions");
         }
@@ -183,12 +204,7 @@ exports.payrollScan = functions
         if (!context.auth) {
             throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
         }
-        const userDoc = await db.collection("users").doc(context.auth.uid).get();
-        if (!userDoc.exists) {
-            throw new functions.https.HttpsError("permission-denied", "User not found");
-        }
-        const userData = userDoc.data();
-        const hasPermission = (userData === null || userData === void 0 ? void 0 : userData.admin) || (userData === null || userData === void 0 ? void 0 : userData.owner) || (userData === null || userData === void 0 ? void 0 : userData.super_admin);
+        const hasPermission = await userHasFinanceAdmin(context);
         if (!hasPermission) {
             throw new functions.https.HttpsError("permission-denied", "Insufficient permissions");
         }
@@ -259,12 +275,7 @@ exports.payrollGenerate = functions
         if (!context.auth) {
             throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
         }
-        const userDoc = await db.collection("users").doc(context.auth.uid).get();
-        if (!userDoc.exists) {
-            throw new functions.https.HttpsError("permission-denied", "User not found");
-        }
-        const userData = userDoc.data();
-        const hasPermission = (userData === null || userData === void 0 ? void 0 : userData.admin) || (userData === null || userData === void 0 ? void 0 : userData.owner) || (userData === null || userData === void 0 ? void 0 : userData.super_admin);
+        const hasPermission = await userHasFinanceAdmin(context);
         if (!hasPermission) {
             throw new functions.https.HttpsError("permission-denied", "Insufficient permissions");
         }
@@ -333,12 +344,7 @@ exports.approveTimesheetsInRun = functions
         if (!context.auth) {
             throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
         }
-        const userDoc = await db.collection("users").doc(context.auth.uid).get();
-        if (!userDoc.exists) {
-            throw new functions.https.HttpsError("permission-denied", "User not found");
-        }
-        const userData = userDoc.data();
-        const hasPermission = (userData === null || userData === void 0 ? void 0 : userData.admin) || (userData === null || userData === void 0 ? void 0 : userData.owner) || (userData === null || userData === void 0 ? void 0 : userData.super_admin);
+        const hasPermission = await userHasFinanceAdmin(context);
         if (!hasPermission) {
             throw new functions.https.HttpsError("permission-denied", "Insufficient permissions");
         }
@@ -356,6 +362,7 @@ exports.approveTimesheetsInRun = functions
             const timesheetRef = db.collection("timesheets").doc(id);
             batch.update(timesheetRef, {
                 approvedInRunId: runId,
+                adminApproved: true,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
             count += 1;
@@ -384,12 +391,7 @@ exports.backfillRateSnapshots = functions
         if (!context.auth) {
             throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
         }
-        const userDoc = await db.collection("users").doc(context.auth.uid).get();
-        if (!userDoc.exists) {
-            throw new functions.https.HttpsError("permission-denied", "User not found");
-        }
-        const userData = userDoc.data();
-        const hasPermission = (userData === null || userData === void 0 ? void 0 : userData.admin) || (userData === null || userData === void 0 ? void 0 : userData.owner) || (userData === null || userData === void 0 ? void 0 : userData.super_admin);
+        const hasPermission = await userHasFinanceAdmin(context);
         if (!hasPermission) {
             throw new functions.https.HttpsError("permission-denied", "Insufficient permissions");
         }
@@ -442,20 +444,20 @@ exports.backfillRateSnapshots = functions
                     if (rateDoc.rateType === "per_visit" && rateDoc.perVisitRate) {
                         rateSnapshot = {
                             type: "per_visit",
-                            amount: Number(rateDoc.perVisitRate) || 0
+                            amount: Number(rateDoc.perVisitRate) || 0,
                         };
                     }
                     else if (rateDoc.rateType === "hourly" && rateDoc.hourlyRate) {
                         rateSnapshot = {
                             type: "hourly",
-                            amount: Number(rateDoc.hourlyRate) || 0
+                            amount: Number(rateDoc.hourlyRate) || 0,
                         };
                     }
                     else if (rateDoc.hourlyRate) {
                         // Legacy format - assume hourly
                         rateSnapshot = {
                             type: "hourly",
-                            amount: Number(rateDoc.hourlyRate) || 0
+                            amount: Number(rateDoc.hourlyRate) || 0,
                         };
                     }
                     else {
@@ -471,7 +473,7 @@ exports.backfillRateSnapshots = functions
                     rateSnapshot,
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                     backfilledAt: admin.firestore.FieldValue.serverTimestamp(),
-                    backfilledBy: context.auth.uid
+                    backfilledBy: context.auth.uid,
                 });
                 updated++;
             }
@@ -487,7 +489,7 @@ exports.backfillRateSnapshots = functions
             updated,
             skipped,
             errors,
-            total: timesheetsSnapshot.size
+            total: timesheetsSnapshot.size,
         };
     }
     catch (error) {

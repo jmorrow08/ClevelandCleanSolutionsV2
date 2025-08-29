@@ -116,7 +116,16 @@ async function getEmployeeName(employeeId: string): Promise<string> {
       const snap = await getDoc(ref);
       if (snap.exists()) {
         const d = snap.data() || {};
-        const name = (d as any).fullName || (d as any).name || "Employee";
+        const name =
+          (d as any).fullName ||
+          [
+            (d as any).firstName as string | undefined,
+            (d as any).lastName as string | undefined,
+          ]
+            .filter(Boolean)
+            .join(" ") ||
+          (d as any).name ||
+          "Employee";
         employeeNameCache.set(employeeId, name);
         return name;
       }
@@ -125,7 +134,17 @@ async function getEmployeeName(employeeId: string): Promise<string> {
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
         const u = userSnap.data() || {};
-        const name = (u as any).displayName || (u as any).name || "Employee";
+        const name =
+          (u as any).displayName ||
+          [
+            (u as any).firstName as string | undefined,
+            (u as any).lastName as string | undefined,
+          ]
+            .filter(Boolean)
+            .join(" ") ||
+          (u as any).name ||
+          (u as any).email ||
+          "Employee";
         employeeNameCache.set(employeeId, name);
         return name;
       }
@@ -336,7 +355,11 @@ export async function getEmployeeNames(
       const masterSnap = await getDocs(masterQ);
       masterSnap.forEach((d) => {
         const v = d.data() as any;
-        const name = v?.fullName || v?.name || d.id;
+        const name =
+          v?.fullName ||
+          [v?.firstName, v?.lastName].filter(Boolean).join(" ") ||
+          v?.name ||
+          d.id;
         employeeNameCache.set(d.id, name);
         found.add(d.id);
       });
@@ -350,7 +373,12 @@ export async function getEmployeeNames(
           const userFound = new Set<string>();
           userSnap.forEach((d) => {
             const v = d.data() as any;
-            const name = v?.displayName || v?.name || d.id;
+            const name =
+              v?.displayName ||
+              [v?.firstName, v?.lastName].filter(Boolean).join(" ") ||
+              v?.name ||
+              v?.email ||
+              d.id;
             employeeNameCache.set(d.id, name);
             userFound.add(d.id);
           });

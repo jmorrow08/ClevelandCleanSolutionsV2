@@ -159,18 +159,24 @@ export default function ServicesPage() {
           console.warn("client jobs query may need index", e?.message);
         }
 
-        // Resolve location names for visible jobs
+        // Resolve location names for visible jobs (use freshly fetched list)
         try {
           const ids = new Set<string>();
-          allJobs.forEach((j) => {
+          allJobsData.forEach((j) => {
             if (j.locationId) ids.add(j.locationId);
           });
           const idList = Array.from(ids);
-          const names = await getLocationNames(idList);
-          const entries = idList.map((id, i) => [id, names[i] || id] as const);
-          const map: Record<string, string> = {};
-          entries.forEach(([id, name]) => (map[id] = name));
-          setLocationNames(map);
+          if (idList.length) {
+            const names = await getLocationNames(idList);
+            const entries = idList.map(
+              (id, i) => [id, names[i] || id] as const
+            );
+            const map: Record<string, string> = {};
+            entries.forEach(([id, name]) => (map[id] = name));
+            setLocationNames(map);
+          } else {
+            setLocationNames({});
+          }
         } catch {}
       } finally {
         setLoading(false);
@@ -179,6 +185,30 @@ export default function ServicesPage() {
     setLoading(true);
     load();
   }, [profileId]);
+
+  // Backfill any missing location names when jobs change (e.g., after pagination or live updates)
+  useEffect(() => {
+    (async () => {
+      try {
+        const ids = Array.from(
+          new Set(
+            allJobs
+              .map((j) => j.locationId)
+              .filter((v): v is string => typeof v === "string" && !!v)
+          )
+        );
+        const missing = ids.filter((id) => !locationNames[id]);
+        if (!missing.length) return;
+        const names = await getLocationNames(missing);
+        const entries = missing.map((id, i) => [id, names[i] || id] as const);
+        setLocationNames((prev) => {
+          const next = { ...prev } as Record<string, string>;
+          entries.forEach(([id, name]) => (next[id] = name));
+          return next;
+        });
+      } catch {}
+    })();
+  }, [allJobs, locationNames]);
 
   // Compute time windows for all jobs
   useEffect(() => {

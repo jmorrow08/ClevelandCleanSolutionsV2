@@ -8,6 +8,11 @@ import {
   generateTimesheets,
   createPayrollRun,
 } from "../../services/queries/payroll";
+import {
+  getEmployeeNames,
+  getLocationNames,
+  getClientNames,
+} from "../../services/queries/resolvers";
 
 type JobAssignment = {
   jobId: string;
@@ -42,6 +47,8 @@ type ScanResult = {
     employeeId: string;
     jobId: string;
     locationId?: string;
+    clientProfileId?: string;
+    serviceDate?: Date;
   }>;
 };
 
@@ -55,6 +62,23 @@ export default function PayrollPrepTab() {
   const [periodStartInput, setPeriodStartInput] = useState<string>("");
   const [periodEndInput, setPeriodEndInput] = useState<string>("");
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [missingOpen, setMissingOpen] = useState(false);
+  const [resolvingMissing, setResolvingMissing] = useState(false);
+  const [resolvedMissing, setResolvedMissing] = useState<
+    Array<{
+      employeeId: string;
+      employeeName: string;
+      locationId?: string;
+      locationName?: string;
+      clientProfileId?: string;
+      clientName?: string;
+      jobId: string;
+      serviceDate?: Date;
+    }>
+  >([]);
+  const [employeeNameMap, setEmployeeNameMap] = useState<
+    Record<string, string>
+  >({});
 
   // Initialize with default period
   useEffect(() => {
@@ -101,6 +125,11 @@ export default function PayrollPrepTab() {
       setScanning(true);
       const result = await scanJobsForPeriod(start, end);
       setScanResult(result);
+      // Resolve names for UI display in parallel (employee + modal lists)
+      await Promise.all([
+        resolveMissingRates(result.missingRates),
+        resolveEmployeeNames(result),
+      ]);
 
       if (result.missingRates.length > 0) {
         show({
@@ -150,6 +179,10 @@ export default function PayrollPrepTab() {
       // Refresh scan result to show updated status
       const refreshedScan = await scanJobsForPeriod(start, end);
       setScanResult(refreshedScan);
+      await Promise.all([
+        resolveMissingRates(refreshedScan.missingRates),
+        resolveEmployeeNames(refreshedScan),
+      ]);
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error
@@ -159,6 +192,83 @@ export default function PayrollPrepTab() {
     } finally {
       setGenerating(false);
     }
+  }
+
+  async function resolveMissingRates(
+    missing: ScanResult["missingRates"]
+  ): Promise<void> {
+    try {
+      setResolvingMissing(true);
+      if (!missing || missing.length === 0) {
+        setResolvedMissing([]);
+        return;
+      }
+      const employeeIds = Array.from(
+        new Set(missing.map((m) => m.employeeId).filter(Boolean))
+      );
+      const locationIds = Array.from(
+        new Set(missing.map((m) => m.locationId).filter(Boolean))
+      );
+      const clientIds = Array.from(
+        new Set(missing.map((m) => m.clientProfileId).filter(Boolean))
+      );
+
+      const [employeeNames, locationNames, clientNames] = await Promise.all([
+        getEmployeeNames(employeeIds),
+        getLocationNames(locationIds),
+        getClientNames(clientIds),
+      ]);
+
+      const employeeMap = new Map<string, string>();
+      employeeIds.forEach((id, i) =>
+        employeeMap.set(id, employeeNames[i] || id)
+      );
+      const locationMap = new Map<string, string>();
+      locationIds.forEach((id, i) =>
+        locationMap.set(id, locationNames[i] || id)
+      );
+      const clientMap = new Map<string, string>();
+      clientIds.forEach((id, i) => clientMap.set(id, clientNames[i] || id));
+
+      const list = missing.map((m) => ({
+        employeeId: m.employeeId,
+        employeeName: employeeMap.get(m.employeeId) || m.employeeId,
+        locationId: m.locationId,
+        locationName: m.locationId
+          ? locationMap.get(m.locationId) || m.locationId
+          : undefined,
+        clientProfileId: m.clientProfileId,
+        clientName: m.clientProfileId
+          ? clientMap.get(m.clientProfileId) || m.clientProfileId
+          : undefined,
+        jobId: m.jobId,
+        serviceDate: m.serviceDate,
+      }));
+      setResolvedMissing(list);
+    } finally {
+      setResolvingMissing(false);
+    }
+  }
+
+  async function resolveEmployeeNames(result: ScanResult | null) {
+    if (!result) {
+      setEmployeeNameMap({});
+      return;
+    }
+    const ids = Array.from(
+      new Set([
+        ...result.drafts.map((d) => d.employeeId),
+        ...result.missingRates.map((m) => m.employeeId),
+      ])
+    ).filter(Boolean);
+    if (ids.length === 0) {
+      setEmployeeNameMap({});
+      return;
+    }
+    const names = await getEmployeeNames(ids);
+    const map: Record<string, string> = {};
+    ids.forEach((id, i) => (map[id] = names[i] || id));
+    setEmployeeNameMap(map);
   }
 
   async function handleCreateDraftRun() {
@@ -211,7 +321,10 @@ export default function PayrollPrepTab() {
   return (
     <div className="space-y-4">
       <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
-        <h2 className="text-lg font-semibold mb-4">Payroll Preparation</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Payroll Preparation</h2>
+          <span className="text-xs text-zinc-500">Admin/Owner only</span>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end mb-4">
           <label className="block md:col-span-2">
@@ -307,6 +420,16 @@ export default function PayrollPrepTab() {
                 <div className="text-2xl font-semibold text-amber-600">
                   {scanResult.missingRates.length}
                 </div>
+                {scanResult.missingRates.length > 0 && (
+                  <div className="mt-1">
+                    <button
+                      className="text-xs underline text-amber-700 dark:text-amber-300"
+                      onClick={() => setMissingOpen(true)}
+                    >
+                      View details
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -341,7 +464,9 @@ export default function PayrollPrepTab() {
                       key={index}
                       className="border-b border-zinc-100 dark:border-zinc-800"
                     >
-                      <td className="px-4 py-3">{draft.employeeId}</td>
+                      <td className="px-4 py-3">
+                        {employeeNameMap[draft.employeeId] || draft.employeeId}
+                      </td>
                       <td className="px-4 py-3 font-mono text-xs">
                         {draft.jobId}
                       </td>
@@ -378,6 +503,86 @@ export default function PayrollPrepTab() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Missing Rates Modal */}
+        {missingOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center">
+            <div
+              className="absolute inset-0 bg-black/40"
+              onClick={() => setMissingOpen(false)}
+            />
+            <div className="relative w-[900px] max-w-[96vw] max-h-[86vh] overflow-auto rounded-lg bg-white dark:bg-zinc-800 shadow-elev-2 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-lg font-medium">
+                  Assignments Missing Rates
+                </div>
+                <button
+                  className="px-2 py-1 text-sm rounded-md border bg-white dark:bg-zinc-900"
+                  onClick={() => setMissingOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+              {resolvingMissing ? (
+                <div className="text-sm text-zinc-500">Resolving names…</div>
+              ) : resolvedMissing.length === 0 ? (
+                <div className="text-sm text-zinc-500">No missing rates.</div>
+              ) : (
+                <div className="overflow-x-auto rounded-lg bg-white dark:bg-zinc-800">
+                  <table className="min-w-full text-sm">
+                    <thead className="text-left text-zinc-500">
+                      <tr>
+                        <th className="px-3 py-2">Employee</th>
+                        <th className="px-3 py-2">Location</th>
+                        <th className="px-3 py-2">Client</th>
+                        <th className="px-3 py-2">Job ID</th>
+                        <th className="px-3 py-2">Service Date</th>
+                        <th className="px-3 py-2 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {resolvedMissing.map((m, idx) => (
+                        <tr
+                          key={`${m.jobId}|${m.employeeId}|${idx}`}
+                          className="border-t border-zinc-100 dark:border-zinc-700"
+                        >
+                          <td className="px-3 py-2">
+                            {employeeNameMap[m.employeeId] ||
+                              m.employeeName ||
+                              m.employeeId}
+                          </td>
+                          <td className="px-3 py-2">
+                            {m.locationName || "All"}
+                          </td>
+                          <td className="px-3 py-2">{m.clientName || "—"}</td>
+                          <td className="px-3 py-2 font-mono text-xs">
+                            {m.jobId}
+                          </td>
+                          <td className="px-3 py-2">
+                            {m.serviceDate
+                              ? m.serviceDate.toLocaleDateString()
+                              : "—"}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              className="text-blue-600 dark:text-blue-400 underline"
+                              onClick={() => {
+                                setMissingOpen(false);
+                                navigate(`/hr/${m.employeeId}`);
+                              }}
+                            >
+                              Open HR
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}
