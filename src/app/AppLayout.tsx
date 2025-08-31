@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useSettings } from "../context/SettingsContext";
 import { ScheduleJobProvider } from "../features/scheduling/ScheduleJobModal";
 
 type NavItem = { label: string; to: string };
@@ -55,17 +56,49 @@ function ThemeToggle() {
   );
 }
 
-function AdminSidebar() {
+function AdminSidebar({
+  isMobileOpen,
+  onClose,
+}: {
+  isMobileOpen?: boolean;
+  onClose?: () => void;
+}) {
   return (
-    <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:border-[var(--border)] bg-[var(--card)]">
+    <aside
+      className={`flex flex-col border-r border-[var(--border)] card-bg w-48 md:w-60
+                      ${
+                        isMobileOpen !== undefined
+                          ? isMobileOpen
+                            ? "block"
+                            : "hidden"
+                          : "hidden"
+                      } md:flex
+                      md:relative fixed inset-y-0 left-0 z-50 md:z-auto`}
+    >
       <div className="h-14 flex items-center px-4 text-[var(--text)] font-semibold border-b border-[var(--border)]">
-        CCS Admin
+        <span className="md:hidden mr-2" onClick={onClose}>
+          <svg
+            className="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </span>
+        Admin Portal
       </div>
       <nav className="flex-1 p-2 space-y-1">
         {NAV_ITEMS.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
+            onClick={onClose}
             className={({ isActive }) =>
               `block px-3 py-2 rounded-md text-sm ${
                 isActive
@@ -83,10 +116,45 @@ function AdminSidebar() {
   );
 }
 
-function SidebarShell({ title, items }: { title: string; items: NavItem[] }) {
+function SidebarShell({
+  title,
+  items,
+  isMobileOpen,
+  onClose,
+}: {
+  title: string;
+  items: NavItem[];
+  isMobileOpen?: boolean;
+  onClose?: () => void;
+}) {
   return (
-    <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:border-[var(--border)] bg-[var(--card)]">
+    <aside
+      className={`flex flex-col border-r border-[var(--border)] card-bg w-48 md:w-60
+                      ${
+                        isMobileOpen !== undefined
+                          ? isMobileOpen
+                            ? "block"
+                            : "hidden"
+                          : "hidden"
+                      } md:flex
+                      md:relative fixed inset-y-0 left-0 z-50 md:z-auto`}
+    >
       <div className="h-14 flex items-center px-4 text-[var(--text)] font-semibold border-b border-[var(--border)]">
+        <span className="md:hidden mr-2" onClick={onClose}>
+          <svg
+            className="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </span>
         {title}
       </div>
       <nav className="flex-1 p-2 space-y-1">
@@ -94,6 +162,7 @@ function SidebarShell({ title, items }: { title: string; items: NavItem[] }) {
           <NavLink
             key={item.to}
             to={item.to}
+            onClick={onClose}
             className={({ isActive }) =>
               `block px-3 py-2 rounded-md text-sm ${
                 isActive
@@ -111,7 +180,13 @@ function SidebarShell({ title, items }: { title: string; items: NavItem[] }) {
   );
 }
 
-function EmployeeSidebar() {
+function EmployeeSidebar({
+  isMobileOpen,
+  onClose,
+}: {
+  isMobileOpen?: boolean;
+  onClose?: () => void;
+}) {
   const items: NavItem[] = [
     { label: "Home", to: "/employee" },
     { label: "My Jobs", to: "/employee/jobs" },
@@ -123,10 +198,23 @@ function EmployeeSidebar() {
     { label: "Knowledge", to: "/employee/knowledge" },
     { label: "Logout", to: "/logout" },
   ];
-  return <SidebarShell title="CCS Employee" items={items} />;
+  return (
+    <SidebarShell
+      title="Employee Portal"
+      items={items}
+      isMobileOpen={isMobileOpen}
+      onClose={onClose}
+    />
+  );
 }
 
-function ClientSidebar() {
+function ClientSidebar({
+  isMobileOpen,
+  onClose,
+}: {
+  isMobileOpen?: boolean;
+  onClose?: () => void;
+}) {
   const items: NavItem[] = [
     { label: "Home", to: "/client" },
     { label: "Services", to: "/client/services" },
@@ -136,18 +224,59 @@ function ClientSidebar() {
     { label: "Resources", to: "/client/resources" },
     { label: "Logout", to: "/logout" },
   ];
-  return <SidebarShell title="CCS Client" items={items} />;
+  return (
+    <SidebarShell
+      title="Client Portal"
+      items={items}
+      isMobileOpen={isMobileOpen}
+      onClose={onClose}
+    />
+  );
 }
 
-function Topbar() {
+function Topbar({ onToggleMobileMenu }: { onToggleMobileMenu?: () => void }) {
+  const { settings } = useSettings();
+  const companyName =
+    settings?.companyProfile?.name || "Cleveland Clean Solutions";
+  const logoUrl = settings?.companyProfile?.logoDataUrl;
+
   return (
-    <header className="h-14 flex items-center justify-between px-4 border-b border-[var(--border)] bg-[var(--card)] backdrop-blur supports-[backdrop-filter]:bg-[var(--card)]">
-      <div className="md:hidden">
-        {/* Placeholder for mobile menu in future */}
-        <span className="text-sm text-[var(--text)] opacity-60">Menu</span>
-      </div>
-      <div className="font-medium text-[var(--text)]">
-        Cleveland Clean Solutions
+    <header className="h-14 flex items-center justify-between px-4 border-b border-[var(--border)] card-bg backdrop-blur supports-[backdrop-filter]:card-bg">
+      <div className="flex items-center gap-4">
+        {/* Hamburger menu button for mobile */}
+        <button
+          onClick={onToggleMobileMenu}
+          className="md:hidden p-2 rounded-md hover:bg-[var(--muted)] transition-colors"
+          aria-label="Toggle menu"
+        >
+          <svg
+            className="w-6 h-6 text-[var(--text)]"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6h16M4 12h16M4 18h16"
+            />
+          </svg>
+        </button>
+        <div className="flex items-center gap-3">
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt="Company Logo"
+              className="h-8 w-auto object-contain"
+              onError={(e) => {
+                // Hide logo if it fails to load
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          )}
+          <div className="font-medium text-[var(--text)]">{companyName}</div>
+        </div>
       </div>
       <div className="flex items-center gap-2">
         <ThemeToggle />
@@ -158,6 +287,8 @@ function Topbar() {
 
 export default function AppLayout() {
   const { claims } = useAuth();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
   const role = (claims as any)?.role as string | undefined;
   const isSuperAdmin =
     Boolean((claims as any)?.super_admin) || role === "super_admin";
@@ -166,20 +297,46 @@ export default function AppLayout() {
   const isEmployee = Boolean((claims as any)?.employee) || role === "employee";
   const isClient = Boolean((claims as any)?.client) || role === "client";
   const isAdminOrAbove = isSuperAdmin || isOwner || isAdmin;
+
+  const toggleMobileSidebar = () => {
+    setIsMobileSidebarOpen(!isMobileSidebarOpen);
+  };
+
+  const closeMobileSidebar = () => {
+    setIsMobileSidebarOpen(false);
+  };
+
   return (
     <ScheduleJobProvider>
       <div className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
+        {/* Mobile sidebar backdrop */}
+        {isMobileSidebarOpen && (
+          <div
+            className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={closeMobileSidebar}
+          />
+        )}
+
         <div className="flex">
           {isAdminOrAbove ? (
-            <AdminSidebar />
+            <AdminSidebar
+              isMobileOpen={isMobileSidebarOpen}
+              onClose={closeMobileSidebar}
+            />
           ) : isEmployee ? (
-            <EmployeeSidebar />
+            <EmployeeSidebar
+              isMobileOpen={isMobileSidebarOpen}
+              onClose={closeMobileSidebar}
+            />
           ) : isClient ? (
-            <ClientSidebar />
+            <ClientSidebar
+              isMobileOpen={isMobileSidebarOpen}
+              onClose={closeMobileSidebar}
+            />
           ) : null}
           <main className="flex-1 min-w-0">
-            <Topbar />
-            <div className="p-4">
+            <Topbar onToggleMobileMenu={toggleMobileSidebar} />
+            <div className="p-3 md:p-4">
               <Outlet />
             </div>
           </main>

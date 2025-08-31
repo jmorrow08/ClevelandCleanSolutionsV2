@@ -415,7 +415,7 @@ export default function AssignmentsReadOnly({
           <label className="block text-xs text-zinc-500 mb-1">Start</label>
           <input
             type="date"
-            className="border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="border rounded-md px-3 py-2 card-bg"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
           />
@@ -424,7 +424,7 @@ export default function AssignmentsReadOnly({
           <label className="block text-xs text-zinc-500 mb-1">End</label>
           <input
             type="date"
-            className="border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="border rounded-md px-3 py-2 card-bg"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
           />
@@ -432,7 +432,7 @@ export default function AssignmentsReadOnly({
         <div className="min-w-[200px]">
           <label className="block text-xs text-zinc-500 mb-1">Employee</label>
           <select
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="w-full border rounded-md px-3 py-2 card-bg"
             value={employeeId}
             onChange={(e) => setEmployeeId(e.target.value)}
           >
@@ -446,7 +446,7 @@ export default function AssignmentsReadOnly({
         <div className="min-w-[200px]">
           <label className="block text-xs text-zinc-500 mb-1">Location</label>
           <select
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="w-full border rounded-md px-3 py-2 card-bg"
             value={locationId}
             onChange={(e) => setLocationId(e.target.value)}
           >
@@ -460,7 +460,7 @@ export default function AssignmentsReadOnly({
         <div className="min-w-[200px]">
           <label className="block text-xs text-zinc-500 mb-1">Status</label>
           <select
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="w-full border rounded-md px-3 py-2 card-bg"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
           >
@@ -514,10 +514,7 @@ export default function AssignmentsReadOnly({
         <div className="text-sm text-zinc-500">No assignments.</div>
       ) : (
         Object.entries(empGroups).map(([empId, list]) => (
-          <div
-            key={empId}
-            className="rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1"
-          >
+          <div key={empId} className="rounded-lg card-bg shadow-elev-1">
             <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-700 flex items-center justify-between">
               <div className="font-medium">
                 {empId === "unassigned"

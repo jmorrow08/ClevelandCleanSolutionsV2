@@ -1,5 +1,14 @@
 {
   "projects": {
     "default": "cleveland-clean-portal"
+  },
+  "targets": {
+    "cleveland-clean-portal": {
+      "hosting": {
+        "cleveland-clean-portal": [
+          "cleveland-clean-portal"
+        ]
+      }
+    }
   }
 }

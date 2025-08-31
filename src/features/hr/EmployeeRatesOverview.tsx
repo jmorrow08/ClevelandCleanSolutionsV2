@@ -50,12 +50,14 @@ export default function EmployeeRatesOverview() {
     amount: string;
     effectiveDate: string;
     locationId: string;
+    monthlyPayDay: string;
   }>({
     employeeId: "",
     rateType: "per_visit",
     amount: "",
     effectiveDate: "",
     locationId: "",
+    monthlyPayDay: "1",
   });
 
   useEffect(() => {
@@ -123,6 +125,7 @@ export default function EmployeeRatesOverview() {
       amount: "",
       effectiveDate: "",
       locationId: "",
+      monthlyPayDay: "1",
     });
     setModalOpen(true);
   }
@@ -140,6 +143,7 @@ export default function EmployeeRatesOverview() {
             .slice(0, 10)
         : "",
       locationId: r.locationId || "",
+      monthlyPayDay: String((r as any).monthlyPayDay || "1"),
     });
     setModalOpen(true);
   }
@@ -165,7 +169,10 @@ export default function EmployeeRatesOverview() {
     };
     if (form.rateType === "hourly") payload.hourlyRate = amountNum;
     if (form.rateType === "per_visit") payload.rate = amountNum;
-    if (form.rateType === "monthly") payload.monthlyRate = amountNum;
+    if (form.rateType === "monthly") {
+      payload.monthlyRate = amountNum;
+      payload.monthlyPayDay = Number(form.monthlyPayDay) || 1;
+    }
 
     const employeeName = employees.find((e) => e.id === selectedEmployeeId);
     if (employeeName) {
@@ -206,7 +213,7 @@ export default function EmployeeRatesOverview() {
         <div className="flex-1">
           <label className="block text-xs text-zinc-500 mb-1">Search</label>
           <input
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+            className="w-full border rounded-md px-3 py-2 card-bg"
             placeholder="Search by employee or location"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -215,7 +222,7 @@ export default function EmployeeRatesOverview() {
         <div className="w-48">
           <label className="block text-xs text-zinc-500 mb-1">Type</label>
           <select
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+            className="w-full border rounded-md px-3 py-2 card-bg"
             value={filterType}
             onChange={(e) => setFilterType(e.target.value as any)}
           >
@@ -227,7 +234,7 @@ export default function EmployeeRatesOverview() {
         </div>
         <RoleGuard allow={["owner", "super_admin"]}>
           <button
-            className="h-10 px-3 rounded-md border bg-white dark:bg-zinc-900"
+            className="h-10 px-3 rounded-md border card-bg"
             onClick={openAdd}
           >
             Add Rate
@@ -239,7 +246,7 @@ export default function EmployeeRatesOverview() {
         Per job/visit rate (piece-rate) — not hourly
       </div>
 
-      <div className="overflow-x-auto rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1">
+      <div className="overflow-x-auto rounded-lg card-bg shadow-elev-1">
         <table className="min-w-full text-sm">
           <thead className="text-left text-zinc-500">
             <tr>
@@ -302,7 +309,7 @@ export default function EmployeeRatesOverview() {
             className="absolute inset-0 bg-black/40"
             onClick={() => setModalOpen(false)}
           />
-          <div className="relative w-[640px] max-w-[96vw] rounded-lg bg-white dark:bg-zinc-800 shadow-elev-2 p-4">
+          <div className="relative w-[640px] max-w-[96vw] rounded-lg card-bg shadow-elev-2 p-4">
             <div className="text-lg font-medium mb-2">
               {editing?.id ? "Edit Rate" : "Add Rate"}
             </div>
@@ -312,7 +319,7 @@ export default function EmployeeRatesOverview() {
                   Employee
                 </label>
                 <select
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.employeeId}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, employeeId: e.target.value }))
@@ -333,7 +340,7 @@ export default function EmployeeRatesOverview() {
                   Rate Type
                 </label>
                 <select
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.rateType}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, rateType: e.target.value as any }))
@@ -351,20 +358,47 @@ export default function EmployeeRatesOverview() {
                 <input
                   type="number"
                   step="0.01"
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.amount}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, amount: e.target.value }))
                   }
                 />
               </div>
+              {form.rateType === "monthly" && (
+                <div>
+                  <label className="block text-xs text-zinc-500 mb-1">
+                    Monthly Pay Day
+                  </label>
+                  <select
+                    className="w-full border rounded-md px-3 py-2 card-bg"
+                    value={form.monthlyPayDay}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, monthlyPayDay: e.target.value }))
+                    }
+                  >
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                      <option key={day} value={String(day)}>
+                        {day}
+                        {day === 1
+                          ? "st"
+                          : day === 2
+                          ? "nd"
+                          : day === 3
+                          ? "rd"
+                          : "th"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-xs text-zinc-500 mb-1">
                   Effective Date
                 </label>
                 <input
                   type="date"
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.effectiveDate}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, effectiveDate: e.target.value }))
@@ -376,7 +410,7 @@ export default function EmployeeRatesOverview() {
                   Location ID (optional)
                 </label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.locationId}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, locationId: e.target.value }))
@@ -390,7 +424,7 @@ export default function EmployeeRatesOverview() {
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button
-                className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                className="px-3 py-1.5 rounded-md border card-bg"
                 onClick={() => setModalOpen(false)}
               >
                 Cancel

@@ -10,7 +10,13 @@ export type Timesheet = {
   employeeApproved?: boolean;
   employeeComment?: string | null;
   adminApproved?: boolean;
-  // New piece-rate support
-  rateSnapshot?: { type: "per_visit" | "hourly"; amount: number } | null;
+  // Enhanced rate support (including monthly)
+  rateSnapshot?: {
+    type: "per_visit" | "hourly" | "monthly";
+    amount: number;
+    monthlyPayDay?: number;
+  } | null;
   units?: number;
+  // Source tracking for automation
+  source?: "manual" | "clock_event" | "payroll_prep";
 };

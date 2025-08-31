@@ -1,18 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { initializeApp, getApps } from "firebase/app";
 import {
   collection,
-  doc,
   getDocs,
   getFirestore,
   orderBy,
   query,
-  updateDoc,
   where,
   addDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { getStorage, ref, getDownloadURL } from "firebase/storage";
+// Firebase storage imports removed - not currently used
 import { firebaseConfig } from "../../services/firebase";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -132,7 +130,7 @@ export default function EmployeeKnowledge() {
         <div className="text-sm text-zinc-500">Loading…</div>
       ) : (
         <>
-          <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+          <div className="rounded-lg p-4 card-bg shadow-elev-1">
             <div className="font-medium mb-2">Assigned Modules</div>
             {assignments.length === 0 ? (
               <div className="text-sm text-zinc-500">No assignments.</div>
@@ -165,7 +163,7 @@ export default function EmployeeKnowledge() {
                               collection(db, "trainingCompletions"),
                               {
                                 moduleId: a.moduleId,
-                                userId: user.uid,
+                                userId: user?.uid || "",
                                 clientUserId: null,
                                 completedAt: serverTimestamp(),
                               }
@@ -191,7 +189,7 @@ export default function EmployeeKnowledge() {
             )}
           </div>
 
-          <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+          <div className="rounded-lg p-4 card-bg shadow-elev-1">
             <div className="font-medium mb-2">HR Docs</div>
             {hrDocs.length === 0 ? (
               <div className="text-sm text-zinc-500">No HR docs.</div>

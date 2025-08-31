@@ -46,7 +46,7 @@ export default function DispatchPage() {
           </div>
         </RoleGuard>
       </div>
-      <div className="rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1 p-4 min-h-[200px]">
+      <div className="rounded-lg card-bg shadow-elev-1 p-4 min-h-[200px]">
         <TodayTomorrow />
       </div>
     </div>

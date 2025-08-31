@@ -136,7 +136,7 @@ export default function SupportList() {
           </label>
           <select
             id="filter-status"
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="w-full border rounded-md px-3 py-2 card-bg"
             value={filters.status}
             onChange={(e) =>
               setFilters((f) => ({
@@ -161,7 +161,7 @@ export default function SupportList() {
           </label>
           <select
             id="filter-priority"
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="w-full border rounded-md px-3 py-2 card-bg"
             value={filters.priority}
             onChange={(e) =>
               setFilters((f) => ({
@@ -186,7 +186,7 @@ export default function SupportList() {
           </label>
           <select
             id="filter-assignee"
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="w-full border rounded-md px-3 py-2 card-bg"
             value={filters.assignee}
             onChange={(e) =>
               setFilters((f) => ({ ...f, assignee: e.target.value }))
@@ -202,7 +202,7 @@ export default function SupportList() {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1">
+      <div className="overflow-x-auto rounded-lg card-bg shadow-elev-1">
         <table className="min-w-full text-sm">
           <thead className="text-left text-zinc-500">
             <tr>

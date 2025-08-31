@@ -6,9 +6,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
-import { initializeApp, getApps } from "firebase/app";
-import { firebaseConfig } from "../services/firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { getFirestoreInstance } from "../services/firebase";
 
 export type OrgSettings = {
   arTermsDays?: number;
@@ -26,6 +25,7 @@ export type OrgSettings = {
     email?: string;
     phone?: string;
     logoDataUrl?: string;
+    faviconDataUrl?: string;
   };
   payrollCycle?: {
     frequency?: "weekly" | "biweekly" | "monthly";
@@ -65,14 +65,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<OrgSettings | null>(null);
 
   useEffect(() => {
-    if (!getApps().length) {
-      initializeApp(firebaseConfig);
-    }
     refresh();
   }, []);
 
   async function refresh() {
-    const db = getFirestore();
+    const db = getFirestoreInstance();
     // Prefer appSettings (public read). Fall back to settings/org if present.
     let snap = await getDoc(doc(db, "appSettings", "org"));
     if (!snap.exists()) {
@@ -109,6 +106,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         email: company.email || undefined,
         phone: company.phone || undefined,
         logoDataUrl: company.logoDataUrl || undefined,
+        faviconDataUrl: company.faviconDataUrl || undefined,
       },
       payrollCycle:
         typeof raw.payrollCycle === "string"
@@ -121,12 +119,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   async function save(partial: Partial<OrgSettings>) {
     // Ensure Firebase app is initialized once
-    if (!getApps().length) {
-      initializeApp(firebaseConfig);
-    }
-    const db = getFirestore();
-    // Persist to appSettings for compatibility with existing rules
-    const ref = doc(db, "appSettings", "org");
+    const db = getFirestoreInstance();
 
     setSettings((prev) => {
       const prevSafe: OrgSettings = prev ?? {};
@@ -171,7 +164,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       payload.payrollCycle =
         typeof pc === "string" ? { frequency: pc } : { ...pc };
     }
-    await setDoc(ref, payload, { merge: true });
+
+    // Save to appSettings/org for org settings
+    const orgRef = doc(db, "appSettings", "org");
+    await setDoc(orgRef, payload, { merge: true });
+
+    // If company settings are being updated, also save to appSettings/company for compatibility
+    if (partial.companyProfile) {
+      const companyRef = doc(db, "appSettings", "company");
+      await setDoc(companyRef, partial.companyProfile, { merge: true });
+    }
   }
 
   const value = useMemo(() => ({ settings, refresh, save }), [settings]);

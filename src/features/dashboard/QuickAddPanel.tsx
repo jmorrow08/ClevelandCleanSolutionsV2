@@ -568,7 +568,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
         className="absolute inset-0 bg-black/40"
         onClick={() => !saving && onClose()}
       />
-      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3">
+      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg card-bg shadow-elev-3">
         <div className="p-6 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center justify-between">
             <div className="text-lg font-medium">Quick Add</div>
@@ -584,7 +584,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
           <div>
             <label className="block text-sm mb-1">Select Mode</label>
             <select
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={mode}
               onChange={(e) => setMode(e.target.value as Mode)}
             >
@@ -626,7 +626,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                   <div>
                     <label className="block text-sm mb-1">Client</label>
                     <select
-                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      className="w-full border rounded-md px-3 py-2 card-bg"
                       value={serviceClientId}
                       onChange={(e) => setServiceClientId(e.target.value)}
                     >
@@ -641,7 +641,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                   <div>
                     <label className="block text-sm mb-1">Location</label>
                     <select
-                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      className="w-full border rounded-md px-3 py-2 card-bg"
                       value={serviceLocationId}
                       onChange={(e) => setServiceLocationId(e.target.value)}
                       disabled={!serviceClientId}
@@ -664,7 +664,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                     </label>
                     <input
                       type="datetime-local"
-                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      className="w-full border rounded-md px-3 py-2 card-bg"
                       value={serviceDateTime}
                       onChange={(e) => setServiceDateTime(e.target.value)}
                     />
@@ -675,7 +675,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                     </label>
                     <select
                       multiple
-                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900 min-h-[120px]"
+                      className="w-full border rounded-md px-3 py-2 card-bg min-h-[120px]"
                       value={serviceAssigned}
                       onChange={(e) =>
                         setServiceAssigned(
@@ -697,7 +697,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                       Service Type / Notes
                     </label>
                     <input
-                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      className="w-full border rounded-md px-3 py-2 card-bg"
                       value={serviceNotes}
                       onChange={(e) => setServiceNotes(e.target.value)}
                       placeholder="e.g., Standard cleaning"
@@ -709,7 +709,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                   <div>
                     <label className="block text-sm mb-1">Client Name</label>
                     <input
-                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      className="w-full border rounded-md px-3 py-2 card-bg"
                       value={customClientName}
                       onChange={(e) => setCustomClientName(e.target.value)}
                     />
@@ -717,7 +717,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                   <div>
                     <label className="block text-sm mb-1">Location Name</label>
                     <input
-                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      className="w-full border rounded-md px-3 py-2 card-bg"
                       value={customLocationName}
                       onChange={(e) => setCustomLocationName(e.target.value)}
                     />
@@ -727,7 +727,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                       Contact (optional)
                     </label>
                     <input
-                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      className="w-full border rounded-md px-3 py-2 card-bg"
                       value={customContact}
                       onChange={(e) => setCustomContact(e.target.value)}
                     />
@@ -738,7 +738,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                     </label>
                     <input
                       type="number"
-                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      className="w-full border rounded-md px-3 py-2 card-bg"
                       value={customPrice}
                       onChange={(e) => setCustomPrice(e.target.value)}
                     />
@@ -749,7 +749,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                     </label>
                     <input
                       type="datetime-local"
-                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      className="w-full border rounded-md px-3 py-2 card-bg"
                       value={serviceDateTime}
                       onChange={(e) => setServiceDateTime(e.target.value)}
                     />
@@ -760,7 +760,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                     </label>
                     <select
                       multiple
-                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900 min-h-[120px]"
+                      className="w-full border rounded-md px-3 py-2 card-bg min-h-[120px]"
                       value={serviceAssigned}
                       onChange={(e) =>
                         setServiceAssigned(
@@ -782,7 +782,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                       Service Type / Notes
                     </label>
                     <input
-                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                      className="w-full border rounded-md px-3 py-2 card-bg"
                       value={serviceNotes}
                       onChange={(e) => setServiceNotes(e.target.value)}
                       placeholder="e.g., Deep clean"
@@ -808,7 +808,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               <div>
                 <label className="block text-sm mb-1">Company Name</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={clientCompanyName}
                   onChange={(e) => setClientCompanyName(e.target.value)}
                 />
@@ -816,7 +816,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               <div>
                 <label className="block text-sm mb-1">Contact Name</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={clientContactName}
                   onChange={(e) => setClientContactName(e.target.value)}
                 />
@@ -824,7 +824,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               <div>
                 <label className="block text-sm mb-1">Client ID String</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={clientIdString}
                   onChange={(e) => setClientIdString(e.target.value)}
                   placeholder="e.g., CCS-1001"
@@ -834,7 +834,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                 <label className="block text-sm mb-1">Email</label>
                 <input
                   type="email"
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={clientEmail}
                   onChange={(e) => setClientEmail(e.target.value)}
                 />
@@ -842,7 +842,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               <div>
                 <label className="block text-sm mb-1">Phone</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={clientPhone}
                   onChange={(e) => setClientPhone(e.target.value)}
                 />
@@ -851,7 +851,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                 <label className="block text-sm mb-1">Initial Password</label>
                 <input
                   type="password"
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={clientPassword}
                   onChange={(e) => setClientPassword(e.target.value)}
                   minLength={6}
@@ -874,7 +874,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               <div>
                 <label className="block text-sm mb-1">Client</label>
                 <select
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={locClientId}
                   onChange={(e) => setLocClientId(e.target.value)}
                 >
@@ -889,7 +889,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               <div>
                 <label className="block text-sm mb-1">Location Name</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={locName}
                   onChange={(e) => setLocName(e.target.value)}
                 />
@@ -897,7 +897,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               <div>
                 <label className="block text-sm mb-1">Location ID String</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={locIdString}
                   onChange={(e) => setLocIdString(e.target.value)}
                   placeholder="e.g., CCS-LOC-2001"
@@ -906,7 +906,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               <div>
                 <label className="block text-sm mb-1">Address Line 1</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={locLine1}
                   onChange={(e) => setLocLine1(e.target.value)}
                   placeholder="Street address"
@@ -915,7 +915,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               <div>
                 <label className="block text-sm mb-1">City</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={locCity}
                   onChange={(e) => setLocCity(e.target.value)}
                 />
@@ -923,7 +923,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               <div>
                 <label className="block text-sm mb-1">State</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={locState}
                   onChange={(e) => setLocState(e.target.value)}
                 />
@@ -931,7 +931,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               <div>
                 <label className="block text-sm mb-1">ZIP</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={locZip}
                   onChange={(e) => setLocZip(e.target.value)}
                 />
@@ -941,7 +941,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                   Contact Name (optional)
                 </label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={locContactName}
                   onChange={(e) => setLocContactName(e.target.value)}
                 />
@@ -951,7 +951,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                   Contact Phone (optional)
                 </label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={locContactPhone}
                   onChange={(e) => setLocContactPhone(e.target.value)}
                 />
@@ -973,7 +973,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               <div>
                 <label className="block text-sm mb-1">First Name</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={empFirst}
                   onChange={(e) => setEmpFirst(e.target.value)}
                 />
@@ -981,7 +981,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               <div>
                 <label className="block text-sm mb-1">Last Name</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={empLast}
                   onChange={(e) => setEmpLast(e.target.value)}
                 />
@@ -989,7 +989,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               <div>
                 <label className="block text-sm mb-1">Employee ID String</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={empIdString}
                   onChange={(e) => setEmpIdString(e.target.value)}
                   placeholder="e.g., EMP-1201"
@@ -999,7 +999,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                 <label className="block text-sm mb-1">Email</label>
                 <input
                   type="email"
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={empEmail}
                   onChange={(e) => setEmpEmail(e.target.value)}
                 />
@@ -1007,7 +1007,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               <div>
                 <label className="block text-sm mb-1">Phone</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={empPhone}
                   onChange={(e) => setEmpPhone(e.target.value)}
                 />
@@ -1015,7 +1015,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               <div>
                 <label className="block text-sm mb-1">Job Title</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={empJobTitle}
                   onChange={(e) => setEmpJobTitle(e.target.value)}
                 />
@@ -1024,7 +1024,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                 <label className="block text-sm mb-1">Initial Password</label>
                 <input
                   type="password"
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={empPassword}
                   onChange={(e) => setEmpPassword(e.target.value)}
                   minLength={6}

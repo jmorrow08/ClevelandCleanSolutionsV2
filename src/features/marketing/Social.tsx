@@ -119,16 +119,13 @@ function ConnectorsTab() {
       ) : (
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {connectors.length === 0 ? (
-            <li className="rounded-md p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+            <li className="rounded-md p-3 card-bg shadow-elev-1 text-sm text-zinc-500">
               No connectors yet. Example providers: Facebook, Instagram, TikTok,
               LinkedIn.
             </li>
           ) : (
             connectors.map((c) => (
-              <li
-                key={c.id}
-                className="rounded-md p-3 bg-white dark:bg-zinc-800 shadow-elev-1"
-              >
+              <li key={c.id} className="rounded-md p-3 card-bg shadow-elev-1">
                 <div className="text-sm font-medium capitalize">
                   {c.provider}
                 </div>
@@ -245,7 +242,7 @@ function ComposerTab() {
   return (
     <div className="space-y-4">
       <RoleGuard allow={["owner", "super_admin", "admin", "marketing"]}>
-        <div className="rounded-md p-3 bg-white dark:bg-zinc-800 shadow-elev-1 space-y-3">
+        <div className="rounded-md p-3 card-bg shadow-elev-1 space-y-3">
           <div className="text-sm font-medium">Choose providers</div>
           <div>
             {(Object.keys(providersState) as SocialProvider[]).map((p) => (
@@ -338,10 +335,7 @@ function ScheduledTab() {
       ) : (
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {items.map((i) => (
-            <li
-              key={i.id}
-              className="rounded-md p-3 bg-white dark:bg-zinc-800 shadow-elev-1"
-            >
+            <li key={i.id} className="rounded-md p-3 card-bg shadow-elev-1">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium capitalize">
                   {i.provider}
@@ -359,9 +353,11 @@ function ScheduledTab() {
                 </div>
               </div>
               <div className="text-xs text-zinc-500 mt-1">
-                {i.scheduledAt?.toDate
-                  ? i.scheduledAt.toDate().toLocaleString()
-                  : String(i.scheduledAt || "unscheduled")}
+                {i.scheduledAt
+                  ? typeof (i.scheduledAt as any).toDate === "function"
+                    ? (i.scheduledAt as any).toDate().toLocaleString()
+                    : new Date(i.scheduledAt as any).toLocaleString()
+                  : "unscheduled"}
               </div>
               {i.mediaAssetId && (
                 <div className="text-xs mt-2">media: {i.mediaAssetId}</div>
@@ -383,4 +379,3 @@ function ScheduledTab() {
     </div>
   );
 }
-

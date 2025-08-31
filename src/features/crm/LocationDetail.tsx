@@ -122,7 +122,7 @@ export default function LocationDetail() {
         <div className="flex items-center gap-2">
           <RoleGuard allow={["owner", "super_admin"]}>
             <button
-              className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-800"
+              className="px-3 py-1.5 rounded-md border card-bg"
               onClick={() => setEditOpen(true)}
             >
               Edit
@@ -155,7 +155,7 @@ export default function LocationDetail() {
         </div>
       </div>
 
-      <div className="rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1 p-3">
+      <div className="rounded-lg card-bg shadow-elev-1 p-3">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Field label="Location Name" value={location.locationName || "—"} />
           <Field label="Address" value={formatAddress(location.address)} />
@@ -163,7 +163,7 @@ export default function LocationDetail() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1 p-3">
+        <div className="rounded-lg card-bg shadow-elev-1 p-3">
           <div className="font-medium mb-2">Upcoming Jobs</div>
           {upcoming.length === 0 ? (
             <div className="text-sm text-zinc-500">No upcoming jobs.</div>
@@ -185,7 +185,7 @@ export default function LocationDetail() {
             </div>
           )}
         </div>
-        <div className="rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1 p-3">
+        <div className="rounded-lg card-bg shadow-elev-1 p-3">
           <div className="font-medium mb-2">Recent Notes</div>
           {notes.length === 0 ? (
             <div className="text-sm text-zinc-500">No recent notes.</div>

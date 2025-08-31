@@ -42,7 +42,7 @@ export default function AudienceBuilder({
         <div>
           <label className="block text-sm mb-1">Client Stage</label>
           <select
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="w-full border rounded-md px-3 py-2 card-bg"
             value={local.clientStage ?? ""}
             disabled={disabled}
             onChange={(e) =>
@@ -68,7 +68,7 @@ export default function AudienceBuilder({
         <div>
           <label className="block text-sm mb-1">Invoice Status</label>
           <select
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="w-full border rounded-md px-3 py-2 card-bg"
             value={local.invoiceStatus ?? ""}
             disabled={disabled}
             onChange={(e) =>
@@ -87,7 +87,7 @@ export default function AudienceBuilder({
           <label className="block text-sm mb-1">Last Service: Start</label>
           <input
             type="date"
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="w-full border rounded-md px-3 py-2 card-bg"
             value={local.lastServiceStart ?? ""}
             disabled={disabled}
             onChange={(e) =>
@@ -102,7 +102,7 @@ export default function AudienceBuilder({
           <label className="block text-sm mb-1">Last Service: End</label>
           <input
             type="date"
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="w-full border rounded-md px-3 py-2 card-bg"
             value={local.lastServiceEnd ?? ""}
             disabled={disabled}
             onChange={(e) =>
@@ -120,7 +120,7 @@ export default function AudienceBuilder({
             min={1}
             max={5}
             step={1}
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="w-full border rounded-md px-3 py-2 card-bg"
             value={local.reviewScoreLt ?? ""}
             disabled={disabled}
             onChange={(e) =>

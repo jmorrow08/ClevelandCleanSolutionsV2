@@ -1,6 +1,8 @@
 export type CanonicalStatus =
   | "scheduled"
   | "in_progress"
+  | "completed_pending_approval"
+  | "approved"
   | "completed"
   | "canceled"
   | "no_show";

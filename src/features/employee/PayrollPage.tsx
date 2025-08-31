@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { firebaseConfig } from "../../services/firebase";
 import { useAuth } from "../../context/AuthContext";
-import TimesheetView from "./TimesheetView";
+import WeeklyPayrollReview from "../payroll/WeeklyPayrollReview";
 
 type PayrollRow = {
   id: string;
@@ -73,7 +73,7 @@ export default function PayrollPage() {
   return (
     <div className="p-6 space-y-6">
       {/* Payroll Section */}
-      <div className="bg-white dark:bg-zinc-800 border border-border rounded-lg shadow-sm">
+      <div className="card-bg border border-border rounded-lg shadow-sm">
         <div className="p-6">
           <h2 className="text-xl font-semibold mb-4">Payroll History</h2>
           {loading ? (
@@ -81,11 +81,11 @@ export default function PayrollPage() {
           ) : error ? (
             <div className="text-sm text-red-500">{error}</div>
           ) : rows.length === 0 ? (
-            <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+            <div className="rounded-lg p-4 card-bg shadow-elev-1 text-sm text-zinc-500">
               No payroll records found.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1">
+            <div className="overflow-x-auto rounded-lg card-bg shadow-elev-1">
               <table className="min-w-full text-sm">
                 <thead className="text-left text-zinc-500">
                   <tr>
@@ -173,9 +173,9 @@ export default function PayrollPage() {
       </div>
 
       {/* Enhanced Timesheet Section with Period Summary and History */}
-      <div className="bg-white dark:bg-zinc-800 border border-border rounded-lg shadow-sm">
+      <div className="card-bg border border-border rounded-lg shadow-sm">
         <div className="p-6">
-          <TimesheetView />
+          <WeeklyPayrollReview />
         </div>
       </div>
     </div>

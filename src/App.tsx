@@ -6,13 +6,25 @@ import { ToastProvider } from "./context/ToastContext";
 import { QuickActionsProvider } from "./context/QuickActionsContext";
 import { NewClientProvider } from "./features/crm/NewClientModal";
 import { NewLocationProvider } from "./features/crm/NewLocationModal";
+import { useFavicon } from "./hooks/useFavicon";
+import { getFirebaseApp } from "./services/firebase";
 import "./index.css";
 
+// Component to handle favicon updates
+function FaviconManager() {
+  useFavicon();
+  return null;
+}
+
 export default function App() {
+  // Initialize Firebase immediately when the app starts
+  getFirebaseApp();
+
   return (
     <ErrorBoundary>
       <AuthProvider>
         <SettingsProvider>
+          <FaviconManager />
           <ToastProvider>
             <QuickActionsProvider>
               <NewClientProvider>

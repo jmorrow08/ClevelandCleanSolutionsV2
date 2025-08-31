@@ -3,16 +3,8 @@ import { useAuth } from "../../context/AuthContext";
 import { initializeApp, getApps } from "firebase/app";
 import { getFirestore, doc, getDoc } from "firebase/firestore";
 import { firebaseConfig } from "../../services/firebase";
-import {
-  Clock,
-  Camera,
-  Briefcase,
-  MapPin,
-  Upload,
-  StickyNote,
-  DollarSign,
-} from "lucide-react";
-import { Link } from "react-router-dom";
+// Icons removed - not currently used
+// Link import removed - not currently used
 import DashboardStats from "./DashboardStats";
 import QuickActions from "./QuickActions";
 import TodaysJobs from "./TodaysJobs";
@@ -97,7 +89,7 @@ export default function EmployeeHome() {
       <DashboardStats />
 
       {/* Today's Jobs Section */}
-      <div className="bg-white dark:bg-zinc-800 border border-border rounded-lg shadow-sm">
+      <div className="card-bg rounded-lg shadow-sm">
         <div className="p-6">
           <h2 className="text-xl font-semibold mb-4">Today's Jobs</h2>
           <TodaysJobs />

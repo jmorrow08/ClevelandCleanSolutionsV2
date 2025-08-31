@@ -64,7 +64,7 @@ export default function EmployeeEditModal({
         className="absolute inset-0 bg-black/40"
         onClick={() => !submitting && onClose()}
       />
-      <div className="relative w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4">
+      <div className="relative w-full max-w-md rounded-lg card-bg shadow-elev-3 p-4">
         <div className="text-lg font-medium">Edit Employee</div>
         <div className="mt-3 space-y-3">
           <div>
@@ -72,7 +72,7 @@ export default function EmployeeEditModal({
               Full name
             </label>
             <input
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               id="emp-fullname"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
@@ -84,7 +84,7 @@ export default function EmployeeEditModal({
               Phone
             </label>
             <input
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               id="emp-phone"
               value={phone || ""}
               onChange={(e) => setPhone(e.target.value)}
@@ -96,7 +96,7 @@ export default function EmployeeEditModal({
               Role
             </label>
             <select
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               id="emp-role"
               value={role || "employee"}
               onChange={(e) => setRole(e.target.value)}
@@ -111,7 +111,7 @@ export default function EmployeeEditModal({
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
           <button
-            className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+            className="px-3 py-1.5 rounded-md border card-bg"
             onClick={onClose}
             disabled={submitting}
           >

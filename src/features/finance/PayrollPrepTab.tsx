@@ -31,8 +31,9 @@ type TimesheetDraft = {
   locationId?: string;
   clientProfileId?: string;
   rateSnapshot: {
-    type: "per_visit" | "hourly";
+    type: "per_visit" | "hourly" | "monthly";
     amount: number;
+    monthlyPayDay?: number;
   };
   units: number;
   hours?: number;
@@ -40,7 +41,20 @@ type TimesheetDraft = {
 
 type ScanResult = {
   jobs: JobAssignment[];
-  drafts: TimesheetDraft[];
+  drafts: {
+    employeeId: string;
+    jobId: string;
+    serviceDate: Date;
+    locationId?: string;
+    clientProfileId?: string;
+    rateSnapshot: {
+      type: "per_visit" | "hourly" | "monthly";
+      amount: number;
+      monthlyPayDay?: number;
+    };
+    units: number;
+    hours?: number;
+  }[];
   totalJobs: number;
   totalAssignments: number;
   missingRates: Array<{
@@ -170,7 +184,20 @@ export default function PayrollPrepTab() {
         return;
       }
 
-      const result = await generateTimesheets(scanResult.drafts);
+      // Filter out monthly rates as they can't be converted to timesheets
+      const eligibleDrafts = scanResult.drafts.filter(
+        (draft) => draft.rateSnapshot.type !== "monthly"
+      ) as Array<{
+        employeeId: string;
+        jobId: string;
+        serviceDate: Date;
+        locationId?: string;
+        clientProfileId?: string;
+        rateSnapshot: { type: "per_visit" | "hourly"; amount: number };
+        units: number;
+        hours?: number;
+      }>;
+      const result = await generateTimesheets(eligibleDrafts);
       show({
         type: "success",
         message: `Generated ${result.created} timesheet drafts.`,
@@ -224,11 +251,13 @@ export default function PayrollPrepTab() {
         employeeMap.set(id, employeeNames[i] || id)
       );
       const locationMap = new Map<string, string>();
-      locationIds.forEach((id, i) =>
-        locationMap.set(id, locationNames[i] || id)
-      );
+      locationIds.forEach((id, i) => {
+        if (id) locationMap.set(id, (locationNames[i] as string) || id);
+      });
       const clientMap = new Map<string, string>();
-      clientIds.forEach((id, i) => clientMap.set(id, clientNames[i] || id));
+      clientIds.forEach((id, i) => {
+        if (id) clientMap.set(id, (clientNames[i] as string) || id);
+      });
 
       const list = missing.map((m) => ({
         employeeId: m.employeeId,
@@ -320,7 +349,7 @@ export default function PayrollPrepTab() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+      <div className="rounded-lg p-4 card-bg shadow-elev-1">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Payroll Preparation</h2>
           <span className="text-xs text-zinc-500">Admin/Owner only</span>
@@ -333,7 +362,7 @@ export default function PayrollPrepTab() {
             </div>
             <input
               type="date"
-              className="w-full px-3 py-2 rounded-md border bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-600"
+              className="w-full px-3 py-2 rounded-md border card-bg border-zinc-300 dark:border-zinc-600"
               value={periodStartInput}
               onChange={(e) => setPeriodStartInput(e.target.value)}
             />
@@ -345,7 +374,7 @@ export default function PayrollPrepTab() {
             </div>
             <input
               type="date"
-              className="w-full px-3 py-2 rounded-md border bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-600"
+              className="w-full px-3 py-2 rounded-md border card-bg border-zinc-300 dark:border-zinc-600"
               value={periodEndInput}
               onChange={(e) => setPeriodEndInput(e.target.value)}
             />
@@ -514,13 +543,13 @@ export default function PayrollPrepTab() {
               className="absolute inset-0 bg-black/40"
               onClick={() => setMissingOpen(false)}
             />
-            <div className="relative w-[900px] max-w-[96vw] max-h-[86vh] overflow-auto rounded-lg bg-white dark:bg-zinc-800 shadow-elev-2 p-4">
+            <div className="relative w-[900px] max-w-[96vw] max-h-[86vh] overflow-auto rounded-lg card-bg shadow-elev-2 p-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-lg font-medium">
                   Assignments Missing Rates
                 </div>
                 <button
-                  className="px-2 py-1 text-sm rounded-md border bg-white dark:bg-zinc-900"
+                  className="px-2 py-1 text-sm rounded-md border card-bg"
                   onClick={() => setMissingOpen(false)}
                 >
                   Close
@@ -531,7 +560,7 @@ export default function PayrollPrepTab() {
               ) : resolvedMissing.length === 0 ? (
                 <div className="text-sm text-zinc-500">No missing rates.</div>
               ) : (
-                <div className="overflow-x-auto rounded-lg bg-white dark:bg-zinc-800">
+                <div className="overflow-x-auto rounded-lg card-bg">
                   <table className="min-w-full text-sm">
                     <thead className="text-left text-zinc-500">
                       <tr>

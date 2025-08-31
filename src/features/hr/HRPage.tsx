@@ -74,24 +74,24 @@ export default function HRPage() {
       </div>
 
       {/* TableCard-style content */}
-      <div className="rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1 p-4 min-h-[200px]">
+      <div className="rounded-lg card-bg shadow-elev-1 p-4 min-h-[200px]">
         {active === "Overview" && <HROverview />}
 
         {active === "Employees" && <EmployeesList />}
 
         {active === "TimeLocation" && (
           <div className="space-y-3">
-            <div className="rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1 p-4">
+            <div className="rounded-lg card-bg shadow-elev-1 p-4">
               <div className="text-sm text-zinc-500 mb-2">
                 My Timesheets (current user)
               </div>
               <TimesheetView />
             </div>
-            <div className="rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1 p-4">
+            <div className="rounded-lg card-bg shadow-elev-1 p-4">
               <div className="text-sm text-zinc-500 mb-2">Admin view</div>
               <TimeLocationAdmin />
             </div>
-            <div className="rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1 p-4">
+            <div className="rounded-lg card-bg shadow-elev-1 p-4">
               <div className="text-sm text-zinc-500 mb-2">
                 Employee-specific timesheets
               </div>

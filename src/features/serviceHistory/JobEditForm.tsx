@@ -225,7 +225,7 @@ export default function JobEditForm({
           <label className="block text-sm mb-1">Service Date/Time</label>
           <input
             type="datetime-local"
-            className="w-full border rounded-md p-2 bg-white dark:bg-zinc-900"
+            className="w-full border rounded-md p-2 card-bg"
             value={serviceDateStr}
             onChange={(e) => setServiceDateStr(e.target.value)}
           />
@@ -233,7 +233,7 @@ export default function JobEditForm({
         <div>
           <label className="block text-sm mb-1">Status</label>
           <select
-            className="w-full border rounded-md p-2 bg-white dark:bg-zinc-900"
+            className="w-full border rounded-md p-2 card-bg"
             value={statusV2 || ""}
             onChange={(e) => setStatusV2(e.target.value as CanonicalStatus)}
           >
@@ -263,7 +263,7 @@ export default function JobEditForm({
       <div>
         <div className="text-sm font-medium mb-1">Optional note</div>
         <textarea
-          className="w-full border rounded-md p-2 bg-white dark:bg-zinc-900"
+          className="w-full border rounded-md p-2 card-bg"
           rows={3}
           placeholder="Write a note to add with this update…"
           value={note}

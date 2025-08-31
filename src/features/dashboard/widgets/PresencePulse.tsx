@@ -318,7 +318,7 @@ export default function PresencePulse() {
   }, [online, recent]);
 
   return (
-    <div className="rounded-lg p-4 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1">
+    <div className="rounded-lg p-4 card-bg shadow-elev-1">
       <div className="flex items-center justify-between">
         <div className="font-medium">Presence & Logins</div>
         <div className="text-xs text-zinc-500">

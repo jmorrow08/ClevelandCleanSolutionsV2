@@ -229,7 +229,7 @@ export default function Campaigns() {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <input
-              className="border rounded-md px-2 py-1 text-sm bg-white dark:bg-zinc-900"
+              className="border rounded-md px-2 py-1 text-sm card-bg"
               placeholder="Test email"
               value={testEmail}
               onChange={(e) => setTestEmail(e.target.value)}
@@ -290,13 +290,13 @@ export default function Campaigns() {
             className="absolute inset-0 bg-black/40"
             onClick={() => !saving && setShowNew(false)}
           />
-          <div className="relative w-full max-w-2xl rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4">
+          <div className="relative w-full max-w-2xl rounded-lg card-bg shadow-elev-3 p-4">
             <div className="text-lg font-medium">Create Campaign</div>
             <div className="mt-3 space-y-3">
               <div>
                 <label className="block text-sm mb-1">Name</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.name}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, name: e.target.value }))
@@ -306,7 +306,7 @@ export default function Campaigns() {
               <div>
                 <label className="block text-sm mb-1">Template</label>
                 <select
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.templateId}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, templateId: e.target.value }))
@@ -324,7 +324,7 @@ export default function Campaigns() {
                 <div>
                   <label className="block text-sm mb-1">Schedule</label>
                   <select
-                    className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                    className="w-full border rounded-md px-3 py-2 card-bg"
                     value={form.scheduleType}
                     onChange={(e) =>
                       setForm((f) => ({
@@ -342,7 +342,7 @@ export default function Campaigns() {
                     <label className="block text-sm mb-1">Run at</label>
                     <input
                       type="datetime-local"
-                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                      className="w-full border rounded-md px-3 py-2 card-bg"
                       value={form.runAt}
                       onChange={(e) =>
                         setForm((f) => ({ ...f, runAt: e.target.value }))
@@ -357,7 +357,7 @@ export default function Campaigns() {
                     <input
                       type="number"
                       min={1}
-                      className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                      className="w-full border rounded-md px-3 py-2 card-bg"
                       value={form.dripHours}
                       onChange={(e) =>
                         setForm((f) => ({
@@ -379,7 +379,7 @@ export default function Campaigns() {
             </div>
             <div className="mt-4 flex items-center justify-end gap-2">
               <button
-                className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                className="px-3 py-1.5 rounded-md border card-bg"
                 onClick={() => setShowNew(false)}
                 disabled={saving}
               >

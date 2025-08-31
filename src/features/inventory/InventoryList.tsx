@@ -91,7 +91,7 @@ export default function InventoryList() {
 
       <div className="flex items-center gap-2">
         <input
-          className="border rounded-md px-3 py-1 bg-white dark:bg-zinc-900 flex-1"
+          className="border rounded-md px-3 py-1 card-bg flex-1"
           placeholder="Search by name, SKU, vendor"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -106,7 +106,7 @@ export default function InventoryList() {
       ) : filtered.length === 0 ? (
         <div className="text-sm text-zinc-500">No items found.</div>
       ) : (
-        <div className="overflow-x-auto rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1">
+        <div className="overflow-x-auto rounded-lg card-bg shadow-elev-1">
           <table className="min-w-full text-sm">
             <thead className="text-left text-zinc-500">
               <tr>

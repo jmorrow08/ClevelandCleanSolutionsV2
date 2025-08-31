@@ -85,7 +85,7 @@ export default function AddSupplyModal({
         className="absolute inset-0 bg-black/40"
         onClick={() => !saving && onClose()}
       />
-      <div className="relative w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4">
+      <div className="relative w-full max-w-md rounded-lg card-bg shadow-elev-3 p-4">
         <div className="text-lg font-medium">Add Supply to Invoice</div>
         <div className="mt-3 space-y-3">
           {loading ? (
@@ -95,7 +95,7 @@ export default function AddSupplyModal({
               <div>
                 <label className="block text-sm mb-1">Item</label>
                 <select
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={selectedId}
                   onChange={(e) => setSelectedId(e.target.value)}
                 >
@@ -114,7 +114,7 @@ export default function AddSupplyModal({
                   type="number"
                   min="1"
                   step="1"
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={qty}
                   onChange={(e) => setQty(e.target.value)}
                 />
@@ -131,7 +131,7 @@ export default function AddSupplyModal({
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
           <button
-            className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+            className="px-3 py-1.5 rounded-md border card-bg"
             onClick={() => onClose()}
             disabled={saving}
           >

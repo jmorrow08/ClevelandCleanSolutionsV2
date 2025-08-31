@@ -61,6 +61,8 @@ type Client = {
   contactName?: string;
   email?: string;
   phone?: string;
+  clientIdString?: string;
+  status?: boolean;
 };
 
 type Location = {
@@ -90,6 +92,12 @@ export default function ClientDetail() {
     mode: "create" | "edit" | "view";
     id?: string | null;
   } | null>(null);
+
+  const handleAgreementModeChange = (newMode: "create" | "edit" | "view") => {
+    if (agrModal) {
+      setAgrModal({ ...agrModal, mode: newMode });
+    }
+  };
 
   useEffect(() => {
     async function load() {
@@ -228,7 +236,7 @@ export default function ClientDetail() {
         <div className="flex items-center gap-2">
           <RoleGuard allow={["owner", "super_admin"]}>
             <button
-              className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-800"
+              className="px-3 py-1.5 rounded-md border card-bg"
               onClick={() => setEditOpen(true)}
             >
               Edit
@@ -279,7 +287,7 @@ export default function ClientDetail() {
             className={`px-3 py-1.5 rounded-md border ${
               tab === key
                 ? "bg-blue-50 border-blue-200 text-blue-700"
-                : "bg-white dark:bg-zinc-800"
+                : "card-bg"
             }`}
             onClick={() => setTab(key)}
           >
@@ -289,12 +297,26 @@ export default function ClientDetail() {
       </div>
 
       {tab === "overview" && (
-        <div className="rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1 p-3 space-y-3">
+        <div className="rounded-lg card-bg shadow-elev-1 p-3 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Field label="Company Name" value={client.companyName || "—"} />
             <Field label="Contact Name" value={client.contactName || "—"} />
             <Field label="Email" value={client.email || "—"} />
             <Field label="Phone" value={client.phone || "—"} />
+            <Field
+              label="Client ID String"
+              value={client.clientIdString || "—"}
+            />
+            <Field
+              label="Status"
+              value={
+                client.status === true
+                  ? "Active"
+                  : client.status === false
+                  ? "Inactive"
+                  : "—"
+              }
+            />
           </div>
         </div>
       )}
@@ -305,14 +327,14 @@ export default function ClientDetail() {
             <div className="text-sm text-zinc-500">Locations</div>
             <RoleGuard allow={["owner", "super_admin"]}>
               <button
-                className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-800"
+                className="px-3 py-1.5 rounded-md border card-bg"
                 onClick={() => openNewLocation()}
               >
                 Add Location
               </button>
             </RoleGuard>
           </div>
-          <div className="hidden md:block overflow-x-auto rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1">
+          <div className="hidden md:block overflow-x-auto rounded-lg card-bg shadow-elev-1">
             <table className="min-w-full text-sm">
               <thead className="text-left text-zinc-500">
                 <tr>
@@ -359,14 +381,14 @@ export default function ClientDetail() {
           </div>
           <div className="md:hidden space-y-2">
             {locations.length === 0 ? (
-              <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+              <div className="rounded-lg p-3 card-bg shadow-elev-1 text-sm text-zinc-500">
                 No locations.
               </div>
             ) : (
               locations.map((l) => (
                 <div
                   key={l.id}
-                  className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1"
+                  className="rounded-lg p-3 card-bg shadow-elev-1"
                 >
                   <div className="font-medium">
                     <Link
@@ -392,7 +414,7 @@ export default function ClientDetail() {
             <div className="text-sm text-zinc-500">Agreements</div>
             <RoleGuard allow={["owner", "super_admin", "admin"]}>
               <button
-                className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-800"
+                className="px-3 py-1.5 rounded-md border card-bg"
                 onClick={() => setAgrModal({ mode: "create" })}
               >
                 New Agreement
@@ -400,15 +422,12 @@ export default function ClientDetail() {
             </RoleGuard>
           </div>
           {agreements.length === 0 ? (
-            <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+            <div className="rounded-lg p-3 card-bg shadow-elev-1 text-sm text-zinc-500">
               No agreements.
             </div>
           ) : (
             agreements.map((a) => (
-              <div
-                key={a.id}
-                className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1"
-              >
+              <div key={a.id} className="rounded-lg p-3 card-bg shadow-elev-1">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-medium">
@@ -417,6 +436,42 @@ export default function ClientDetail() {
                     <div className="text-sm text-zinc-500 mt-1">
                       {a.paymentAmount ? `$${a.paymentAmount}` : ""}{" "}
                       {a.paymentFrequency || ""}
+                    </div>
+                    <div className="text-sm text-zinc-500 mt-1">
+                      {(() => {
+                        // Show service days if they exist
+                        const serviceDays =
+                          a.serviceDays || a.scheduleDetails?.serviceDays;
+                        if (
+                          Array.isArray(serviceDays) &&
+                          serviceDays.length > 0
+                        ) {
+                          const formattedDays = serviceDays
+                            .map(
+                              (day) =>
+                                day.charAt(0).toUpperCase() + day.slice(1)
+                            )
+                            .join(", ");
+                          return `Days: ${formattedDays}`;
+                        }
+                        // Show monthly day if it exists
+                        if (
+                          a.frequency === "monthly" &&
+                          a.scheduleDetails?.monthlyDay
+                        ) {
+                          const day = a.scheduleDetails.monthlyDay;
+                          return `Day: ${day}${
+                            day === 1
+                              ? "st"
+                              : day === 2
+                              ? "nd"
+                              : day === 3
+                              ? "rd"
+                              : "th"
+                          } of month`;
+                        }
+                        return "";
+                      })()}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-xs">
@@ -444,7 +499,7 @@ export default function ClientDetail() {
 
       {tab === "billing" && (
         <div className="space-y-2">
-          <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1">
+          <div className="rounded-lg p-3 card-bg shadow-elev-1">
             <div className="flex items-center justify-between text-sm">
               <div>Total outstanding</div>
               <div className="font-semibold">
@@ -453,11 +508,11 @@ export default function ClientDetail() {
             </div>
           </div>
           {invoices.length === 0 ? (
-            <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+            <div className="rounded-lg p-3 card-bg shadow-elev-1 text-sm text-zinc-500">
               No invoices.
             </div>
           ) : (
-            <div className="hidden md:block overflow-x-auto rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1">
+            <div className="hidden md:block overflow-x-auto rounded-lg card-bg shadow-elev-1">
               <table className="min-w-full text-sm">
                 <thead className="text-left text-zinc-500">
                   <tr>
@@ -500,7 +555,7 @@ export default function ClientDetail() {
             {invoices.map((inv) => (
               <div
                 key={inv.id}
-                className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1"
+                className="rounded-lg p-3 card-bg shadow-elev-1"
               >
                 <div className="flex items-center justify-between">
                   <div className="font-medium">
@@ -539,15 +594,12 @@ export default function ClientDetail() {
       {tab === "activity" && (
         <div className="space-y-2">
           {activity.length === 0 ? (
-            <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+            <div className="rounded-lg p-3 card-bg shadow-elev-1 text-sm text-zinc-500">
               No activity in the past 30 days.
             </div>
           ) : (
             activity.map((a) => (
-              <div
-                key={a.id}
-                className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1"
-              >
+              <div key={a.id} className="rounded-lg p-3 card-bg shadow-elev-1">
                 <div className="flex items-center justify-between">
                   <div className="font-medium">
                     {a.locationName || a.locationId || "Service"}
@@ -586,6 +638,7 @@ export default function ClientDetail() {
           onClose={() => setAgrModal(null)}
           onSaved={() => reloadAgreements(id)}
           onDeleted={() => reloadAgreements(id)}
+          onModeChange={handleAgreementModeChange}
         />
       )}
     </div>

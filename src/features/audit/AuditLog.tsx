@@ -206,38 +206,38 @@ export default function AuditLog() {
 
       <div className="grid md:grid-cols-6 gap-2">
         <input
-          className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-800"
+          className="border rounded-md px-2 py-1 card-bg"
           placeholder="Actor UID"
           value={actorUid}
           onChange={(e) => setActorUid(e.target.value)}
         />
         <input
-          className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-800"
+          className="border rounded-md px-2 py-1 card-bg"
           placeholder="Target collection"
           value={collectionFilter}
           onChange={(e) => setCollectionFilter(e.target.value)}
         />
         <input
-          className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-800"
+          className="border rounded-md px-2 py-1 card-bg"
           placeholder="Target ID"
           value={targetId}
           onChange={(e) => setTargetId(e.target.value)}
         />
         <input
-          className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-800"
+          className="border rounded-md px-2 py-1 card-bg"
           placeholder="Action contains…"
           value={actionFilter}
           onChange={(e) => setActionFilter(e.target.value)}
         />
         <input
           type="date"
-          className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-800"
+          className="border rounded-md px-2 py-1 card-bg"
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
         />
         <input
           type="date"
-          className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-800"
+          className="border rounded-md px-2 py-1 card-bg"
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
         />
@@ -380,13 +380,13 @@ function AuditRow({
         </button>
         {expanded && (
           <div className="grid md:grid-cols-2 gap-2 mt-2">
-            <div className="border rounded p-2 bg-white dark:bg-zinc-900">
+            <div className="border rounded p-2 card-bg">
               <div className="text-xs font-medium mb-1">Before</div>
               <pre className="text-xs overflow-auto max-h-64">
                 {safeJson(row.before)}
               </pre>
             </div>
-            <div className="border rounded p-2 bg-white dark:bg-zinc-900">
+            <div className="border rounded p-2 card-bg">
               <div className="text-xs font-medium mb-1">After</div>
               <pre className="text-xs overflow-auto max-h-64">
                 {safeJson(row.after)}

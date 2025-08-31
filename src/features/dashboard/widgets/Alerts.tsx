@@ -26,7 +26,8 @@ type Invoice = {
 type Agreement = {
   id: string;
   clientId?: string;
-  contractEndDate?: any;
+  contractEndDate?: Date;
+  contractStartDate?: Date;
   isActive?: boolean;
   agreementName?: string;
   frequency?: string;
@@ -137,7 +138,7 @@ export default function Alerts() {
   }, [settings?.billingTermsDays]);
 
   return (
-    <div className="rounded-lg p-4 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1">
+    <div className="rounded-lg p-4 card-bg shadow-elev-1">
       <div className="font-medium">Alerts</div>
       {loading ? (
         <div className="text-sm text-zinc-500 mt-2">Loading…</div>
@@ -193,8 +194,10 @@ function ExpiringAgreementsList({ items }: { items: Agreement[] }) {
       for (let idx = 0; idx < slice.length; idx++) {
         const a = slice[idx];
         const clientLabel = names[idx] || a.clientId || "Client";
-        const end = a.contractEndDate?.toDate
-          ? (a.contractEndDate.toDate() as Date)
+        const end = a.contractEndDate
+          ? typeof (a.contractEndDate as any).toDate === "function"
+            ? (a.contractEndDate as any).toDate()
+            : new Date(a.contractEndDate)
           : new Date();
         const label = a.agreementName || a.frequency || "Agreement";
         out.push({ id: a.id, clientLabel, end, label });

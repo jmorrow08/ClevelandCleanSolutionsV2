@@ -34,6 +34,21 @@ type Employee = {
   userId?: string | null;
 };
 
+type RateDoc = {
+  id?: string;
+  employeeId?: string;
+  employeeProfileId?: string;
+  rateType?: "per_visit" | "hourly" | "monthly";
+  amount?: number;
+  hourlyRate?: number;
+  rate?: number;
+  effectiveDate?: any;
+  locationId?: string | null;
+  locationName?: string | null;
+  createdAt?: any;
+  updatedAt?: any;
+};
+
 export default function EmployeeDetail({
   employeeId,
 }: {
@@ -50,21 +65,6 @@ export default function EmployeeDetail({
   const [docsLoading, setDocsLoading] = useState(false);
   const [docs, setDocs] = useState<{ name: string; url: string }[]>([]);
   const { claims } = useAuth();
-
-  type RateDoc = {
-    id?: string;
-    employeeId?: string;
-    employeeProfileId?: string;
-    rateType?: "per_visit" | "hourly" | "monthly";
-    amount?: number;
-    hourlyRate?: number;
-    rate?: number;
-    effectiveDate?: any;
-    locationId?: string | null;
-    locationName?: string | null;
-    createdAt?: any;
-    updatedAt?: any;
-  };
 
   const [rateModalOpen, setRateModalOpen] = useState(false);
   const [editingRate, setEditingRate] = useState<RateDoc | null>(null);
@@ -307,7 +307,7 @@ export default function EmployeeDetail({
           <RoleGuard allow={["owner", "super_admin"]}>
             {employee && (
               <button
-                className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-800"
+                className="px-3 py-1.5 rounded-md border card-bg"
                 onClick={() => setEditOpen(true)}
               >
                 Edit
@@ -348,7 +348,7 @@ export default function EmployeeDetail({
             className={`px-3 py-1.5 rounded-md border ${
               tab === key
                 ? "bg-blue-50 border-blue-200 text-blue-700"
-                : "bg-white dark:bg-zinc-800"
+                : "card-bg"
             }`}
             onClick={() => setTab(key)}
           >
@@ -364,7 +364,7 @@ export default function EmployeeDetail({
       ) : (
         <div className="space-y-3">
           {tab === "profile" && (
-            <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1 space-y-2">
+            <div className="rounded-lg p-4 card-bg shadow-elev-1 space-y-2">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Field
                   label="Name"
@@ -396,7 +396,7 @@ export default function EmployeeDetail({
                   value={employee.status === false ? "inactive" : "active"}
                 />
               </div>
-              <div className="rounded-lg p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700">
+              <div className="rounded-lg p-3 card-bg border border-zinc-200 dark:border-zinc-700">
                 <div className="text-sm font-medium">Auth/Claims</div>
                 <div className="text-sm text-zinc-500">Read-only</div>
                 <div className="text-xs mt-1">
@@ -412,7 +412,7 @@ export default function EmployeeDetail({
                 <div className="text-sm text-zinc-500">Rates</div>
                 <RoleGuard allow={["owner", "super_admin"]}>
                   <button
-                    className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-800"
+                    className="px-3 py-1.5 rounded-md border card-bg"
                     onClick={() => handleOpenAddRate()}
                   >
                     Add Rate
@@ -424,7 +424,7 @@ export default function EmployeeDetail({
                 Per job/visit rate (piece-rate) — not hourly
               </div>
 
-              <div className="hidden md:block overflow-x-auto rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1">
+              <div className="hidden md:block overflow-x-auto rounded-lg card-bg shadow-elev-1">
                 <table className="min-w-full text-sm">
                   <thead className="text-left text-zinc-500">
                     <tr>
@@ -488,11 +488,11 @@ export default function EmployeeDetail({
 
               <div className="md:hidden space-y-2">
                 {ratesLoading ? (
-                  <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+                  <div className="rounded-lg p-3 card-bg shadow-elev-1 text-sm text-zinc-500">
                     Loading…
                   </div>
                 ) : rates.length === 0 ? (
-                  <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+                  <div className="rounded-lg p-3 card-bg shadow-elev-1 text-sm text-zinc-500">
                     No rates.
                   </div>
                 ) : (
@@ -501,7 +501,7 @@ export default function EmployeeDetail({
                     return (
                       <div
                         key={r.id}
-                        className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1"
+                        className="rounded-lg p-3 card-bg shadow-elev-1"
                       >
                         <div className="flex items-center justify-between">
                           <div className="font-medium">
@@ -534,11 +534,11 @@ export default function EmployeeDetail({
           {tab === "docs" && (
             <div className="space-y-2">
               {docsLoading ? (
-                <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+                <div className="rounded-lg p-3 card-bg shadow-elev-1 text-sm text-zinc-500">
                   Loading…
                 </div>
               ) : docs.length === 0 ? (
-                <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+                <div className="rounded-lg p-3 card-bg shadow-elev-1 text-sm text-zinc-500">
                   No documents found.
                 </div>
               ) : (
@@ -549,7 +549,7 @@ export default function EmployeeDetail({
                       href={d.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm underline"
+                      className="rounded-lg p-3 card-bg shadow-elev-1 text-sm underline"
                     >
                       {d.name}
                     </a>
@@ -577,7 +577,7 @@ export default function EmployeeDetail({
             className="absolute inset-0 bg-black/40"
             onClick={() => setRateModalOpen(false)}
           />
-          <div className="relative w-[560px] max-w-[96vw] rounded-lg bg-white dark:bg-zinc-800 shadow-elev-2 p-4">
+          <div className="relative w-[560px] max-w-[96vw] rounded-lg card-bg shadow-elev-2 p-4">
             <div className="text-lg font-medium mb-2">
               {editingRate?.id ? "Edit Rate" : "Add Rate"}
             </div>
@@ -587,7 +587,7 @@ export default function EmployeeDetail({
                   Rate Type
                 </label>
                 <select
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.rateType}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, rateType: e.target.value as any }))
@@ -605,7 +605,7 @@ export default function EmployeeDetail({
                 <input
                   type="number"
                   step="0.01"
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.amount}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, amount: e.target.value }))
@@ -618,7 +618,7 @@ export default function EmployeeDetail({
                 </label>
                 <input
                   type="date"
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.effectiveDate}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, effectiveDate: e.target.value }))
@@ -630,7 +630,7 @@ export default function EmployeeDetail({
                   Location ID (optional)
                 </label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-900"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.locationId}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, locationId: e.target.value }))
@@ -644,7 +644,7 @@ export default function EmployeeDetail({
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button
-                className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                className="px-3 py-1.5 rounded-md border card-bg"
                 onClick={() => setRateModalOpen(false)}
               >
                 Cancel

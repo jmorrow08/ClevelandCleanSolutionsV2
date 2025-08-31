@@ -185,14 +185,14 @@ function ScheduleJobModal({ onClose }: { onClose: () => void }) {
         className="absolute inset-0 bg-black/40"
         onClick={() => !submitting && onClose()}
       />
-      <div className="relative w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4">
+      <div className="relative w-full max-w-md rounded-lg card-bg shadow-elev-3 p-4">
         <div className="text-lg font-medium">Schedule Job</div>
         <div className="mt-3 space-y-3">
           <div>
             <label className="block text-sm mb-1">Client</label>
             <input
               list="schedule-clients"
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={clientId}
               onChange={(e) => setClientId(e.target.value)}
               placeholder="client id"
@@ -208,7 +208,7 @@ function ScheduleJobModal({ onClose }: { onClose: () => void }) {
             <label className="block text-sm mb-1">Location</label>
             <input
               list="schedule-locations"
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={locationId}
               onChange={(e) => setLocationId(e.target.value)}
               placeholder="location id (optional if client-only)"
@@ -224,7 +224,7 @@ function ScheduleJobModal({ onClose }: { onClose: () => void }) {
             <label className="block text-sm mb-1">Date/Time</label>
             <input
               type="datetime-local"
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={dateTime}
               onChange={(e) => setDateTime(e.target.value)}
             />
@@ -234,7 +234,7 @@ function ScheduleJobModal({ onClose }: { onClose: () => void }) {
             <label className="block text-sm mb-1">Assigned employees</label>
             <select
               multiple
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800 min-h-[100px]"
+              className="w-full border rounded-md px-3 py-2 card-bg min-h-[100px]"
               value={assigned}
               onChange={(e) =>
                 setAssigned(
@@ -253,7 +253,7 @@ function ScheduleJobModal({ onClose }: { onClose: () => void }) {
           <div>
             <label className="block text-sm mb-1">Notes (optional)</label>
             <textarea
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}

@@ -17,8 +17,10 @@ import { renderInvoicePdf, renderInvoicePreview } from "../../lib/invoicePdf";
 
 type Invoice = {
   id: string;
+  invoiceNumber?: string;
   status?: string;
   createdAt?: any;
+  dueDate?: Date;
   totalAmount?: number;
   amount?: number;
 };
@@ -98,7 +100,7 @@ export default function Billing() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+      <div className="rounded-lg p-4 card-bg shadow-elev-1">
         <div className="font-medium">Invoices</div>
         {loading ? (
           <div className="text-sm text-zinc-500 mt-1">Loading…</div>
@@ -190,7 +192,7 @@ export default function Billing() {
           </ul>
         )}
       </div>
-      <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+      <div className="rounded-lg p-4 card-bg shadow-elev-1">
         <div className="font-medium">Payments</div>
         {loading ? (
           <div className="text-sm text-zinc-500 mt-1">Loading…</div>

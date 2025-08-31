@@ -216,13 +216,13 @@ export default function TimeLocationAdmin() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
           <input
             placeholder="Filter by employee (name or id)"
-            className="border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="border rounded-md px-3 py-2 card-bg"
             value={empFilter}
             onChange={(e) => setEmpFilter(e.target.value)}
           />
           <input
             placeholder="Filter by location (name or id)"
-            className="border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="border rounded-md px-3 py-2 card-bg"
             value={locFilter}
             onChange={(e) => setLocFilter(e.target.value)}
           />
@@ -230,7 +230,7 @@ export default function TimeLocationAdmin() {
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            className="border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="border rounded-md px-3 py-2 card-bg"
           />
           <button
             className="px-3 py-2 rounded-md border text-sm"
@@ -241,7 +241,7 @@ export default function TimeLocationAdmin() {
           </button>
         </div>
 
-        <div className="overflow-x-auto rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1">
+        <div className="overflow-x-auto rounded-lg card-bg shadow-elev-1">
           <table className="min-w-full text-sm">
             <thead className="text-left text-zinc-500">
               <tr>

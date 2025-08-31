@@ -149,7 +149,7 @@ export default function MediaLibraryPage() {
         <div>
           <label className="block text-xs mb-1">Audience</label>
           <select
-            className="w-full border rounded-md px-2 py-1 text-sm bg-white dark:bg-zinc-800"
+            className="w-full border rounded-md px-2 py-1 text-sm card-bg"
             value={audience}
             onChange={(e) => setAudience(e.target.value as any)}
           >
@@ -163,7 +163,7 @@ export default function MediaLibraryPage() {
         <div>
           <label className="block text-xs mb-1">Uploaded By</label>
           <input
-            className="w-full border rounded-md px-2 py-1 text-sm bg-white dark:bg-zinc-800"
+            className="w-full border rounded-md px-2 py-1 text-sm card-bg"
             value={uploadedBy}
             onChange={(e) => setUploadedBy(e.target.value)}
             placeholder="uid or email"
@@ -172,7 +172,7 @@ export default function MediaLibraryPage() {
         <div>
           <label className="block text-xs mb-1">Tags</label>
           <input
-            className="w-full border rounded-md px-2 py-1 text-sm bg-white dark:bg-zinc-800"
+            className="w-full border rounded-md px-2 py-1 text-sm card-bg"
             value={tagSearch}
             onChange={(e) => setTagSearch(e.target.value)}
             placeholder="safety, onboarding"
@@ -182,7 +182,7 @@ export default function MediaLibraryPage() {
           <label className="block text-xs mb-1">From</label>
           <input
             type="date"
-            className="w-full border rounded-md px-2 py-1 text-sm bg-white dark:bg-zinc-800"
+            className="w-full border rounded-md px-2 py-1 text-sm card-bg"
             value={fromDate}
             onChange={(e) => setFromDate(e.target.value)}
           />
@@ -191,7 +191,7 @@ export default function MediaLibraryPage() {
           <label className="block text-xs mb-1">To</label>
           <input
             type="date"
-            className="w-full border rounded-md px-2 py-1 text-sm bg-white dark:bg-zinc-800"
+            className="w-full border rounded-md px-2 py-1 text-sm card-bg"
             value={toDate}
             onChange={(e) => setToDate(e.target.value)}
           />

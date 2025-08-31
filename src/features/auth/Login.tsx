@@ -79,7 +79,7 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-sm">
+      <div className="w-full max-w-md rounded-lg border border-zinc-200 dark:border-zinc-800 card-bg p-6 shadow-sm">
         <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
           Sign in
         </h1>

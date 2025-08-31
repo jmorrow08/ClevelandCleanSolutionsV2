@@ -51,7 +51,7 @@ body {
 
 /* Custom elevation utilities */
 @utility shadow-elev-1 {
-  @apply shadow-[0_1px_2px_rgba(0,0,0,0.05)];
+  @apply shadow-[0_1px_3px_rgba(0,0,0,0.08)];
 }
 @utility shadow-elev-2 {
   @apply shadow-[0_2px_8px_rgba(0,0,0,0.08)];

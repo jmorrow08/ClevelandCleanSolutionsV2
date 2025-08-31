@@ -69,7 +69,7 @@ export default function NotificationsCenter() {
         <div className="text-lg font-medium">Notifications</div>
         <div className="flex items-center gap-2">
           <select
-            className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-900 text-sm"
+            className="border rounded-md px-2 py-1 card-bg text-sm"
             value={channel}
             onChange={(e) => setChannel(e.target.value as ChannelFilter)}
           >
@@ -153,13 +153,13 @@ export default function NotificationsCenter() {
             className="absolute inset-0 bg-black/40"
             onClick={() => !creating && setShowNew(false)}
           />
-          <div className="relative w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4">
+          <div className="relative w-full max-w-md rounded-lg card-bg shadow-elev-3 p-4">
             <div className="text-lg font-medium">New Announcement</div>
             <div className="mt-3 space-y-3">
               <div>
                 <label className="block text-sm mb-1">Title</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                 />
@@ -167,7 +167,7 @@ export default function NotificationsCenter() {
               <div>
                 <label className="block text-sm mb-1">Message</label>
                 <textarea
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   rows={4}
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
@@ -176,7 +176,7 @@ export default function NotificationsCenter() {
               <div>
                 <label className="block text-sm mb-1">Channel</label>
                 <select
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={newChannel}
                   onChange={(e) =>
                     setNewChannel(e.target.value as NotificationChannel)
@@ -190,7 +190,7 @@ export default function NotificationsCenter() {
             </div>
             <div className="mt-4 flex items-center justify-end gap-2">
               <button
-                className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                className="px-3 py-1.5 rounded-md border card-bg"
                 onClick={() => setShowNew(false)}
                 disabled={creating}
               >

@@ -91,7 +91,7 @@ export function SupportEditForm({
           </label>
           <select
             id="support-status"
-            className="w-full border rounded-md p-2 bg-white dark:bg-zinc-900"
+            className="w-full border rounded-md p-2 card-bg"
             value={status}
             onChange={(e) => setStatus(e.target.value as SupportStatus)}
           >
@@ -108,7 +108,7 @@ export function SupportEditForm({
           </label>
           <select
             id="support-assignee"
-            className="w-full border rounded-md p-2 bg-white dark:bg-zinc-900"
+            className="w-full border rounded-md p-2 card-bg"
             value={assignee}
             onChange={(e) => setAssignee(e.target.value)}
           >
@@ -138,7 +138,7 @@ export function SupportEditForm({
       <div>
         <div className="text-sm font-medium mb-1">Add a comment</div>
         <textarea
-          className="w-full border rounded-md p-2 bg-white dark:bg-zinc-900"
+          className="w-full border rounded-md p-2 card-bg"
           rows={3}
           placeholder="Write a comment…"
           value={comment}
@@ -300,7 +300,7 @@ export default function SupportDetail() {
         </div>
       )}
 
-      <div className="rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1 p-4">
+      <div className="rounded-lg card-bg shadow-elev-1 p-4">
         <div className="text-sm font-medium mb-2">Comments</div>
         {comments.length === 0 ? (
           <div className="text-sm text-zinc-500">No comments yet.</div>
@@ -345,7 +345,7 @@ export default function SupportDetail() {
       </div>
 
       {commentable ? (
-        <div className="rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1 p-4 space-y-3">
+        <div className="rounded-lg card-bg shadow-elev-1 p-4 space-y-3">
           <div>
             <div className="text-sm font-medium mb-1">Add a comment</div>
             <SupportEditForm

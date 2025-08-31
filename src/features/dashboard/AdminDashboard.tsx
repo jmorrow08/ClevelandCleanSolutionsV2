@@ -3,6 +3,7 @@ import TodayBoard from "./widgets/TodayBoard";
 import Approvals from "./widgets/Approvals";
 import Alerts from "./widgets/Alerts";
 import CashSnapshot from "./widgets/CashSnapshot";
+
 import MyQueue from "./widgets/MyQueue";
 import PresencePulse from "./widgets/PresencePulse";
 import QuickActions from "./actions/QuickActions";
@@ -22,6 +23,7 @@ export default function AdminDashboard() {
           <Approvals />
           <Alerts />
           <CashSnapshot />
+
           <MyQueue />
           <PresencePulse />
         </div>

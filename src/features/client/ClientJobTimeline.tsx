@@ -128,7 +128,7 @@ export default function ClientJobTimeline() {
   );
 
   return (
-    <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+    <div className="rounded-lg p-4 card-bg shadow-elev-1">
       <div className="font-medium">Service Timeline</div>
       {loading ? (
         <div className="text-sm text-zinc-500 mt-2">Loading…</div>
@@ -237,21 +237,32 @@ function TimelineColumn({
       try {
         const locationMap: Record<string, string> = {};
         for (const j of jobs) {
-          if (j.locationId) {
+          // First, try to get location name from the job record itself
+          let locationName =
+            (j as any).locationName || (j as any).name || (j as any).location;
+
+          // If not found on job record, try to resolve from locationId
+          if (!locationName && j.locationId) {
             try {
-              const name = await getLocationName(j.locationId);
-              locationMap[j.id] = name;
+              locationName = await getLocationName(j.locationId);
             } catch (error) {
               console.warn(
                 "Failed to resolve location name for job:",
                 j.id,
                 error
               );
-              locationMap[j.id] = j.locationId || "Unknown Location";
+              locationName = j.locationId || "Unknown Location";
             }
-          } else {
-            locationMap[j.id] = "Unknown Location";
           }
+
+          // If still no name, use fallback
+          if (!locationName) {
+            locationName = j.locationId
+              ? `Location ${j.locationId.slice(0, 8)}...`
+              : "Unknown Location";
+          }
+
+          locationMap[j.id] = locationName;
         }
         setLocationNames(locationMap);
       } catch (error) {
@@ -359,7 +370,7 @@ function PhotosModal({ job, onClose }: { job: Job; onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-zinc-900 rounded-lg shadow-elev-2 max-w-3xl w-full p-4"
+        className="card-bg rounded-lg shadow-elev-2 max-w-3xl w-full p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">

@@ -11,9 +11,13 @@ import {
 } from "firebase/firestore";
 import { firebaseConfig } from "../../../services/firebase";
 import { startOfDay, subDays } from "date-fns";
+import { ServiceAgreementProjectionService } from "../../../services/serviceAgreementProjections";
+import AgreementDetailsModal from "../../../components/ui/AgreementDetailsModal";
+import { Calendar } from "lucide-react";
 
 type KpiData = {
   revenue30d: number;
+  expectedRevenue30d: number;
   unpaidCount: number;
   jobsToday: number;
   openTickets: number;
@@ -23,11 +27,13 @@ export default function KPIStrip() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<KpiData>({
     revenue30d: 0,
+    expectedRevenue30d: 0,
     unpaidCount: 0,
     jobsToday: 0,
     openTickets: 0,
   });
   const [error, setError] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -101,7 +107,26 @@ export default function KPIStrip() {
           console.warn("Support tickets query may require index", e?.message);
         }
 
-        setData({ revenue30d, unpaidCount, jobsToday, openTickets });
+        // Expected revenue from service agreements for next 30 days
+        let expectedRevenue30d = 0;
+        try {
+          const endDate = subDays(now, -30); // 30 days from now
+          expectedRevenue30d =
+            await ServiceAgreementProjectionService.getRevenueByDateRange(
+              now,
+              endDate
+            );
+        } catch (e: any) {
+          console.warn("Error calculating expected revenue", e?.message);
+        }
+
+        setData({
+          revenue30d,
+          expectedRevenue30d,
+          unpaidCount,
+          jobsToday,
+          openTickets,
+        });
       } catch (e: any) {
         setError(e?.message || "Failed to load KPIs");
       } finally {
@@ -117,27 +142,62 @@ export default function KPIStrip() {
         label: "Revenue (30d)",
         value:
           data.revenue30d > 0 ? `$${data.revenue30d.toLocaleString()}` : "$0",
+        hasButton: false,
       },
-      { label: "Unpaid Invoices", value: String(data.unpaidCount) },
-      { label: "Jobs Today", value: String(data.jobsToday) },
-      { label: "Open Tickets", value: String(data.openTickets) },
+      {
+        label: "Expected Revenue (30d)",
+        value:
+          data.expectedRevenue30d > 0
+            ? `$${data.expectedRevenue30d.toLocaleString()}`
+            : "$0",
+        hasButton: true,
+        buttonAction: () => setShowModal(true),
+      },
+      {
+        label: "Unpaid Invoices",
+        value: String(data.unpaidCount),
+        hasButton: false,
+      },
+      { label: "Jobs Today", value: String(data.jobsToday), hasButton: false },
+      {
+        label: "Open Tickets",
+        value: String(data.openTickets),
+        hasButton: false,
+      },
     ],
     [data]
   );
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      {cards.map((k) => (
-        <div
-          key={k.label}
-          className="rounded-lg p-4 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1"
-        >
-          <div className="text-xs uppercase text-zinc-500">{k.label}</div>
-          <div className="text-xl font-semibold mt-1">
-            {loading ? "…" : error ? "—" : k.value}
+    <>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        {cards.map((k) => (
+          <div key={k.label} className="rounded-lg p-4 card-bg shadow-elev-1">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="text-xs uppercase text-zinc-500">{k.label}</div>
+                <div className="text-xl font-semibold mt-1">
+                  {loading ? "…" : error ? "—" : k.value}
+                </div>
+              </div>
+              {k.hasButton && (
+                <button
+                  onClick={k.buttonAction}
+                  className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-md transition-colors ml-2"
+                  title="View agreement details"
+                >
+                  <Calendar className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+
+      <AgreementDetailsModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+      />
+    </>
   );
 }

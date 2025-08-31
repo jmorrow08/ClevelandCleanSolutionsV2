@@ -78,7 +78,7 @@ export default function SupportClientReviews() {
             </label>
             <select
               id="filter-rating"
-              className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-800"
+              className="border rounded-md px-2 py-1 card-bg"
               value={ratingFilter}
               onChange={(e) => {
                 setRatingFilter(e.target.value as any);
@@ -98,7 +98,7 @@ export default function SupportClientReviews() {
             </label>
             <select
               id="sort"
-              className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-800"
+              className="border rounded-md px-2 py-1 card-bg"
               value={sort}
               onChange={(e) => setSort(e.target.value as any)}
             >
@@ -115,7 +115,7 @@ export default function SupportClientReviews() {
             </label>
             <select
               id="per-page-reviews"
-              className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-800"
+              className="border rounded-md px-2 py-1 card-bg"
               value={perPage}
               onChange={(e) => {
                 setPerPage(parseInt(e.target.value) || 10);
@@ -174,7 +174,7 @@ export default function SupportClientReviews() {
 function ReviewCard({ review }: { review: ClientReview }) {
   const stars = Math.max(1, Math.min(5, review.rating || 0));
   return (
-    <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+    <div className="rounded-lg p-4 card-bg shadow-elev-1">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <div className="text-amber-500" aria-label={`Rating: ${stars}/5`}>

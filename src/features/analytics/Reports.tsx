@@ -119,7 +119,7 @@ export default function Reports() {
           </button>
         ))}
       </div>
-      <div className="rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1 overflow-x-auto">
+      <div className="rounded-lg card-bg shadow-elev-1 overflow-x-auto">
         {loading ? (
           <div className="p-4 text-sm text-zinc-500">Loading…</div>
         ) : visible.length === 0 ? (
@@ -158,10 +158,3 @@ export default function Reports() {
     </div>
   );
 }
-
-
-
-
-
-
-

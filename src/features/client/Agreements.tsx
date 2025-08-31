@@ -19,14 +19,25 @@ type Agreement = {
   includedServices?: string[];
   paymentAmount?: number;
   paymentFrequency?: string;
-  contractStartDate?: any;
-  contractEndDate?: any;
+  contractStartDate?: Date;
+  contractEndDate?: Date;
   serviceAgreementUrl?: string;
   specialInstructions?: string;
   isActive?: boolean;
   agreementName?: string;
   locationId?: string;
   locationName?: string;
+  serviceDays?: string[];
+  scheduleDetails?: {
+    serviceDays?: string[];
+    monthlyDay?: number;
+    oneTimeDate?: any;
+  };
+  paymentScheduleDetails?: {
+    monthlyPaymentDay?: number;
+    quarterlyMonth?: number;
+    quarterlyDay?: number;
+  };
 };
 
 // Generate a meaningful agreement name if none exists
@@ -84,9 +95,11 @@ export default function Agreements() {
           }
 
           try {
-            const endDate = agreement.contractEndDate.toDate
-              ? agreement.contractEndDate.toDate()
-              : new Date(agreement.contractEndDate);
+            const endDate = agreement.contractEndDate
+              ? typeof (agreement.contractEndDate as any).toDate === "function"
+                ? (agreement.contractEndDate as any).toDate()
+                : new Date(agreement.contractEndDate)
+              : null;
 
             // Keep only contracts that haven't expired (end date is in the future or today)
             return endDate >= today;
@@ -179,12 +192,16 @@ export default function Agreements() {
 
 function AgreementCard({ agreement }: { agreement: Agreement }) {
   const title = generateAgreementName(agreement);
-  const start = agreement.contractStartDate?.toDate
-    ? (agreement.contractStartDate.toDate() as Date)
-    : undefined;
-  const end = agreement.contractEndDate?.toDate
-    ? (agreement.contractEndDate.toDate() as Date)
-    : undefined;
+  const start = agreement.contractStartDate
+    ? typeof (agreement.contractStartDate as any).toDate === "function"
+      ? (agreement.contractStartDate as any).toDate()
+      : new Date(agreement.contractStartDate)
+    : null;
+  const end = agreement.contractEndDate
+    ? typeof (agreement.contractEndDate as any).toDate === "function"
+      ? (agreement.contractEndDate as any).toDate()
+      : new Date(agreement.contractEndDate)
+    : null;
   const term =
     start && end
       ? `${format(start, "MMM d, yyyy")} → ${format(end, "MMM d, yyyy")}`
@@ -194,16 +211,74 @@ function AgreementCard({ agreement }: { agreement: Agreement }) {
       ? `→ ${format(end, "MMM d, yyyy")}`
       : "";
   const services = Array.isArray(agreement.includedServices)
-    ? agreement.includedServices.join(", ")
+    ? agreement.includedServices.map((s) => s.replace(/-/g, " ")).join(", ")
     : "";
-  const payment =
-    (agreement.paymentAmount != null
-      ? `$${Number(agreement.paymentAmount).toLocaleString()}`
-      : "") +
-    (agreement.paymentFrequency ? `/${agreement.paymentFrequency}` : "");
+
+  // Format service days
+  const serviceDays =
+    agreement.serviceDays || agreement.scheduleDetails?.serviceDays;
+  const formattedServiceDays =
+    Array.isArray(serviceDays) && serviceDays.length > 0
+      ? serviceDays
+          .map((day) => day.charAt(0).toUpperCase() + day.slice(1))
+          .join(", ")
+      : null;
+
+  // Format payment information
+  let payment = "";
+  if (agreement.paymentAmount != null) {
+    payment = `$${Number(agreement.paymentAmount).toLocaleString()}`;
+    if (agreement.paymentFrequency) {
+      payment += `/${agreement.paymentFrequency}`;
+    }
+
+    // Add payment schedule details
+    if (
+      agreement.paymentFrequency === "monthly" &&
+      agreement.paymentScheduleDetails?.monthlyPaymentDay
+    ) {
+      payment += ` (on the ${
+        agreement.paymentScheduleDetails.monthlyPaymentDay
+      }${
+        agreement.paymentScheduleDetails.monthlyPaymentDay === 1
+          ? "st"
+          : agreement.paymentScheduleDetails.monthlyPaymentDay === 2
+          ? "nd"
+          : agreement.paymentScheduleDetails.monthlyPaymentDay === 3
+          ? "rd"
+          : "th"
+      })`;
+    } else if (
+      agreement.paymentFrequency === "quarterly" &&
+      agreement.paymentScheduleDetails?.quarterlyMonth &&
+      agreement.paymentScheduleDetails?.quarterlyDay
+    ) {
+      const monthNames = [
+        "",
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+      ];
+      const monthName =
+        monthNames[agreement.paymentScheduleDetails.quarterlyMonth] || "";
+      const day = agreement.paymentScheduleDetails.quarterlyDay;
+      payment += ` (${monthName} ${day}${
+        day === 1 ? "st" : day === 2 ? "nd" : day === 3 ? "rd" : "th"
+      })`;
+    }
+  }
 
   return (
-    <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1">
+    <div className="rounded-lg p-3 card-bg shadow-elev-1">
       <div className="flex items-start justify-between">
         <div className="font-medium">{title}</div>
         {agreement.serviceAgreementUrl ? (
@@ -223,6 +298,67 @@ function AgreementCard({ agreement }: { agreement: Agreement }) {
           <span className="text-zinc-500">Frequency:</span>{" "}
           {agreement.frequency || "—"}
         </div>
+        {/* Service Days with Check Marks */}
+        {formattedServiceDays && (
+          <div>
+            <span className="text-zinc-500">Service Days:</span>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {[
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday",
+                "saturday",
+                "sunday",
+              ].map((day) => {
+                const serviceDays =
+                  agreement.serviceDays ||
+                  agreement.scheduleDetails?.serviceDays ||
+                  [];
+                const isSelected =
+                  Array.isArray(serviceDays) && serviceDays.includes(day);
+                return (
+                  <div key={day} className="flex items-center gap-1">
+                    <div
+                      className={`w-3 h-3 rounded-full flex items-center justify-center text-xs ${
+                        isSelected
+                          ? "bg-green-500 text-white"
+                          : "bg-zinc-200 dark:bg-zinc-600 text-zinc-400"
+                      }`}
+                    >
+                      {isSelected && "✓"}
+                    </div>
+                    <span
+                      className={`text-xs capitalize ${
+                        isSelected
+                          ? "text-zinc-900 dark:text-zinc-100"
+                          : "text-zinc-400"
+                      }`}
+                    >
+                      {day.slice(0, 3)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {agreement.frequency === "monthly" &&
+          agreement.scheduleDetails?.monthlyDay && (
+            <div>
+              <span className="text-zinc-500">Service Day:</span>{" "}
+              {agreement.scheduleDetails.monthlyDay}
+              {agreement.scheduleDetails.monthlyDay === 1
+                ? "st"
+                : agreement.scheduleDetails.monthlyDay === 2
+                ? "nd"
+                : agreement.scheduleDetails.monthlyDay === 3
+                ? "rd"
+                : "th"}{" "}
+              of each month
+            </div>
+          )}
         <div>
           <span className="text-zinc-500">Included:</span> {services || "—"}
         </div>

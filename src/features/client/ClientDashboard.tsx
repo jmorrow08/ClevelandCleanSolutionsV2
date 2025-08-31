@@ -25,6 +25,7 @@ type RecentService = {
   id: string;
   serviceDate?: any;
   locationId?: string;
+  locationName?: string;
   status?: string;
 };
 
@@ -39,6 +40,8 @@ type Agreement = {
   serviceType?: string;
   locationId?: string;
   locationName?: string;
+  contractStartDate?: Date;
+  contractEndDate?: Date;
 };
 
 // Generate a meaningful agreement name if none exists
@@ -297,9 +300,12 @@ export default function ClientDashboard() {
             }
 
             try {
-              const endDate = agreement.contractEndDate.toDate
-                ? agreement.contractEndDate.toDate()
-                : new Date(agreement.contractEndDate);
+              const endDate = agreement.contractEndDate
+                ? typeof (agreement.contractEndDate as any).toDate ===
+                  "function"
+                  ? (agreement.contractEndDate as any).toDate()
+                  : new Date(agreement.contractEndDate)
+                : null;
 
               // Keep only contracts that haven't expired (end date is in the future or today)
               return endDate >= today;
@@ -416,10 +422,7 @@ export default function ClientDashboard() {
       <div className="text-2xl font-semibold">Welcome, {clientName}!</div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {cards.map((c) => (
-          <div
-            key={c.label}
-            className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1"
-          >
+          <div key={c.label} className="rounded-lg p-4 card-bg shadow-elev-1">
             <div className="text-xs uppercase text-zinc-500">{c.label}</div>
             <div className="text-xl font-semibold mt-1">
               {loading ? "…" : c.value}
@@ -432,7 +435,7 @@ export default function ClientDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+        <div className="rounded-lg p-4 card-bg shadow-elev-1">
           <div className="font-medium">Most Recent Completed Job</div>
           {loading ? (
             <div className="text-sm text-zinc-500 mt-2">Loading…</div>
@@ -475,7 +478,7 @@ export default function ClientDashboard() {
             </div>
           )}
         </div>
-        <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+        <div className="rounded-lg p-4 card-bg shadow-elev-1">
           <div className="font-medium">Service Agreement Summary</div>
           {loading ? (
             <div className="text-sm text-zinc-500 mt-2">Loading…</div>
@@ -642,7 +645,7 @@ function ServiceDetailsModal({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-zinc-900 rounded-lg shadow-elev-2 max-w-4xl w-full p-4"
+        className="card-bg rounded-lg shadow-elev-2 max-w-4xl w-full p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -757,7 +760,7 @@ function AgreementModal({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-zinc-900 rounded-lg shadow-elev-2 max-w-2xl w-full p-4"
+        className="card-bg rounded-lg shadow-elev-2 max-w-2xl w-full p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">

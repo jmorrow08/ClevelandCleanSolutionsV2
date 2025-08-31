@@ -113,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           {
             uid: uid,
             displayName:
-              user.displayName || (user as any)?.name || user.email || "User",
+              user?.displayName || (user as any)?.name || user?.email || "User",
             online: true,
             lastActive: serverTimestamp(),
           },

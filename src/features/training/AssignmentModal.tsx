@@ -103,13 +103,13 @@ export default function AssignmentModal({ moduleId, onClose }: Props) {
         className="absolute inset-0 bg-black/40"
         onClick={() => !submitting && onClose()}
       />
-      <div className="relative w-full max-w-2xl rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4">
+      <div className="relative w-full max-w-2xl rounded-lg card-bg shadow-elev-3 p-4">
         <div className="text-lg font-medium">Assign Module</div>
         <div className="mt-3 space-y-3">
           <div>
             <label className="block text-sm mb-1">Assign to</label>
             <select
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={mode}
               onChange={(e) => setMode(e.target.value as any)}
             >
@@ -121,7 +121,7 @@ export default function AssignmentModal({ moduleId, onClose }: Props) {
             <label className="block text-sm mb-1">Due at (optional)</label>
             <input
               type="datetime-local"
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={dueAt}
               onChange={(e) => setDueAt(e.target.value)}
             />
@@ -148,7 +148,7 @@ export default function AssignmentModal({ moduleId, onClose }: Props) {
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
           <button
-            className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+            className="px-3 py-1.5 rounded-md border card-bg"
             onClick={() => !submitting && onClose()}
             disabled={submitting}
           >
@@ -168,9 +168,3 @@ export default function AssignmentModal({ moduleId, onClose }: Props) {
     </div>
   );
 }
-
-
-
-
-
-

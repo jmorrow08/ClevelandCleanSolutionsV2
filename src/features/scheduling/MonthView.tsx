@@ -15,17 +15,19 @@ import {
   getLocationName,
   getEmployeeNames,
 } from "../../services/queries/resolvers";
-import {
-  startOfMonth,
-  endOfMonth,
-  format,
-  startOfWeek,
-  endOfWeek,
-  addDays,
-} from "date-fns";
+import { startOfWeek, endOfWeek, addDays } from "date-fns";
 import { Link } from "react-router-dom";
 import { Calendar, Users, MapPin, Clock, X } from "lucide-react";
 import { formatJobWindow } from "../../utils/time";
+import {
+  getMonthBounds,
+  groupJobsByBusinessDate,
+  formatBusinessDate,
+  getBusinessDateKey,
+  toFirestoreTimestamp,
+  getBusinessNow,
+  toBusinessTimezone,
+} from "../../utils/timezone";
 
 type Job = {
   id: string;
@@ -67,12 +69,11 @@ export default function MonthView() {
       try {
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
-        const start = startOfMonth(new Date());
-        const end = endOfMonth(new Date());
+        const bounds = getMonthBounds();
         const q = query(
           collection(db, "serviceHistory"),
-          where("serviceDate", ">=", Timestamp.fromDate(start)),
-          where("serviceDate", "<", Timestamp.fromDate(end)),
+          where("serviceDate", ">=", toFirestoreTimestamp(bounds.start)),
+          where("serviceDate", "<", toFirestoreTimestamp(bounds.end)),
           orderBy("serviceDate", "asc")
         );
         const snap = await getDocs(q);
@@ -152,29 +153,37 @@ export default function MonthView() {
   }, [jobs]);
 
   const jobsByDay = useMemo(() => {
+    const groups = groupJobsByBusinessDate(jobs);
     const map = new Map<string, Job[]>();
-    jobs.forEach((j) => {
-      const d = j.serviceDate?.toDate ? j.serviceDate.toDate() : undefined;
-      const key = d ? d.toISOString().slice(0, 10) : "";
-      if (!key) return;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(j);
+    Object.entries(groups).forEach(([key, jobs]) => {
+      map.set(key, jobs);
     });
     return map;
   }, [jobs]);
 
   const calendarDays = useMemo(() => {
-    const monthStart = startOfMonth(new Date());
-    const monthEnd = endOfMonth(new Date());
-    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
-    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
+    const bounds = getMonthBounds();
+    const businessMonthStart = toBusinessTimezone(bounds.start);
+    const businessMonthEnd = toBusinessTimezone(bounds.end);
+
+    // Start from the Sunday of the week containing the first day of the month
+    let calendarStart = new Date(businessMonthStart);
+    while (calendarStart.getDay() !== 0) {
+      calendarStart = new Date(calendarStart.getTime() - 24 * 60 * 60 * 1000);
+    }
+
+    // End on the Saturday of the week containing the last day of the month
+    let calendarEnd = new Date(businessMonthEnd);
+    while (calendarEnd.getDay() !== 6) {
+      calendarEnd = new Date(calendarEnd.getTime() + 24 * 60 * 60 * 1000);
+    }
 
     const days = [];
-    let day = calendarStart;
+    let day = new Date(calendarStart);
 
     while (day <= calendarEnd) {
-      days.push(day);
-      day = addDays(day, 1);
+      days.push(new Date(day));
+      day = new Date(day.getTime() + 24 * 60 * 60 * 1000);
     }
 
     return days;
@@ -194,11 +203,11 @@ export default function MonthView() {
   return (
     <div className="space-y-6">
       {/* Month Header */}
-      <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
+      <div className="card-bg rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
         <div className="flex items-center gap-3 mb-6">
           <Calendar className="h-6 w-6 text-blue-600 dark:text-blue-400" />
           <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            {format(new Date(), "MMMM yyyy")}
+            {formatBusinessDate(new Date(), "MMMM yyyy")}
           </h3>
           <span className="ml-auto text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-3 py-1 rounded-full">
             {jobs.length} total jobs
@@ -219,20 +228,19 @@ export default function MonthView() {
 
           {/* Calendar Days */}
           {calendarDays.map((day) => {
-            const key = day.toISOString().slice(0, 10);
+            const key = getBusinessDateKey(day);
             const dayJobs = jobsByDay.get(key) || [];
-            const isCurrentMonth = day.getMonth() === new Date().getMonth();
+            const businessNow = getBusinessNow();
+            const isCurrentMonth = day.getMonth() === businessNow.getMonth();
             const isToday =
-              format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+              getBusinessDateKey(day) === getBusinessDateKey(new Date());
 
             return (
               <button
                 key={key}
                 onClick={() => setDrawerDay(key)}
                 className={`min-h-[160px] p-3 text-left rounded-lg border border-zinc-200 dark:border-zinc-600 transition-all duration-200 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md ${
-                  isCurrentMonth
-                    ? "bg-white dark:bg-zinc-800"
-                    : "bg-zinc-50 dark:bg-zinc-700/50"
+                  isCurrentMonth ? "card-bg" : "bg-zinc-50 dark:bg-zinc-700/50"
                 } ${isToday ? "ring-2 ring-blue-500 dark:ring-blue-400" : ""}`}
               >
                 {/* Date */}
@@ -243,7 +251,7 @@ export default function MonthView() {
                       : "text-zinc-400 dark:text-zinc-500"
                   }`}
                 >
-                  {format(day, "d")}
+                  {formatBusinessDate(day, "d")}
                 </div>
 
                 {/* Jobs Preview */}
@@ -316,14 +324,14 @@ export default function MonthView() {
           onClick={() => setDrawerDay(null)}
         >
           <div
-            className="bg-white dark:bg-zinc-900 rounded-t-xl md:rounded-xl p-6 w-full md:w-[600px] max-h-[80vh] overflow-y-auto"
+            className="card-bg rounded-t-xl md:rounded-xl p-6 w-full md:w-[600px] max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                  {format(new Date(drawerDay), "EEEE, MMMM d")}
+                  {formatBusinessDate(drawerDay, "EEEE, MMMM d")}
                 </h3>
               </div>
               <button
@@ -381,7 +389,7 @@ function MonthDayJobs({
       const d = (j as any).serviceDate?.toDate
         ? (j as any).serviceDate.toDate()
         : undefined;
-      const key = d ? d.toISOString().slice(0, 10) : "";
+      const key = getBusinessDateKey(d);
       return key === day;
     });
   }, [jobs, day]);

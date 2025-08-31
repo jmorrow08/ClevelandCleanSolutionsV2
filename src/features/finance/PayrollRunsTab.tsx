@@ -320,7 +320,7 @@ export default function PayrollRunsTab() {
   return (
     <div className="space-y-3">
       <RoleGuard allow={["admin", "owner", "super_admin"]}>
-        <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1">
+        <div className="rounded-lg p-3 card-bg shadow-elev-1">
           <div className="text-sm font-medium mb-2">Payroll Runs</div>
           <div className="text-sm text-zinc-600 dark:text-zinc-300">
             For scanning jobs and generating timesheets, use{" "}
@@ -333,7 +333,7 @@ export default function PayrollRunsTab() {
       </RoleGuard>
 
       <RoleGuard allow={["admin", "owner", "super_admin"]}>
-        <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 mt-4">
+        <div className="rounded-lg p-3 card-bg shadow-elev-1 mt-4">
           <div className="text-sm font-medium mb-2">
             Backfill Rate Snapshots
           </div>
@@ -342,7 +342,7 @@ export default function PayrollRunsTab() {
               <div className="text-xs text-zinc-500">Start Date</div>
               <input
                 type="date"
-                className="mt-1 w-full px-2 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                className="mt-1 w-full px-2 py-1.5 rounded-md border card-bg"
                 value={backfillStartDate}
                 onChange={(e) => setBackfillStartDate(e.target.value)}
               />
@@ -351,7 +351,7 @@ export default function PayrollRunsTab() {
               <div className="text-xs text-zinc-500">End Date</div>
               <input
                 type="date"
-                className="mt-1 w-full px-2 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                className="mt-1 w-full px-2 py-1.5 rounded-md border card-bg"
                 value={backfillEndDate}
                 onChange={(e) => setBackfillEndDate(e.target.value)}
               />
@@ -396,7 +396,7 @@ export default function PayrollRunsTab() {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  className="px-2 py-1 rounded-md border bg-white dark:bg-zinc-900"
+                  className="px-2 py-1 rounded-md border card-bg"
                   onClick={() => openDrawer(r)}
                 >
                   View Timesheets
@@ -410,7 +410,7 @@ export default function PayrollRunsTab() {
       {drawerRun && (
         <div className="fixed inset-0 z-[100]">
           <div className="absolute inset-0 bg-black/40" onClick={closeDrawer} />
-          <div className="absolute right-0 top-0 h-full w-[640px] max-w-[96vw] bg-white dark:bg-zinc-800 shadow-elev-3 p-4">
+          <div className="absolute right-0 top-0 h-full w-[640px] max-w-[96vw] card-bg shadow-elev-3 p-4">
             <div className="flex items-center justify-between">
               <div className="text-lg font-medium">
                 Timesheets — {drawerRun.id}

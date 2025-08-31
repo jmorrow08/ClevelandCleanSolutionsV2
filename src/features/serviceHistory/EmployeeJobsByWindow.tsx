@@ -175,10 +175,7 @@ export default function EmployeeJobsByWindow({
           const label =
             empId === "(unassigned)" ? empId : employeeNameMap[empId] || empId;
           return (
-            <div
-              key={empId}
-              className="rounded-lg bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1"
-            >
+            <div key={empId} className="rounded-lg card-bg shadow-elev-1">
               <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-700 font-medium">
                 {label}
               </div>

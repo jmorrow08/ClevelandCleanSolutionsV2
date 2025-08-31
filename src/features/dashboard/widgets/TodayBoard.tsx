@@ -8,7 +8,6 @@ import {
   orderBy,
   getDocs,
   onSnapshot,
-  Timestamp,
 } from "firebase/firestore";
 import { firebaseConfig } from "../../../services/firebase";
 import {
@@ -16,8 +15,8 @@ import {
   getLocationNames,
   getEmployeeNames,
 } from "../../../services/queries/resolvers";
-import { startOfDay, addDays } from "date-fns";
 import { Link } from "react-router-dom";
+import { getTodayBounds, toFirestoreTimestamp } from "../../../utils/timezone";
 
 type Job = {
   id: string;
@@ -60,12 +59,11 @@ export default function TodayBoard() {
       try {
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
-        const start = startOfDay(new Date());
-        const end = addDays(start, 2);
+        const bounds = getTodayBounds();
         const q = query(
           collection(db, "serviceHistory"),
-          where("serviceDate", ">=", Timestamp.fromDate(start)),
-          where("serviceDate", "<", Timestamp.fromDate(end)),
+          where("serviceDate", ">=", toFirestoreTimestamp(bounds.start)),
+          where("serviceDate", "<", toFirestoreTimestamp(bounds.end)),
           orderBy("serviceDate", "asc")
         );
         unsub = onSnapshot(
@@ -153,8 +151,8 @@ export default function TodayBoard() {
   }, [jobs]);
 
   return (
-    <div className="rounded-lg p-4 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1">
-      <div className="font-medium">Today & Tomorrow</div>
+    <div className="rounded-lg p-4 card-bg shadow-elev-1">
+      <div className="font-medium">Today's Jobs</div>
       {loading ? (
         <div className="text-sm text-zinc-500 mt-2">Loading…</div>
       ) : jobs.length === 0 ? (

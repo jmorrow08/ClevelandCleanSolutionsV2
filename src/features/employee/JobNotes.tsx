@@ -207,7 +207,7 @@ export default function JobNotes() {
     return (
       <div className="p-6 space-y-4">
         <h1 className="text-xl font-semibold">Job Notes (Today)</h1>
-        <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+        <div className="rounded-lg p-4 card-bg shadow-elev-1">
           <div className="text-sm text-zinc-500">Loading...</div>
         </div>
       </div>
@@ -218,7 +218,7 @@ export default function JobNotes() {
     <div className="p-6 space-y-4">
       <h1 className="text-xl font-semibold">Job Notes (Today)</h1>
 
-      <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1 space-y-3">
+      <div className="rounded-lg p-4 card-bg shadow-elev-1 space-y-3">
         {isClockedIn ? (
           <div className="text-sm">
             <div className="text-xs text-zinc-500 mb-1">Current Location</div>
@@ -234,7 +234,7 @@ export default function JobNotes() {
           <div className="text-sm">
             <div className="text-xs text-zinc-500 mb-1">Select location</div>
             <select
-              className="w-full px-3 py-2 rounded-md border bg-white dark:bg-zinc-900"
+              className="w-full px-3 py-2 rounded-md border card-bg"
               value={selectedLocationId}
               onChange={(e) => setSelectedLocationId(e.target.value)}
             >
@@ -256,7 +256,7 @@ export default function JobNotes() {
           <div className="text-xs text-zinc-500 mb-1">Your Notes</div>
           <textarea
             rows={4}
-            className="w-full px-3 py-2 rounded-md border bg-white dark:bg-zinc-900"
+            className="w-full px-3 py-2 rounded-md border card-bg"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder={
@@ -293,7 +293,7 @@ export default function JobNotes() {
             {rows.map((n) => (
               <div
                 key={n.id}
-                className="rounded-md border border-zinc-200 dark:border-zinc-700 p-3 bg-white dark:bg-zinc-900"
+                className="rounded-md border border-zinc-200 dark:border-zinc-700 p-3 card-bg"
               >
                 <div className="flex items-center justify-between text-xs text-zinc-500">
                   <span>{n.employeeName || "Employee"}</span>

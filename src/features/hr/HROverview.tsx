@@ -81,10 +81,7 @@ export default function HROverview() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
       {cards.map((c) => (
-        <div
-          key={c.label}
-          className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1"
-        >
+        <div key={c.label} className="rounded-lg p-4 card-bg shadow-elev-1">
           <div className="text-sm text-zinc-500">{c.label}</div>
           <div className="text-2xl font-semibold mt-1">
             {loading ? "…" : c.value ?? "—"}

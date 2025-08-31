@@ -17,6 +17,7 @@ type Client = {
   contactName?: string;
   email?: string;
   phone?: string;
+  clientIdString?: string;
   status?: boolean;
 };
 
@@ -57,7 +58,7 @@ export default function ClientsList() {
     if (!search) return clients;
     const s = search.toLowerCase();
     return clients.filter((c) =>
-      [c.companyName, c.contactName, c.email, c.phone, c.id]
+      [c.companyName, c.contactName, c.email, c.phone, c.clientIdString, c.id]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(s))
     );
@@ -70,7 +71,7 @@ export default function ClientsList() {
         <RoleGuard allow={["admin", "owner", "super_admin"]}>
           <Link
             to="/crm"
-            className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-800 text-sm"
+            className="px-3 py-1.5 rounded-md border card-bg text-sm"
           >
             Leads
           </Link>
@@ -81,15 +82,15 @@ export default function ClientsList() {
         <div className="flex-1">
           <label className="block text-xs text-zinc-500 mb-1">Search</label>
           <input
-            placeholder="Company, contact, email, phone"
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            placeholder="Company, contact, email, phone, client ID"
+            className="w-full border rounded-md px-3 py-2 card-bg"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
       </div>
 
-      <div className="hidden md:block overflow-x-auto rounded-lg bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1">
+      <div className="hidden md:block overflow-x-auto rounded-lg card-bg shadow-elev-1">
         <table className="min-w-full text-sm">
           <thead className="text-left text-zinc-500">
             <tr>
@@ -154,19 +155,16 @@ export default function ClientsList() {
 
       <div className="md:hidden space-y-2">
         {loading ? (
-          <div className="rounded-lg p-3 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+          <div className="rounded-lg p-3 card-bg shadow-elev-1 text-sm text-zinc-500">
             Loading…
           </div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-lg p-3 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+          <div className="rounded-lg p-3 card-bg shadow-elev-1 text-sm text-zinc-500">
             No clients found.
           </div>
         ) : (
           filtered.map((c) => (
-            <div
-              key={c.id}
-              className="rounded-lg p-3 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1"
-            >
+            <div key={c.id} className="rounded-lg p-3 card-bg shadow-elev-1">
               <div className="flex items-center justify-between gap-2">
                 <div
                   className="font-medium min-w-0 flex-1 truncate"

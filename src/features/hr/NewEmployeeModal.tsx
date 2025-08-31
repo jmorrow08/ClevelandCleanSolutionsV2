@@ -77,13 +77,13 @@ function NewEmployeeModal({ onClose }: { onClose: () => void }) {
         className="absolute inset-0 bg-black/40"
         onClick={() => !submitting && onClose()}
       />
-      <div className="relative w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4">
+      <div className="relative w-full max-w-md rounded-lg card-bg shadow-elev-3 p-4">
         <div className="text-lg font-medium">New Employee</div>
         <div className="mt-3 space-y-3">
           <div>
             <label className="block text-sm mb-1">Full name</label>
             <input
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
             />
@@ -92,7 +92,7 @@ function NewEmployeeModal({ onClose }: { onClose: () => void }) {
             <label className="block text-sm mb-1">Email</label>
             <input
               type="email"
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -100,7 +100,7 @@ function NewEmployeeModal({ onClose }: { onClose: () => void }) {
           <div>
             <label className="block text-sm mb-1">Phone</label>
             <input
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
             />
@@ -113,7 +113,7 @@ function NewEmployeeModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
           <button
-            className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+            className="px-3 py-1.5 rounded-md border card-bg"
             onClick={onClose}
             disabled={submitting}
           >

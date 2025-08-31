@@ -69,7 +69,7 @@ export default function LocationSelector() {
   };
 
   return (
-    <div className="bg-white dark:bg-zinc-800 border border-border rounded-lg shadow-sm mb-6">
+    <div className="card-bg border border-border rounded-lg shadow-sm mb-6">
       <div className="p-6">
         <h2 className="text-xl font-semibold flex items-center gap-2 mb-4">
           <MapPin className="h-5 w-5" />
@@ -88,7 +88,7 @@ export default function LocationSelector() {
               id="location-select"
               value={selectedLocationId}
               onChange={(e) => handleLocationChange(e.target.value)}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-white dark:bg-zinc-900"
+              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring card-bg"
               disabled={loading}
             >
               <option value="">

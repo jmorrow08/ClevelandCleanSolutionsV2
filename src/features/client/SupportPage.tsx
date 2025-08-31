@@ -83,7 +83,7 @@ export default function SupportPage() {
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-xl font-semibold">Support</h1>
-      <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+      <div className="rounded-lg p-4 card-bg shadow-elev-1">
         <form onSubmit={submit} className="space-y-3">
           <div>
             <label className="block text-sm mb-1">Subject</label>
@@ -122,7 +122,7 @@ export default function SupportPage() {
           ) : null}
         </form>
       </div>
-      <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+      <div className="rounded-lg p-4 card-bg shadow-elev-1">
         <div className="font-medium">Past Support Requests</div>
         {loading ? (
           <div className="text-sm text-zinc-500 mt-2">Loading…</div>

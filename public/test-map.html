@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test Map Loading</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      .test-result {
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+      }
+      .success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+      .error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+      .info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+      #map {
+        height: 400px;
+        width: 100%;
+        border: 1px solid #ccc;
+        margin: 10px 0;
+      }
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Google Maps Loading Test</h1>
+
+    <div id="results"></div>
+
+    <button onclick="testMapLoading()">Test Map Loading</button>
+    <button onclick="testAPIKey()">Test API Key</button>
+    <button onclick="testCoordinates()">Test Coordinates</button>
+
+    <div id="map" class="hidden"></div>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCm6ln4PSDxYKsrNEFpuYlnjA0B3dJxGLs&libraries=places,geometry"></script>
+
+    <script>
+      const resultsDiv = document.getElementById("results");
+
+      function addResult(message, type = "info") {
+        const div = document.createElement("div");
+        div.className = `test-result ${type}`;
+        div.innerHTML = `<strong>${new Date().toLocaleTimeString()}:</strong> ${message}`;
+        resultsDiv.appendChild(div);
+        console.log(message);
+      }
+
+      function testAPIKey() {
+        addResult("Testing API Key configuration...");
+
+        // Check if script is loaded
+        const scripts = document.querySelectorAll("script");
+        let mapsScriptLoaded = false;
+        scripts.forEach((script) => {
+          if (script.src.includes("maps.googleapis.com")) {
+            mapsScriptLoaded = true;
+          }
+        });
+
+        if (mapsScriptLoaded) {
+          addResult("✓ Google Maps script is loaded", "success");
+        } else {
+          addResult("✗ Google Maps script not found", "error");
+        }
+
+        // Check if google object is available
+        setTimeout(() => {
+          if (typeof google !== "undefined") {
+            addResult("✓ Google object is available", "success");
+
+            if (typeof google.maps !== "undefined") {
+              addResult("✓ Google Maps API is loaded", "success");
+            } else {
+              addResult("✗ Google Maps API not loaded", "error");
+            }
+          } else {
+            addResult("✗ Google object not available", "error");
+          }
+        }, 1000);
+      }
+
+      function testCoordinates() {
+        addResult("Testing coordinate extraction...");
+
+        // Test data similar to what the app uses
+        const testCoordinates = {
+          clockInCoordinates: {
+            latitude: 41.4993,
+            longitude: -81.6944,
+          },
+          clockOutCoordinates: {
+            latitude: 41.501,
+            longitude: -81.693,
+          },
+        };
+
+        try {
+          // Test extractCoordinates function logic
+          function extractCoordinates(geoPoint) {
+            if (!geoPoint) return null;
+
+            let lat, lng;
+
+            if (
+              typeof geoPoint.latitude === "function" &&
+              typeof geoPoint.longitude === "function"
+            ) {
+              lat = geoPoint.latitude();
+              lng = geoPoint.longitude();
+            } else {
+              lat = geoPoint.latitude || geoPoint.lat || geoPoint._lat;
+              lng = geoPoint.longitude || geoPoint.lng || geoPoint._long;
+            }
+
+            if (typeof lat === "number" && typeof lng === "number") {
+              return { lat, lng };
+            }
+
+            return null;
+          }
+
+          const clockInCoords = extractCoordinates(
+            testCoordinates.clockInCoordinates
+          );
+          const clockOutCoords = extractCoordinates(
+            testCoordinates.clockOutCoordinates
+          );
+
+          if (clockInCoords) {
+            addResult(
+              `✓ Clock In coordinates extracted: ${clockInCoords.lat}, ${clockInCoords.lng}`,
+              "success"
+            );
+          } else {
+            addResult("✗ Failed to extract Clock In coordinates", "error");
+          }
+
+          if (clockOutCoords) {
+            addResult(
+              `✓ Clock Out coordinates extracted: ${clockOutCoords.lat}, ${clockOutCoords.lng}`,
+              "success"
+            );
+          } else {
+            addResult("✗ Failed to extract Clock Out coordinates", "error");
+          }
+        } catch (error) {
+          addResult(
+            `✗ Error testing coordinate extraction: ${error.message}`,
+            "error"
+          );
+        }
+      }
+
+      function testMapLoading() {
+        addResult("Testing map loading...");
+
+        const mapDiv = document.getElementById("map");
+        mapDiv.classList.remove("hidden");
+
+        if (
+          typeof google === "undefined" ||
+          typeof google.maps === "undefined"
+        ) {
+          addResult("✗ Google Maps API not available", "error");
+          return;
+        }
+
+        try {
+          // Test creating a simple map
+          const testCoords = { lat: 41.4993, lng: -81.6944 };
+
+          const mapOptions = {
+            center: testCoords,
+            zoom: 15,
+            mapTypeControl: true,
+            streetViewControl: true,
+            fullscreenControl: true,
+            zoomControl: true,
+          };
+
+          addResult("Creating map instance...");
+          const map = new google.maps.Map(mapDiv, mapOptions);
+
+          // Add a test marker
+          const marker = new google.maps.Marker({
+            position: testCoords,
+            map: map,
+            title: "Test Location",
+          });
+
+          addResult("✓ Map created successfully with marker", "success");
+        } catch (error) {
+          addResult(`✗ Error creating map: ${error.message}`, "error");
+          console.error("Map creation error:", error);
+        }
+      }
+
+      // Auto-run tests on load
+      window.addEventListener("load", () => {
+        addResult("Page loaded, starting tests...");
+        setTimeout(() => {
+          testAPIKey();
+          setTimeout(() => {
+            testCoordinates();
+          }, 2000);
+        }, 1000);
+      });
+    </script>
+  </body>
+</html>

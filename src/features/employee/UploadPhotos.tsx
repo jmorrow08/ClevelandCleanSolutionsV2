@@ -417,7 +417,7 @@ export default function UploadPhotos() {
     return (
       <div className="p-6 space-y-4">
         <h1 className="text-xl font-semibold">Upload Photos</h1>
-        <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+        <div className="rounded-lg p-4 card-bg shadow-elev-1">
           <div className="text-sm text-zinc-500">Loading...</div>
         </div>
       </div>
@@ -427,7 +427,7 @@ export default function UploadPhotos() {
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-xl font-semibold">Upload Photos</h1>
-      <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1 space-y-3">
+      <div className="rounded-lg p-4 card-bg shadow-elev-1 space-y-3">
         {isClockedIn ? (
           <div className="text-sm">
             <div className="text-xs text-zinc-500 mb-1">Current Location</div>
@@ -443,7 +443,7 @@ export default function UploadPhotos() {
           <div className="text-sm">
             <div className="text-xs text-zinc-500 mb-1">Select location</div>
             <select
-              className="w-full px-3 py-2 rounded-md border bg-white dark:bg-zinc-900"
+              className="w-full px-3 py-2 rounded-md border card-bg"
               value={selectedLocationId}
               onChange={(e) => setSelectedLocationId(e.target.value)}
               disabled={isUploading}
@@ -585,7 +585,7 @@ export default function UploadPhotos() {
           </div>
           <textarea
             rows={3}
-            className="w-full px-3 py-2 rounded-md border bg-white dark:bg-zinc-900"
+            className="w-full px-3 py-2 rounded-md border card-bg"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             disabled={isUploading}

@@ -131,7 +131,7 @@ export default function UploadDialog({ onClose, onUploaded }: Props) {
         className="absolute inset-0 bg-black/40"
         onClick={() => !submitting && onClose()}
       />
-      <div className="relative w-full max-w-2xl rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4">
+      <div className="relative w-full max-w-2xl rounded-lg card-bg shadow-elev-3 p-4">
         <div className="text-lg font-medium">Upload Media</div>
         <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="md:col-span-2">
@@ -145,7 +145,7 @@ export default function UploadDialog({ onClose, onUploaded }: Props) {
           <div>
             <label className="block text-sm mb-1">Category</label>
             <select
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={category}
               onChange={(e) => setCategory(e.target.value as Category)}
             >
@@ -159,7 +159,7 @@ export default function UploadDialog({ onClose, onUploaded }: Props) {
           <div>
             <label className="block text-sm mb-1">Audience</label>
             <select
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={audience}
               onChange={(e) => setAudience(e.target.value as Audience)}
             >
@@ -172,7 +172,7 @@ export default function UploadDialog({ onClose, onUploaded }: Props) {
           <div className="md:col-span-2">
             <label className="block text-sm mb-1">Tags (comma separated)</label>
             <input
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               placeholder="policy, onboarding, safety"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
@@ -183,7 +183,7 @@ export default function UploadDialog({ onClose, onUploaded }: Props) {
               <div>
                 <label className="block text-sm mb-1">Client IDs</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   placeholder="clientId1, clientId2"
                   value={clientIds}
                   onChange={(e) => setClientIds(e.target.value)}
@@ -192,7 +192,7 @@ export default function UploadDialog({ onClose, onUploaded }: Props) {
               <div>
                 <label className="block text-sm mb-1">Location IDs</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   placeholder="locationId1, locationId2"
                   value={locationIds}
                   onChange={(e) => setLocationIds(e.target.value)}
@@ -205,7 +205,7 @@ export default function UploadDialog({ onClose, onUploaded }: Props) {
               Employee IDs (optional)
             </label>
             <input
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               placeholder="employeeUid1, employeeUid2"
               value={employeeIds}
               onChange={(e) => setEmployeeIds(e.target.value)}
@@ -216,7 +216,7 @@ export default function UploadDialog({ onClose, onUploaded }: Props) {
             <input
               type="number"
               min={1}
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={version}
               onChange={(e) => setVersion(e.target.value)}
             />
@@ -228,7 +228,7 @@ export default function UploadDialog({ onClose, onUploaded }: Props) {
             <input
               type="number"
               min={0}
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={durationSec}
               onChange={(e) => setDurationSec(e.target.value)}
             />
@@ -251,7 +251,7 @@ export default function UploadDialog({ onClose, onUploaded }: Props) {
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
           <button
-            className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+            className="px-3 py-1.5 rounded-md border card-bg"
             onClick={() => !submitting && onClose()}
             disabled={submitting}
           >
@@ -271,9 +271,3 @@ export default function UploadDialog({ onClose, onUploaded }: Props) {
     </div>
   );
 }
-
-
-
-
-
-

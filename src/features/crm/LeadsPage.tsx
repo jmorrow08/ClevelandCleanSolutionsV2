@@ -171,7 +171,7 @@ export default function LeadsPage() {
               </div>
               <div className="shrink-0">
                 <select
-                  className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-900 text-xs"
+                  className="border rounded-md px-2 py-1 card-bg text-xs"
                   value={l.stage || "New"}
                   onChange={(e) => changeStage(l.id, e.target.value)}
                 >
@@ -193,13 +193,13 @@ export default function LeadsPage() {
             className="absolute inset-0 bg-black/40"
             onClick={() => !creating && setShowNew(false)}
           />
-          <div className="relative w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4">
+          <div className="relative w-full max-w-md rounded-lg card-bg shadow-elev-3 p-4">
             <div className="text-lg font-medium">New Lead</div>
             <div className="mt-3 space-y-3">
               <div>
                 <label className="block text-sm mb-1">Name</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.name}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, name: e.target.value }))
@@ -209,7 +209,7 @@ export default function LeadsPage() {
               <div>
                 <label className="block text-sm mb-1">Source</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.source}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, source: e.target.value }))
@@ -220,7 +220,7 @@ export default function LeadsPage() {
             </div>
             <div className="mt-4 flex items-center justify-end gap-2">
               <button
-                className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                className="px-3 py-1.5 rounded-md border card-bg"
                 onClick={() => setShowNew(false)}
                 disabled={creating}
               >

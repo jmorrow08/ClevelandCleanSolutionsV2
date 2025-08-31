@@ -180,7 +180,7 @@ export default function Validator() {
                   rows.map((r, idx) => (
                     <tr
                       key={`${r.collection}:${r.docId}:${r.missingField}:${idx}`}
-                      className="odd:bg-[var(--card)]/40"
+                      className="odd:card-bg/40"
                     >
                       <td className="px-3 py-2 align-top">{r.collection}</td>
                       <td className="px-3 py-2 align-top">

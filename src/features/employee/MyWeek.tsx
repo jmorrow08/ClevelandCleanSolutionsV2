@@ -83,10 +83,7 @@ export default function MyWeek() {
         <div className="text-sm text-zinc-500">No assigned jobs this week.</div>
       ) : (
         [...grouped.entries()].map(([day, list]) => (
-          <div
-            key={day}
-            className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1"
-          >
+          <div key={day} className="rounded-lg p-3 card-bg shadow-elev-1">
             <div className="text-sm font-medium">
               {format(new Date(day), "EEE, MMM d")}
             </div>

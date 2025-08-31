@@ -100,7 +100,7 @@ export default function InventoryDetail() {
         <div className="text-sm text-zinc-500">Item not found.</div>
       ) : (
         <div className="grid md:grid-cols-3 gap-4">
-          <div className="rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1 p-4">
+          <div className="rounded-lg card-bg shadow-elev-1 p-4">
             <div className="text-sm text-zinc-500">Stock Summary</div>
             <div className="mt-2 space-y-1">
               <div className="flex items-center justify-between">
@@ -141,7 +141,7 @@ export default function InventoryDetail() {
               </div>
             </div>
           </div>
-          <div className="md:col-span-2 rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1 p-0 overflow-hidden">
+          <div className="md:col-span-2 rounded-lg card-bg shadow-elev-1 p-0 overflow-hidden">
             <div className="px-4 py-3 text-sm text-zinc-500 border-b border-zinc-200 dark:border-zinc-700">
               Recent Transactions
             </div>

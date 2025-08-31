@@ -3,6 +3,7 @@ import { useSettings } from "../../context/SettingsContext";
 import { useToast } from "../../context/ToastContext";
 import { useAuth } from "../../context/AuthContext";
 import { computeLastCompletedPeriod } from "../../services/payrollPeriods";
+import FaviconUpload from "../../components/FaviconUpload";
 
 type PayrollFrequency = "weekly" | "biweekly" | "monthly";
 
@@ -12,6 +13,13 @@ export default function OrgSettings() {
   const { claims } = useAuth();
 
   const canEdit = Boolean(claims?.super_admin || claims?.owner);
+
+  // Company profile state
+  const [companyName, setCompanyName] = useState("");
+  const [companyEmail, setCompanyEmail] = useState("");
+  const [companyPhone, setCompanyPhone] = useState("");
+  const [logoDataUrl, setLogoDataUrl] = useState("");
+  const [faviconDataUrl, setFaviconDataUrl] = useState("");
 
   const [arTermsDays, setArTermsDays] = useState<number | "">("");
   const [payrollCycle, setPayrollCycle] = useState<PayrollFrequency>("monthly");
@@ -75,6 +83,13 @@ export default function OrgSettings() {
     setLinkedin(settings?.socialLinks?.linkedin || "");
     setTiktok(settings?.socialLinks?.tiktok || "");
     setYoutube(settings?.socialLinks?.youtube || "");
+
+    // Load company profile settings
+    setCompanyName(settings?.companyProfile?.name || "");
+    setCompanyEmail(settings?.companyProfile?.email || "");
+    setCompanyPhone(settings?.companyProfile?.phone || "");
+    setLogoDataUrl(settings?.companyProfile?.logoDataUrl || "");
+    setFaviconDataUrl(settings?.companyProfile?.faviconDataUrl || "");
   }, [settings]);
 
   const isValid = useMemo(() => {
@@ -117,7 +132,7 @@ export default function OrgSettings() {
           frequency: payrollCycle,
           anchorDayOfWeek,
           anchorDayOfMonth,
-          anchorDate: anchorDate ? new Date(anchorDate) : undefined,
+          ...(anchorDate && { anchorDate: new Date(anchorDate) }),
         },
         emailBranding: {
           fromName: fromName || undefined,
@@ -134,6 +149,13 @@ export default function OrgSettings() {
           tiktok: tiktok || undefined,
           youtube: youtube || undefined,
         },
+        companyProfile: {
+          name: companyName || undefined,
+          email: companyEmail || undefined,
+          phone: companyPhone || undefined,
+          logoDataUrl: logoDataUrl || undefined,
+          faviconDataUrl: faviconDataUrl || undefined,
+        },
       });
       show({ type: "success", message: "Settings saved" });
     } catch (e: any) {
@@ -148,11 +170,84 @@ export default function OrgSettings() {
       <div className="text-lg font-medium">Organization Settings</div>
 
       <section className="space-y-6">
+        {/* Company Profile Section */}
+        <div>
+          <h3 className="text-lg font-medium mb-4">Company Profile</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm mb-1">Company Name</label>
+              <input
+                className="w-full border rounded-md px-3 py-2 card-bg disabled:opacity-60"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="Cleveland Clean Solutions"
+                disabled={!canEdit}
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Company Email</label>
+              <input
+                type="email"
+                className="w-full border rounded-md px-3 py-2 card-bg disabled:opacity-60"
+                value={companyEmail}
+                onChange={(e) => setCompanyEmail(e.target.value)}
+                placeholder="info@cleclean.com"
+                disabled={!canEdit}
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Company Phone</label>
+              <input
+                type="tel"
+                className="w-full border rounded-md px-3 py-2 card-bg disabled:opacity-60"
+                value={companyPhone}
+                onChange={(e) => setCompanyPhone(e.target.value)}
+                placeholder="(216) 555-0000"
+                disabled={!canEdit}
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Logo URL</label>
+              <input
+                type="url"
+                className="w-full border rounded-md px-3 py-2 card-bg disabled:opacity-60"
+                value={logoDataUrl}
+                onChange={(e) => setLogoDataUrl(e.target.value)}
+                placeholder="https://example.com/logo.png"
+                disabled={!canEdit}
+              />
+              {logoDataUrl && (
+                <div className="mt-2">
+                  <img
+                    src={logoDataUrl}
+                    alt="Company Logo"
+                    className="h-16 object-contain border rounded"
+                  />
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Favicon</label>
+              <FaviconUpload
+                value={faviconDataUrl}
+                onChange={setFaviconDataUrl}
+                disabled={!canEdit}
+              />
+              <p className="text-xs text-zinc-500 mt-1">
+                Upload a custom favicon for the browser tab (PNG, ICO, SVG
+                recommended)
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-6">
         <div>
           <label className="block text-sm mb-1">AR Terms (days)</label>
           <input
             type="number"
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800 disabled:opacity-60"
+            className="w-full border rounded-md px-3 py-2 card-bg disabled:opacity-60"
             value={arTermsDays}
             onChange={(e) => {
               const v = e.target.value;
@@ -172,7 +267,7 @@ export default function OrgSettings() {
         <div>
           <label className="block text-sm mb-1">Payroll Cycle</label>
           <select
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800 disabled:opacity-60"
+            className="w-full border rounded-md px-3 py-2 card-bg disabled:opacity-60"
             value={payrollCycle}
             onChange={(e) =>
               setPayrollCycle(e.target.value as PayrollFrequency)
@@ -192,7 +287,7 @@ export default function OrgSettings() {
                 type="number"
                 min={0}
                 max={6}
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800 disabled:opacity-60"
+                className="w-full border rounded-md px-3 py-2 card-bg disabled:opacity-60"
                 value={anchorDayOfWeek}
                 onChange={(e) => setAnchorDayOfWeek(Number(e.target.value))}
                 disabled={!canEdit}
@@ -206,7 +301,7 @@ export default function OrgSettings() {
               </label>
               <input
                 type="date"
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800 disabled:opacity-60"
+                className="w-full border rounded-md px-3 py-2 card-bg disabled:opacity-60"
                 value={anchorDate}
                 onChange={(e) => setAnchorDate(e.target.value)}
                 disabled={!canEdit}
@@ -220,7 +315,7 @@ export default function OrgSettings() {
                 type="number"
                 min={1}
                 max={28}
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800 disabled:opacity-60"
+                className="w-full border rounded-md px-3 py-2 card-bg disabled:opacity-60"
                 value={anchorDayOfMonth}
                 onChange={(e) => setAnchorDayOfMonth(Number(e.target.value))}
                 disabled={!canEdit}
@@ -238,7 +333,7 @@ export default function OrgSettings() {
         <div>
           <label className="block text-sm mb-1">Email From Name</label>
           <input
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800 disabled:opacity-60"
+            className="w-full border rounded-md px-3 py-2 card-bg disabled:opacity-60"
             value={fromName}
             onChange={(e) => setFromName(e.target.value)}
             placeholder="Cleveland Clean Solutions"
@@ -250,7 +345,7 @@ export default function OrgSettings() {
           <label className="block text-sm mb-1">Email From Address</label>
           <input
             type="email"
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800 disabled:opacity-60"
+            className="w-full border rounded-md px-3 py-2 card-bg disabled:opacity-60"
             value={fromEmail}
             onChange={(e) => setFromEmail(e.target.value)}
             placeholder="billing@example.com"
@@ -262,7 +357,7 @@ export default function OrgSettings() {
           <label className="block text-sm mb-1">Reply-To Address</label>
           <input
             type="email"
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800 disabled:opacity-60"
+            className="w-full border rounded-md px-3 py-2 card-bg disabled:opacity-60"
             value={replyToEmail}
             onChange={(e) => setReplyToEmail(e.target.value)}
             placeholder="support@example.com"
@@ -273,7 +368,7 @@ export default function OrgSettings() {
         <div>
           <label className="block text-sm mb-1">Default Email Subject</label>
           <input
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800 disabled:opacity-60"
+            className="w-full border rounded-md px-3 py-2 card-bg disabled:opacity-60"
             value={defaultSubject}
             onChange={(e) => setDefaultSubject(e.target.value)}
             placeholder="Your invoice from Cleveland Clean Solutions"
@@ -284,14 +379,14 @@ export default function OrgSettings() {
         <div>
           <label className="block text-sm mb-1">Email Footer (HTML)</label>
           <textarea
-            className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800 disabled:opacity-60 h-28"
+            className="w-full border rounded-md px-3 py-2 card-bg disabled:opacity-60 h-28"
             value={footerHtml}
             onChange={(e) => setFooterHtml(e.target.value)}
             placeholder="<p>Thanks for choosing us!</p>"
             disabled={!canEdit}
           />
           <div className="mt-2 text-xs text-zinc-500">Preview</div>
-          <div className="mt-1 border rounded-md p-3 bg-white dark:bg-zinc-900">
+          <div className="mt-1 border rounded-md p-3 card-bg">
             <div className="text-sm font-medium mb-1">
               Subject: {defaultSubject || "(no subject)"}
             </div>
@@ -313,42 +408,42 @@ export default function OrgSettings() {
           <div className="text-sm font-medium mb-1">Social Links</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input
-              className="border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="border rounded-md px-3 py-2 card-bg"
               placeholder="https://facebook.com/yourpage"
               value={facebook}
               onChange={(e) => setFacebook(e.target.value)}
               disabled={!canEdit}
             />
             <input
-              className="border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="border rounded-md px-3 py-2 card-bg"
               placeholder="https://instagram.com/yourpage"
               value={instagram}
               onChange={(e) => setInstagram(e.target.value)}
               disabled={!canEdit}
             />
             <input
-              className="border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="border rounded-md px-3 py-2 card-bg"
               placeholder="https://twitter.com/yourhandle"
               value={twitter}
               onChange={(e) => setTwitter(e.target.value)}
               disabled={!canEdit}
             />
             <input
-              className="border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="border rounded-md px-3 py-2 card-bg"
               placeholder="https://linkedin.com/company/yourcompany"
               value={linkedin}
               onChange={(e) => setLinkedin(e.target.value)}
               disabled={!canEdit}
             />
             <input
-              className="border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="border rounded-md px-3 py-2 card-bg"
               placeholder="https://tiktok.com/@yourhandle"
               value={tiktok}
               onChange={(e) => setTiktok(e.target.value)}
               disabled={!canEdit}
             />
             <input
-              className="border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="border rounded-md px-3 py-2 card-bg"
               placeholder="https://youtube.com/@yourchannel"
               value={youtube}
               onChange={(e) => setYoutube(e.target.value)}

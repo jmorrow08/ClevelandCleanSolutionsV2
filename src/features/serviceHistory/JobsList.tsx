@@ -257,7 +257,7 @@ export default function JobsList({
 
   return (
     <div className="space-y-2">
-      <div className="hidden md:block overflow-x-auto rounded-lg bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1">
+      <div className="hidden md:block overflow-x-auto rounded-lg card-bg shadow-elev-1">
         <table className="min-w-full text-sm">
           <thead className="text-left text-zinc-500">
             <tr>
@@ -338,19 +338,16 @@ export default function JobsList({
       </div>
       <div className="md:hidden space-y-2">
         {loading ? (
-          <div className="rounded-lg p-3 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+          <div className="rounded-lg p-3 card-bg shadow-elev-1 text-sm text-zinc-500">
             Loading…
           </div>
         ) : jobs.length === 0 ? (
-          <div className="rounded-lg p-3 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+          <div className="rounded-lg p-3 card-bg shadow-elev-1 text-sm text-zinc-500">
             No jobs found.
           </div>
         ) : (
           jobs.map((j) => (
-            <div
-              key={j.id}
-              className="rounded-lg p-3 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1"
-            >
+            <div key={j.id} className="rounded-lg p-3 card-bg shadow-elev-1">
               <div className="flex items-center justify-between gap-2">
                 <div className="font-medium min-w-0 flex-1 truncate">
                   {j.locationId ? (

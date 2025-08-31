@@ -195,7 +195,7 @@ export default function Templates() {
           <div>
             <label className="block text-sm mb-1">Name</label>
             <input
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               disabled={!canEdit}
@@ -204,7 +204,7 @@ export default function Templates() {
           <div>
             <label className="block text-sm mb-1">Subject</label>
             <input
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={form.subject}
               onChange={(e) =>
                 setForm((f) => ({ ...f, subject: e.target.value }))
@@ -216,7 +216,7 @@ export default function Templates() {
           <div>
             <label className="block text-sm mb-1">HTML</label>
             <textarea
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800 font-mono text-xs"
+              className="w-full border rounded-md px-3 py-2 card-bg font-mono text-xs"
               rows={16}
               value={form.html}
               onChange={(e) => setForm((f) => ({ ...f, html: e.target.value }))}
@@ -248,7 +248,7 @@ export default function Templates() {
                 </button>
               )}
               <button
-                className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                className="px-3 py-1.5 rounded-md border card-bg"
                 onClick={() => setShowPreview(true)}
               >
                 Preview
@@ -268,13 +268,13 @@ export default function Templates() {
             className="absolute inset-0 bg-black/40"
             onClick={() => setShowPreview(false)}
           />
-          <div className="relative w-full max-w-3xl h-[80vh] rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4 overflow-auto">
+          <div className="relative w-full max-w-3xl h-[80vh] rounded-lg card-bg shadow-elev-3 p-4 overflow-auto">
             <div className="flex items-center justify-between mb-3">
               <div className="text-lg font-medium">
                 Preview: {form.name || selected?.name || "Untitled"}
               </div>
               <button
-                className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                className="px-3 py-1.5 rounded-md border card-bg"
                 onClick={() => setShowPreview(false)}
               >
                 Close
@@ -283,7 +283,7 @@ export default function Templates() {
             <div className="text-sm text-zinc-500 mb-2">
               Subject: {form.subject || selected?.subject || "(none)"}
             </div>
-            <div className="border rounded-md p-3 bg-white dark:bg-zinc-800">
+            <div className="border rounded-md p-3 card-bg">
               <iframe
                 title="template-preview"
                 className="w-full h-[60vh] bg-white"

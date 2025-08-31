@@ -1,7 +1,7 @@
 :root {
   /* Light mode aligned with V1 */
   --bg: #ffffff; /* bright white for clarity */
-  --card: #ffffff; /* white cards */
+  --card: #f8f9fa; /* light gray cards for better contrast */
   --text: #333333; /* V1 primary text */
   --muted: #f8f9fa; /* soft muted surface */
   --border: #e0e0e0; /* light borders like V1 */
@@ -22,4 +22,15 @@
   --success: #22c55e;
   --warning: #fbbf24;
   --error: #ef4444;
+}
+
+/* Theme-aware card background classes */
+.card-bg {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+}
+
+.dark .card-bg {
+  background-color: var(--card);
+  border: 1px solid var(--border);
 }

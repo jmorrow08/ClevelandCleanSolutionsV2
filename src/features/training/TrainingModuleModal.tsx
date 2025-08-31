@@ -96,13 +96,13 @@ export default function TrainingModuleModal({ onClose, onCreated }: Props) {
         className="absolute inset-0 bg-black/40"
         onClick={() => !submitting && onClose()}
       />
-      <div className="relative w-full max-w-2xl rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4">
+      <div className="relative w-full max-w-2xl rounded-lg card-bg shadow-elev-3 p-4">
         <div className="text-lg font-medium">New Training Module</div>
         <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="md:col-span-2">
             <label className="block text-sm mb-1">Title</label>
             <input
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
@@ -110,7 +110,7 @@ export default function TrainingModuleModal({ onClose, onCreated }: Props) {
           <div className="md:col-span-2">
             <label className="block text-sm mb-1">Description</label>
             <textarea
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
@@ -118,7 +118,7 @@ export default function TrainingModuleModal({ onClose, onCreated }: Props) {
           <div>
             <label className="block text-sm mb-1">Audience</label>
             <select
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={audience}
               onChange={(e) => setAudience(e.target.value as any)}
             >
@@ -132,7 +132,7 @@ export default function TrainingModuleModal({ onClose, onCreated }: Props) {
               type="number"
               min={0}
               max={100}
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={passScore}
               onChange={(e) => setPassScore(e.target.value)}
             />
@@ -161,7 +161,7 @@ export default function TrainingModuleModal({ onClose, onCreated }: Props) {
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
           <button
-            className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+            className="px-3 py-1.5 rounded-md border card-bg"
             onClick={() => !submitting && onClose()}
             disabled={submitting}
           >
@@ -181,9 +181,3 @@ export default function TrainingModuleModal({ onClose, onCreated }: Props) {
     </div>
   );
 }
-
-
-
-
-
-

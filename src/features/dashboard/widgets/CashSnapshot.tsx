@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { firebaseConfig } from "../../../services/firebase";
 import { subDays } from "date-fns";
+import { ServiceAgreementProjectionService } from "../../../services/serviceAgreementProjections";
 
 type Point = { date: string; inflow: number; outflow: number };
 
@@ -27,7 +28,7 @@ export default function CashSnapshot() {
         const start = subDays(end, 90);
 
         // Inflows: invoices status paid in last 90d
-        const inflows: Record<string, number> = {};
+        const actualInflows: Record<string, number> = {};
         try {
           const paidQ = query(
             collection(db, "invoices"),
@@ -42,10 +43,22 @@ export default function CashSnapshot() {
             const dt = v?.createdAt?.toDate ? v.createdAt.toDate() : undefined;
             const day = dt ? dt.toISOString().slice(0, 10) : "";
             const amt = Number(v?.totalAmount ?? v?.amount ?? 0) || 0;
-            if (day) inflows[day] = (inflows[day] || 0) + amt;
+            if (day) actualInflows[day] = (actualInflows[day] || 0) + amt;
           });
         } catch (e: any) {
           console.warn("Cash inflows query may require index", e?.message);
+        }
+
+        // Projected inflows from service agreements
+        const projectedInflows: Record<string, number> = {};
+        try {
+          const projectedData =
+            await ServiceAgreementProjectionService.getProjectedCashflow(90);
+          projectedData.forEach((point) => {
+            projectedInflows[point.date] = point.inflow;
+          });
+        } catch (e: any) {
+          console.warn("Error loading projected inflows", e?.message);
         }
 
         // Outflows: payrollRuns totals in last 90d (using periodEnd)
@@ -69,14 +82,23 @@ export default function CashSnapshot() {
           console.warn("Cash outflows query may require index", e?.message);
         }
 
-        // Merge by day
+        // Merge actual and projected inflows
+        const combinedInflows: Record<string, number> = {};
         const allDays = new Set<string>([
-          ...Object.keys(inflows),
+          ...Object.keys(actualInflows),
+          ...Object.keys(projectedInflows),
           ...Object.keys(outflows),
         ]);
+
+        allDays.forEach((day) => {
+          combinedInflows[day] =
+            (actualInflows[day] || 0) + (projectedInflows[day] || 0);
+        });
+
+        // Merge by day
         const merged: Point[] = [...allDays].sort().map((d) => ({
           date: d,
-          inflow: inflows[d] || 0,
+          inflow: combinedInflows[d] || 0,
           outflow: outflows[d] || 0,
         }));
         setPoints(merged.slice(-30));
@@ -88,7 +110,7 @@ export default function CashSnapshot() {
   }, []);
 
   return (
-    <div className="rounded-lg p-4 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1">
+    <div className="rounded-lg p-4 card-bg shadow-elev-1">
       <div className="font-medium">Cash Snapshot</div>
       {loading ? (
         <div className="text-sm text-zinc-500 mt-2">Loading…</div>
@@ -96,7 +118,7 @@ export default function CashSnapshot() {
         <div className="text-sm text-zinc-500 mt-2">No recent data.</div>
       ) : (
         <div className="text-sm text-zinc-500 mt-2">
-          Inflows vs Outflows (last ~30 pts)
+          Inflows vs Outflows (includes projections)
         </div>
       )}
     </div>

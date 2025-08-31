@@ -102,7 +102,7 @@ export default function PaymentsPage() {
       ) : payments.length === 0 ? (
         <div className="text-sm text-zinc-500">No payments recorded.</div>
       ) : (
-        <div className="overflow-x-auto rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1">
+        <div className="overflow-x-auto rounded-lg card-bg shadow-elev-1">
           <table className="min-w-full text-sm">
             <thead className="text-left text-zinc-500">
               <tr>
@@ -171,13 +171,13 @@ export default function PaymentsPage() {
             className="absolute inset-0 bg-black/40"
             onClick={() => !creating && setShowNew(false)}
           />
-          <div className="relative w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4">
+          <div className="relative w-full max-w-md rounded-lg card-bg shadow-elev-3 p-4">
             <div className="text-lg font-medium">Record Payment</div>
             <div className="mt-3 space-y-3">
               <div>
                 <label className="block text-sm mb-1">Invoice ID</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.invoiceId}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, invoiceId: e.target.value }))
@@ -191,7 +191,7 @@ export default function PaymentsPage() {
                   type="number"
                   min="0"
                   step="0.01"
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.amount}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, amount: e.target.value }))
@@ -201,7 +201,7 @@ export default function PaymentsPage() {
               <div>
                 <label className="block text-sm mb-1">Method</label>
                 <select
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.method}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, method: e.target.value as any }))
@@ -216,7 +216,7 @@ export default function PaymentsPage() {
                 <label className="block text-sm mb-1">Received At</label>
                 <input
                   type="date"
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={form.receivedAt}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, receivedAt: e.target.value }))
@@ -226,7 +226,7 @@ export default function PaymentsPage() {
             </div>
             <div className="mt-4 flex items-center justify-end gap-2">
               <button
-                className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                className="px-3 py-1.5 rounded-md border card-bg"
                 onClick={() => setShowNew(false)}
                 disabled={creating}
               >

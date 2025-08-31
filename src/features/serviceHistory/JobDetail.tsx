@@ -393,6 +393,18 @@ export default function JobDetail() {
               }
             : prev
         );
+
+        // Auto-update timesheet earnings when job is completed
+        if (statusLegacy === "Completed") {
+          try {
+            const { updateTimesheetEarningsOnJobCompletion } = await import(
+              "../../services/automation/timesheetAutomation"
+            );
+            await updateTimesheetEarningsOnJobCompletion(jobId!);
+          } catch (error) {
+            console.error("Failed to update timesheet earnings:", error);
+          }
+        }
       }
       show({ type: "success", message: "Approval changes saved." });
     } catch (e: any) {
@@ -534,7 +546,7 @@ export default function JobDetail() {
         <span className="mx-2">/</span>
         <span className="opacity-70">Job {jobId}</span>
       </div>
-      <div className="rounded-lg p-4 bg-[var(--card)] dark:bg-zinc-800 shadow-elev-1">
+      <div className="rounded-lg p-4 card-bg shadow-elev-1">
         {loading ? (
           <div className="text-sm text-zinc-500">Loading…</div>
         ) : !job ? (
@@ -703,7 +715,7 @@ export default function JobDetail() {
                   {/* Allow all roles to add notes; permissions enforced server-side */}
                   <div className="mt-3">
                     <textarea
-                      className="w-full border rounded-md p-2 bg-white dark:bg-zinc-900"
+                      className="w-full border rounded-md p-2 card-bg"
                       rows={3}
                       placeholder="Add a note for this job…"
                       value={newNote}
@@ -735,7 +747,7 @@ export default function JobDetail() {
                     <div>
                       <label className="block text-sm mb-1">Job Status</label>
                       <select
-                        className="w-full border rounded-md p-2 bg-white dark:bg-zinc-900 text-sm"
+                        className="w-full border rounded-md p-2 card-bg text-sm"
                         value={statusLegacy}
                         onChange={(e) => setStatusLegacy(e.target.value)}
                       >
@@ -863,7 +875,7 @@ export default function JobDetail() {
                             {showNotes ? (
                               <div className="mt-2">
                                 <textarea
-                                  className="w-full border rounded-md p-2 bg-white dark:bg-zinc-800 text-sm"
+                                  className="w-full border rounded-md p-2 card-bg text-sm"
                                   rows={2}
                                   placeholder="Add a note for this photo…"
                                   value={notesVal}

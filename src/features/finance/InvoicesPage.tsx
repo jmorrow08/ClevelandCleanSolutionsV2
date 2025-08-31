@@ -23,6 +23,7 @@ import { RoleGuard } from "../../context/RoleGuard";
 import { useToast } from "../../context/ToastContext";
 import { useQuickActions } from "../../context/QuickActionsContext";
 import InvoiceEditModal, { type InvoiceRecord } from "./InvoiceEditModal";
+import NewInvoiceModal from "./NewInvoiceModal";
 import { useSettings } from "../../context/SettingsContext";
 import { renderInvoicePdf, renderInvoicePreview } from "../../lib/invoicePdf";
 import { useAuth } from "../../context/AuthContext";
@@ -119,7 +120,6 @@ export default function InvoicesPage() {
     const params = new URLSearchParams(location.search);
     const qp = params.get("search") || params.get("clientId") || "";
     if (qp) setSearch((prev) => (prev ? prev : qp));
-     
   }, [location.search]);
 
   useEffect(() => {
@@ -255,7 +255,7 @@ export default function InvoicesPage() {
         <div className="flex items-center gap-2">
           <label className="text-sm">Status</label>
           <select
-            className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-900"
+            className="border rounded-md px-2 py-1 card-bg"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
           >
@@ -267,13 +267,13 @@ export default function InvoicesPage() {
         </div>
         <input
           placeholder="Search by ID, email, status"
-          className="border rounded-md px-3 py-1 flex-1 bg-white dark:bg-zinc-900"
+          className="border rounded-md px-3 py-1 flex-1 card-bg"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         <div className="flex items-center gap-2 ml-auto">
           <button
-            className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900 text-sm"
+            className="px-3 py-1.5 rounded-md border card-bg text-sm"
             onClick={exportCsv}
           >
             Export CSV
@@ -292,7 +292,7 @@ export default function InvoicesPage() {
       {!(claims?.admin || claims?.owner || claims?.super_admin) ? (
         <div className="text-sm text-zinc-500">You do not have access.</div>
       ) : (
-        <div className="hidden md:block overflow-x-auto rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1">
+        <div className="hidden md:block overflow-x-auto rounded-lg card-bg shadow-elev-1">
           <table className="min-w-full text-sm">
             <thead className="text-left text-zinc-500">
               <tr>
@@ -498,11 +498,11 @@ export default function InvoicesPage() {
       {(claims?.admin || claims?.owner || claims?.super_admin) && (
         <div className="md:hidden space-y-2">
           {loading ? (
-            <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+            <div className="rounded-lg p-3 card-bg shadow-elev-1 text-sm text-zinc-500">
               Loading…
             </div>
           ) : filtered.length === 0 ? (
-            <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+            <div className="rounded-lg p-3 card-bg shadow-elev-1 text-sm text-zinc-500">
               {statusFilter === "All" && !search
                 ? "No invoices found."
                 : "No matching invoices."}
@@ -513,7 +513,7 @@ export default function InvoicesPage() {
               return (
                 <div
                   key={inv.id}
-                  className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1"
+                  className="rounded-lg p-3 card-bg shadow-elev-1"
                 >
                   <div className="flex items-center justify-between">
                     <div className="font-medium">
@@ -677,135 +677,18 @@ export default function InvoicesPage() {
       )}
 
       {showNew && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => !submitting && setShowNew(false)}
-          />
-          <div className="relative w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4">
-            <div className="text-lg font-medium">New Invoice</div>
-            <div className="mt-3 space-y-3">
-              <div>
-                <label className="block text-sm mb-1">Client ID</label>
-                <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
-                  value={form.clientId}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, clientId: e.target.value }))
-                  }
-                  placeholder="clientProfileId or account id"
-                />
-              </div>
-              <div>
-                <label className="block text-sm mb-1">Due Date</label>
-                <input
-                  type="date"
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
-                  value={form.dueDate}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, dueDate: e.target.value }))
-                  }
-                />
-              </div>
-              <div>
-                <label className="block text-sm mb-1">Amount (USD)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
-                  value={form.amount}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, amount: e.target.value }))
-                  }
-                />
-              </div>
-            </div>
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
-                onClick={() => setShowNew(false)}
-                disabled={submitting}
-              >
-                Cancel
-              </button>
-              <button
-                className={`px-3 py-1.5 rounded-md text-white ${
-                  submitting ? "bg-zinc-400" : "bg-blue-600 hover:bg-blue-700"
-                }`}
-                onClick={async () => {
-                  const clientId = form.clientId.trim();
-                  const dueStr = form.dueDate;
-                  const amountNum = Number(form.amount);
-                  if (
-                    !clientId ||
-                    !dueStr ||
-                    !isFinite(amountNum) ||
-                    amountNum <= 0
-                  ) {
-                    show({
-                      type: "error",
-                      message: "Fill client, due date, and positive amount.",
-                    });
-                    return;
-                  }
-                  try {
-                    setSubmitting(true);
-                    const db = getFirestore();
-                    const due = Timestamp.fromDate(
-                      new Date(`${dueStr}T00:00:00`)
-                    );
-                    const optimistic: Invoice = {
-                      id: `tmp-${Math.random().toString(36).slice(2)}`,
-                      status: "pending",
-                      createdAt: new Date(),
-                      dueDate: due.toDate(),
-                      amount: amountNum,
-                    } as any;
-                    setInvoices((prev) => [optimistic, ...prev]);
-                    const { invoiceNumber, bucket } =
-                      await getNextInvoiceNumber(new Date());
-                    const ref = await addDoc(collection(db, "invoices"), {
-                      clientId,
-                      dueDate: due,
-                      amount: amountNum,
-                      status: "pending",
-                      createdAt: serverTimestamp(),
-                      invoiceNumber,
-                      invoiceYearMonth: bucket,
-                      invoiceNumberAssignedAt: serverTimestamp(),
-                    });
-                    setInvoices((prev) => [
-                      {
-                        ...optimistic,
-                        id: ref.id,
-                        createdAt: new Date(),
-                        invoiceNumber,
-                      },
-                      ...prev.filter((x) => x.id !== optimistic.id),
-                    ]);
-                    setShowNew(false);
-                    setForm({ clientId: "", dueDate: "", amount: "" });
-                    show({ type: "success", message: "Invoice created." });
-                  } catch (e: any) {
-                    setInvoices((prev) =>
-                      prev.filter((x) => !x.id.startsWith("tmp-"))
-                    );
-                    show({
-                      type: "error",
-                      message: e?.message || "Failed to create invoice",
-                    });
-                  } finally {
-                    setSubmitting(false);
-                  }
-                }}
-                disabled={submitting}
-              >
-                {submitting ? "Saving…" : "Create"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <NewInvoiceModal
+          open={showNew}
+          onClose={() => setShowNew(false)}
+          onCreated={(newInvoice) => {
+            setInvoices((prev) => [newInvoice, ...prev]);
+            setShowNew(false);
+            setForm({ clientId: "", dueDate: "", amount: "" });
+            show({ type: "success", message: "Invoice created." });
+          }}
+          submitting={submitting}
+          setSubmitting={setSubmitting}
+        />
       )}
 
       <InvoiceEditModal

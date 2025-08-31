@@ -120,7 +120,7 @@ export default function JobEdit() {
         <span className="mx-2">/</span>
         <span className="opacity-70">Job {jobId}</span>
       </div>
-      <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+      <div className="rounded-lg p-4 card-bg shadow-elev-1">
         <div className="flex items-center justify-between">
           <div className="font-medium">Job {jobId}</div>
           <div className="flex items-center gap-2">

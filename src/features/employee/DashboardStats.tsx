@@ -222,7 +222,7 @@ export default function DashboardStats() {
     const cleanup = loadStats();
     return () => {
       if (cleanup && typeof cleanup === "function") {
-        cleanup();
+        // cleanup();
       }
     };
   }, [user?.uid, locations]);
@@ -288,7 +288,7 @@ export default function DashboardStats() {
       {cards.map((card, index) => (
         <div
           key={index}
-          className="bg-white dark:bg-zinc-800 border border-border rounded-lg shadow-sm p-6"
+          className="card-bg border border-border rounded-lg shadow-sm p-6"
         >
           <div className="flex items-center gap-4">
             <div

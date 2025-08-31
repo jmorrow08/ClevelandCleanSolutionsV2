@@ -1,4 +1,3 @@
-import { initializeApp, getApps } from "firebase/app";
 import {
   getFirestore,
   getDoc,
@@ -18,7 +17,7 @@ import {
   httpsCallable,
   connectFunctionsEmulator,
 } from "firebase/functions";
-import { firebaseConfig } from "../firebase";
+import { getFirebaseApp, getFirestoreInstance } from "../firebase";
 
 export type RunTotals = {
   byEmployee: Record<
@@ -29,14 +28,10 @@ export type RunTotals = {
   totalEarnings: number;
 };
 
-function ensureApp() {
-  if (!getApps().length) initializeApp(firebaseConfig);
-}
-
 function getCallableFunctions() {
-  ensureApp();
+  const app = getFirebaseApp();
   // Always use explicit region to match deployed functions
-  const fns = getFunctions(undefined as any, "us-central1");
+  const fns = getFunctions(app, "us-central1");
   try {
     if (
       import.meta.env.DEV &&
@@ -52,8 +47,7 @@ async function getEffectiveHourlyRate(
   employeeId: string,
   effectiveAt: Timestamp
 ): Promise<number> {
-  ensureApp();
-  const db = getFirestore();
+  const db = getFirestoreInstance();
   const qy = query(
     collection(db, "employeeRates"),
     where("employeeId", "==", employeeId),
@@ -96,8 +90,8 @@ async function getEffectiveHourlyRate(
 
 export async function calculateRunTotals(runId: string): Promise<RunTotals> {
   if (!runId) throw new Error("runId required");
-  ensureApp();
-  const db = getFirestore();
+
+  const db = getFirestoreInstance();
   const runRef = doc(db, "payrollRuns", runId);
   const runSnap = await getDoc(runRef);
   if (!runSnap.exists()) throw new Error("Run not found");
@@ -187,7 +181,6 @@ export async function approveTimesheets(
   if (!Array.isArray(timesheetIds) || timesheetIds.length === 0)
     return { count: 0 };
 
-  ensureApp();
   const functions = getCallableFunctions();
 
   try {
@@ -213,7 +206,6 @@ export async function createPayrollRun(
   if (!periodStart || !periodEnd)
     throw new Error("periodStart and periodEnd are required");
 
-  ensureApp();
   const functions = getCallableFunctions();
 
   try {
@@ -263,7 +255,6 @@ export async function createPayrollRun(
 export async function recalcPayrollRun(runId: string): Promise<RunTotals> {
   if (!runId) throw new Error("runId required");
 
-  ensureApp();
   const functions = getCallableFunctions();
 
   try {
@@ -324,15 +315,31 @@ function normalizeRateDoc(data: Record<string, unknown>) {
     (typeof (data as any)?.hourlyRate === "number"
       ? (data as any).hourlyRate
       : null) ??
+    (typeof (data as any)?.monthlyRate === "number"
+      ? (data as any).monthlyRate
+      : null) ??
     (typeof (data as any)?.rate === "number" ? (data as any).rate : null) ??
     0;
-  let type: "per_visit" | "hourly" =
-    rawRateType === "hourly" ? "hourly" : "per_visit";
-  if (!rawRateType) {
-    if (typeof (data as any)?.hourlyRate === "number") type = "hourly";
-    else type = "per_visit";
+
+  let type: "per_visit" | "hourly" | "monthly";
+  if (rawRateType) {
+    type = rawRateType;
+  } else if (typeof (data as any)?.monthlyRate === "number") {
+    type = "monthly";
+  } else if (typeof (data as any)?.hourlyRate === "number") {
+    type = "hourly";
+  } else {
+    type = "per_visit";
   }
-  return { type, amount: Number(numericAmount || 0) } as const;
+
+  const result: any = { type, amount: Number(numericAmount || 0) };
+
+  // Include monthly pay day if available
+  if (type === "monthly" && typeof (data as any)?.monthlyPayDay === "number") {
+    result.monthlyPayDay = (data as any).monthlyPayDay;
+  }
+
+  return result;
 }
 
 // Helper function to get effective rate for an employee at a specific date
@@ -341,9 +348,12 @@ async function getEffectiveRate(
   effectiveAt: Timestamp,
   locationId?: string,
   clientProfileId?: string
-): Promise<{ type: "per_visit" | "hourly"; amount: number } | null> {
-  ensureApp();
-  const db = getFirestore();
+): Promise<{
+  type: "per_visit" | "hourly" | "monthly";
+  amount: number;
+  monthlyPayDay?: number;
+} | null> {
+  const db = getFirestoreInstance();
 
   // We'll try two identifier fields for backward-compatibility:
   // 1) employeeId (newer schema)
@@ -458,8 +468,7 @@ async function checkTimesheetExists(
   jobId: string,
   serviceDate: Date
 ): Promise<boolean> {
-  ensureApp();
-  const db = getFirestore();
+  const db = getFirestoreInstance();
 
   const startOfDay = new Date(serviceDate);
   startOfDay.setHours(0, 0, 0, 0);
@@ -501,7 +510,11 @@ export async function scanJobsForPeriod(
     serviceDate: Date;
     locationId?: string;
     clientProfileId?: string;
-    rateSnapshot: { type: "per_visit" | "hourly"; amount: number };
+    rateSnapshot: {
+      type: "per_visit" | "hourly" | "monthly";
+      amount: number;
+      monthlyPayDay?: number;
+    };
     units: number;
     hours?: number;
   }>;
@@ -519,8 +532,7 @@ export async function scanJobsForPeriod(
     throw new Error("periodStart and periodEnd are required");
   }
 
-  ensureApp();
-  const db = getFirestore();
+  const db = getFirestoreInstance();
 
   // Query serviceHistory for the period
   const qy = query(
@@ -629,6 +641,11 @@ export async function scanJobsForPeriod(
       continue;
     }
 
+    // Skip monthly rates as they can't be converted to timesheets
+    if (rateSnapshot.type === "monthly") {
+      continue;
+    }
+
     // Create draft timesheet
     const draft: {
       employeeId: string;
@@ -645,7 +662,10 @@ export async function scanJobsForPeriod(
       serviceDate: assignment.serviceDate,
       locationId: assignment.locationId,
       clientProfileId: assignment.clientProfileId,
-      rateSnapshot,
+      rateSnapshot: rateSnapshot as {
+        type: "per_visit" | "hourly";
+        amount: number;
+      },
       units: 1,
     };
 
@@ -683,8 +703,7 @@ export async function generateTimesheets(
     return { created: 0 };
   }
 
-  ensureApp();
-  const db = getFirestore();
+  const db = getFirestoreInstance();
 
   let created = 0;
 
@@ -733,7 +752,6 @@ export async function backfillRateSnapshots(
     throw new Error("startDate and endDate are required");
   }
 
-  ensureApp();
   const functions = getCallableFunctions();
 
   try {
@@ -789,8 +807,7 @@ export async function isPayrollRunLocked(runId: string): Promise<boolean> {
     return false;
   }
 
-  ensureApp();
-  const db = getFirestore();
+  const db = getFirestoreInstance();
 
   try {
     const runDoc = await getDoc(doc(db, "payrollRuns", runId));
@@ -807,8 +824,7 @@ export async function isPayrollRunLocked(runId: string): Promise<boolean> {
 }
 
 export async function getLockedPayrollRunIds(): Promise<string[]> {
-  ensureApp();
-  const db = getFirestore();
+  const db = getFirestoreInstance();
 
   try {
     const lockedRunsQuery = query(

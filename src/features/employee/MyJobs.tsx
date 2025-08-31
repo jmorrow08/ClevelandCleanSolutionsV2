@@ -18,11 +18,13 @@ import {
 } from "firebase/firestore";
 import { firebaseConfig } from "../../services/firebase";
 import { useAuth } from "../../context/AuthContext";
-import {
-  makeDayBounds as makeDayBoundsUtil,
-  formatJobWindow,
-} from "../../utils/time";
+import { formatJobWindow } from "../../utils/time";
 import { getLocationNames } from "../../services/queries/resolvers";
+import {
+  getTodayBounds,
+  getWeekBounds,
+  toFirestoreTimestamp,
+} from "../../utils/timezone";
 import JobDetailsModal from "./JobDetailsModal";
 
 type JobItem = {
@@ -123,16 +125,17 @@ export default function MyJobs() {
           // Silently handle user data fetch error
         }
 
-        // Build range for current week
-        const startDate = currentWeekDates.start;
-        const endDate = currentWeekDates.end;
+        // Build range for current week using timezone-aware bounds
+        const weekBounds = getWeekBounds();
+        const startDate = weekBounds.start;
+        const endDate = weekBounds.end;
 
         // Primary query: UID assigned
         const qPrimary = query(
           collection(db, "serviceHistory"),
           where("assignedEmployees", "array-contains", user.uid),
-          where("serviceDate", ">=", Timestamp.fromDate(startDate)),
-          where("serviceDate", "<", Timestamp.fromDate(endDate)),
+          where("serviceDate", ">=", toFirestoreTimestamp(startDate)),
+          where("serviceDate", "<", toFirestoreTimestamp(endDate)),
           orderBy("serviceDate", "asc")
         );
         const map = new Map<string, JobItem>();
@@ -144,8 +147,8 @@ export default function MyJobs() {
           const qSecondary = query(
             collection(db, "serviceHistory"),
             where("assignedEmployees", "array-contains", profileId),
-            where("serviceDate", ">=", Timestamp.fromDate(startDate)),
-            where("serviceDate", "<", Timestamp.fromDate(endDate)),
+            where("serviceDate", ">=", toFirestoreTimestamp(startDate)),
+            where("serviceDate", "<", toFirestoreTimestamp(endDate)),
             orderBy("serviceDate", "asc")
           );
           const snap2 = await getDocs(qSecondary);
@@ -158,8 +161,8 @@ export default function MyJobs() {
         if (map.size === 0) {
           const qFallback = query(
             collection(db, "serviceHistory"),
-            where("serviceDate", ">=", Timestamp.fromDate(startDate)),
-            where("serviceDate", "<", Timestamp.fromDate(endDate)),
+            where("serviceDate", ">=", toFirestoreTimestamp(startDate)),
+            where("serviceDate", "<", toFirestoreTimestamp(endDate)),
             orderBy("serviceDate", "asc")
           );
           const snapF = await getDocs(qFallback);
@@ -297,7 +300,8 @@ export default function MyJobs() {
             map[j.id] = formatJobWindow((j as any).serviceDate);
             continue;
           }
-          const { start, end } = makeDayBoundsUtil(dt, "America/New_York");
+          const bounds = getTodayBounds();
+          const { start, end } = bounds;
           try {
             const qref = query(
               collection(db, "employeeTimeTracking"),
@@ -569,7 +573,7 @@ export default function MyJobs() {
             return (
               <div
                 key={j.id}
-                className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1 border border-zinc-200 dark:border-zinc-700"
+                className="rounded-lg p-4 card-bg shadow-elev-1 border border-zinc-200 dark:border-zinc-700"
               >
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex-1">

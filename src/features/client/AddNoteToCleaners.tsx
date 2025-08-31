@@ -103,7 +103,7 @@ export default function AddNoteToCleaners() {
     <div>
       <div className="font-medium mb-1">Add Note to Cleaners</div>
       <textarea
-        className="w-full border rounded-md p-2 bg-white dark:bg-zinc-900"
+        className="w-full border rounded-md p-2 card-bg"
         rows={4}
         placeholder="Write a note for your cleaning team…"
         value={message}

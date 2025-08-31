@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps } from "firebase/app";
 import {
   getFirestore,
   collection,
@@ -25,6 +25,37 @@ export const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
+
+// Centralized Firebase app instance
+let firebaseApp: any = null;
+let firestoreDb: any = null;
+
+/**
+ * Get or initialize the Firebase app instance (singleton pattern)
+ */
+export function getFirebaseApp() {
+  if (!firebaseApp) {
+    // Check if app already exists (from AuthContext or elsewhere)
+    const apps = getApps();
+    if (apps.length > 0) {
+      firebaseApp = apps[0];
+    } else {
+      firebaseApp = initializeApp(firebaseConfig);
+    }
+  }
+  return firebaseApp;
+}
+
+/**
+ * Get or initialize the Firestore instance (singleton pattern)
+ */
+export function getFirestoreInstance() {
+  if (!firestoreDb) {
+    const app = getFirebaseApp();
+    firestoreDb = getFirestore(app);
+  }
+  return firestoreDb;
+}
 
 // README:
 // Create a .env.local in project root with:
@@ -125,8 +156,7 @@ export function mergePhotoResults<T extends { id: string }>(
 export async function archiveServiceRecords(
   cutoffDate: Date
 ): Promise<{ archived: number; errors: number }> {
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+  const db = getFirestoreInstance();
 
   try {
     // Query for records before the cutoff date that are not already archived

@@ -96,7 +96,7 @@ export default function InvoicesPage() {
   return (
     <div className="p-6">
       <h1 className="text-xl font-semibold">Invoices</h1>
-      <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1 mt-4">
+      <div className="rounded-lg p-4 card-bg shadow-elev-1 mt-4">
         {loading ? (
           <div className="text-sm text-zinc-500">Loading…</div>
         ) : invoices.length === 0 ? (

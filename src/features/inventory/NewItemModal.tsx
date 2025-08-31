@@ -45,13 +45,13 @@ export default function NewItemModal({
         className="absolute inset-0 bg-black/40"
         onClick={() => !saving && onClose()}
       />
-      <div className="relative w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4">
+      <div className="relative w-full max-w-md rounded-lg card-bg shadow-elev-3 p-4">
         <div className="text-lg font-medium">New Inventory Item</div>
         <div className="mt-3 space-y-3">
           <div>
             <label className="block text-sm mb-1">Name</label>
             <input
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
@@ -59,7 +59,7 @@ export default function NewItemModal({
           <div>
             <label className="block text-sm mb-1">SKU</label>
             <input
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={sku}
               onChange={(e) => setSku(e.target.value)}
             />
@@ -68,7 +68,7 @@ export default function NewItemModal({
             <div>
               <label className="block text-sm mb-1">Unit</label>
               <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                className="w-full border rounded-md px-3 py-2 card-bg"
                 value={unit}
                 onChange={(e) => setUnit(e.target.value)}
                 placeholder="e.g., bottle"
@@ -80,7 +80,7 @@ export default function NewItemModal({
                 type="number"
                 min="0"
                 step="0.01"
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                className="w-full border rounded-md px-3 py-2 card-bg"
                 value={unitCost}
                 onChange={(e) => setUnitCost(e.target.value)}
               />
@@ -90,7 +90,7 @@ export default function NewItemModal({
             <div>
               <label className="block text-sm mb-1">Vendor</label>
               <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                className="w-full border rounded-md px-3 py-2 card-bg"
                 value={vendor}
                 onChange={(e) => setVendor(e.target.value)}
               />
@@ -101,7 +101,7 @@ export default function NewItemModal({
                 type="number"
                 min="0"
                 step="1"
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                className="w-full border rounded-md px-3 py-2 card-bg"
                 value={reorderPoint}
                 onChange={(e) => setReorderPoint(e.target.value)}
               />
@@ -110,7 +110,7 @@ export default function NewItemModal({
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
           <button
-            className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+            className="px-3 py-1.5 rounded-md border card-bg"
             onClick={() => onClose()}
             disabled={saving}
           >

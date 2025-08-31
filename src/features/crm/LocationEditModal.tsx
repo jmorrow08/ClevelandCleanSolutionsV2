@@ -65,13 +65,13 @@ export default function LocationEditModal({
         className="absolute inset-0 bg-black/40"
         onClick={() => !submitting && onClose()}
       />
-      <div className="relative w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4">
+      <div className="relative w-full max-w-md rounded-lg card-bg shadow-elev-3 p-4">
         <div className="text-lg font-medium">Edit Location</div>
         <div className="mt-3 space-y-3">
           <div>
             <label className="block text-sm mb-1">Location Name</label>
             <input
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={locationName}
               onChange={(e) => setLocationName(e.target.value)}
             />
@@ -79,7 +79,7 @@ export default function LocationEditModal({
           <div>
             <label className="block text-sm mb-1">Address line 1</label>
             <input
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={line1}
               onChange={(e) => setLine1(e.target.value)}
             />
@@ -87,7 +87,7 @@ export default function LocationEditModal({
           <div>
             <label className="block text-sm mb-1">Address line 2</label>
             <input
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={line2}
               onChange={(e) => setLine2(e.target.value)}
             />
@@ -96,7 +96,7 @@ export default function LocationEditModal({
             <div>
               <label className="block text-sm mb-1">City</label>
               <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                className="w-full border rounded-md px-3 py-2 card-bg"
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
               />
@@ -104,7 +104,7 @@ export default function LocationEditModal({
             <div>
               <label className="block text-sm mb-1">State</label>
               <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                className="w-full border rounded-md px-3 py-2 card-bg"
                 value={state}
                 onChange={(e) => setState(e.target.value)}
               />
@@ -112,7 +112,7 @@ export default function LocationEditModal({
             <div>
               <label className="block text-sm mb-1">Zip</label>
               <input
-                className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                className="w-full border rounded-md px-3 py-2 card-bg"
                 value={zip}
                 onChange={(e) => setZip(e.target.value)}
               />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { initializeApp, getApps } from "firebase/app";
+// Firebase imports removed - not currently used
 import {
   collection,
   getDocs,
@@ -10,7 +10,7 @@ import {
   addDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { firebaseConfig } from "../../services/firebase";
+// firebaseConfig removed - not currently used
 import { useToast } from "../../context/ToastContext";
 import { useFirestoreErrorHandler } from "../../utils/firestoreErrors";
 import { useAuth } from "../../context/AuthContext";
@@ -122,7 +122,7 @@ export default function ClientResources() {
         <div className="text-sm text-zinc-500">Loading…</div>
       ) : (
         <>
-          <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+          <div className="rounded-lg p-4 card-bg shadow-elev-1">
             <div className="font-medium mb-2">Resources for My Company</div>
             {companyAssets.length === 0 ? (
               <div className="text-sm text-zinc-500">No company resources.</div>
@@ -145,7 +145,7 @@ export default function ClientResources() {
             )}
           </div>
 
-          <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+          <div className="rounded-lg p-4 card-bg shadow-elev-1">
             <div className="font-medium mb-2">Public Guides</div>
             {publicGuides.length === 0 ? (
               <div className="text-sm text-zinc-500">No public guides.</div>

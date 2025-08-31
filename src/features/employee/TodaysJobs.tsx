@@ -368,7 +368,7 @@ export default function TodaysJobs() {
             return (
               <div
                 key={job.id}
-                className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1 border border-zinc-200 dark:border-zinc-700"
+                className="rounded-lg p-4 card-bg shadow-elev-1 border border-zinc-200 dark:border-zinc-700"
               >
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex-1">

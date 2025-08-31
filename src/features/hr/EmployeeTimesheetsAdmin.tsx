@@ -138,7 +138,7 @@ export default function EmployeeTimesheetsAdmin() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <select
-            className="border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+            className="border rounded-md px-3 py-2 card-bg"
             value={selected}
             onChange={(e) => setSelected(e.target.value)}
             disabled={loadingList}
@@ -157,7 +157,7 @@ export default function EmployeeTimesheetsAdmin() {
           )}
         </div>
 
-        <div className="overflow-x-auto rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1">
+        <div className="overflow-x-auto rounded-lg card-bg shadow-elev-1">
           <div className="p-2">
             <button
               className="px-3 py-1.5 rounded-md border text-sm"

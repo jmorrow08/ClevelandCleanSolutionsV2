@@ -71,11 +71,13 @@ service cloud.firestore {
     // --- users Collection Rules ---
     match /users/{userId} {
       function userCanUpdatePresence() {
-        return request.auth.uid == userId && 
+        return request.auth.uid == userId &&
                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['presence']) &&
                request.resource.data.presence is map &&
                (request.resource.data.presence.online == null || request.resource.data.presence.online is bool) &&
-               (request.resource.data.presence.lastActive == null || request.resource.data.presence.lastActive is timestamp);
+               (request.resource.data.presence.lastActive == null || request.resource.data.presence.lastActive is timestamp ||
+                // Allow serverTimestamp() sentinel values
+                request.resource.data.presence.lastActive == request.time);
       }
       
       // Allow users to read their own document without requiring custom claims (for login flow)
@@ -104,10 +106,11 @@ service cloud.firestore {
       }
 
       // Allow reading for clients by email match or profile ownership
-      allow read: if hasClaim('admin') || isOwner() || 
-                     (hasClaim('client') && isProfileOwner(clientDocId)) || 
-                     isProfileOwner(clientDocId) ||
-                     isClientEmailMatch();
+      // PRIORITY: Check email match first for client portal users, then profile ownership
+      allow read: if hasClaim('admin') || isOwner() ||
+                     isClientEmailMatch() ||
+                     (hasClaim('client') && isProfileOwner(clientDocId)) ||
+                     isProfileOwner(clientDocId);
       allow create: if hasClaim('admin') || isOwner();
       allow update: if hasClaim('admin') || isOwner() ||
                        (hasClaim('client') && isProfileOwner(clientDocId) && clientCanUpdateProfileFields()) ||
@@ -304,8 +307,7 @@ service cloud.firestore {
         let userDocData = getUserData(request.auth.uid);
         return isLoggedIn() &&
                ((userDocData != null &&
-                 userDocData.profileId == resource.data.clientProfileId &&
-                 ((hasClaim('client')) || (hasRoleInFirestore(request.auth.uid, 'client')))) ||
+                 userDocData.profileId == resource.data.clientProfileId) ||
                 (exists(/databases/$(database)/documents/clientMasterList/$(resource.data.clientProfileId)) &&
                  get(/databases/$(database)/documents/clientMasterList/$(resource.data.clientProfileId)).data.email == request.auth.token.email));
       }
@@ -441,8 +443,7 @@ service cloud.firestore {
         let userDocData = getUserData(request.auth.uid);
         return isLoggedIn() &&
                ((userDocData != null &&
-                 userDocData.profileId == resource.data.clientId &&
-                 ((hasClaim('client')) || (hasRoleInFirestore(request.auth.uid, 'client')))) ||
+                 userDocData.profileId == resource.data.clientId) ||
                 (exists(/databases/$(database)/documents/clientMasterList/$(resource.data.clientId)) &&
                  get(/databases/$(database)/documents/clientMasterList/$(resource.data.clientId)).data.email == request.auth.token.email));
       }
@@ -489,9 +490,9 @@ service cloud.firestore {
                get(/databases/$(database)/documents/clientMasterList/$(clientId)).data.email == request.auth.token.email;
       }
 
-      // Allow admins/owners, the review's client, or any authenticated user whose role is 'client'
+      // Allow admins/owners, the review's client, or any authenticated user with a profileId
       allow read: if hasClaim('admin') || isOwner() || isReviewClient() ||
-                     hasClaim('client') || (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'client'));
+                     (isLoggedIn() && getUserData(request.auth.uid) != null && getUserData(request.auth.uid).profileId != null);
       allow create: if hasClaim('admin') || isOwner() || 
                        (isValidReviewData(request.resource.data) && isReviewClientForCreate(request.resource.data));
       allow update, delete: if hasClaim('admin') || isOwner();
@@ -543,7 +544,9 @@ service cloud.firestore {
         return data.uid is string && data.uid == uid &&
                (data.displayName == null || data.displayName is string) &&
                (data.online == null || data.online is bool) &&
-               (data.lastActive == null || data.lastActive is timestamp);
+               (data.lastActive == null || data.lastActive is timestamp ||
+                // Allow serverTimestamp() sentinel values
+                data.lastActive == request.time);
       }
       
       // Allow any authenticated user to read presence documents

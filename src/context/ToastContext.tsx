@@ -56,7 +56,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [dismiss]
   );
 
-  const value = useMemo(() => ({ toasts, show, dismiss }), [toasts, show, dismiss]);
+  const value = useMemo(
+    () => ({ toasts, show, dismiss }),
+    [toasts, show, dismiss]
+  );
 
   return (
     <ToastContext.Provider value={value}>
@@ -65,7 +68,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`rounded-lg px-4 py-3 shadow-elev-2 text-sm bg-white dark:bg-zinc-800 border ${
+            className={`rounded-lg px-4 py-3 shadow-elev-2 text-sm card-bg border ${
               t.type === "error"
                 ? "border-red-300 text-red-700 dark:border-red-500 dark:text-red-300"
                 : t.type === "success"

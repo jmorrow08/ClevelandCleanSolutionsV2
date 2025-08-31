@@ -155,12 +155,8 @@ export default function ServicesPage() {
 
             setReviewsByJob(map);
           } catch {}
-        } catch (e: any) {
-          console.warn("client jobs query may need index", e?.message);
-        }
 
-        // Resolve location names for visible jobs (use freshly fetched list)
-        try {
+          // Resolve location names for visible jobs (use freshly fetched list)
           const ids = new Set<string>();
           allJobsData.forEach((j) => {
             if (j.locationId) ids.add(j.locationId);
@@ -177,7 +173,9 @@ export default function ServicesPage() {
           } else {
             setLocationNames({});
           }
-        } catch {}
+        } catch (e: any) {
+          console.warn("client jobs query may need index", e?.message);
+        }
       } finally {
         setLoading(false);
       }
@@ -326,14 +324,14 @@ export default function ServicesPage() {
     <div className="p-6 space-y-6">
       <h1 className="text-xl font-semibold">Services</h1>
 
-      <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+      <div className="rounded-lg p-4 card-bg shadow-elev-1">
         <div className="font-medium">Active Agreements</div>
         <div className="mt-2">
           <Agreements />
         </div>
       </div>
 
-      <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1">
+      <div className="rounded-lg p-4 card-bg shadow-elev-1">
         <div className="font-medium">Service History</div>
         {loading ? (
           <div className="text-sm text-zinc-500 mt-2">Loading…</div>
@@ -581,7 +579,7 @@ function RatingModal({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-zinc-900 rounded-lg shadow-elev-2 max-w-md w-full p-4"
+        className="card-bg rounded-lg shadow-elev-2 max-w-md w-full p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -770,7 +768,7 @@ function ServiceDetailsModal({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-zinc-900 rounded-lg shadow-elev-2 max-w-4xl w-full p-4"
+        className="card-bg rounded-lg shadow-elev-2 max-w-4xl w-full p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">

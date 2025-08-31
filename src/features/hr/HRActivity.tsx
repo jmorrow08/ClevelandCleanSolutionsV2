@@ -19,6 +19,7 @@ import { firebaseConfig } from "../../services/firebase";
 import { format } from "date-fns";
 import { useAuth } from "../../context/AuthContext";
 import { getEmployeeNames } from "../../services/queries/resolvers";
+import EmployeeActivityTab from "./EmployeeActivityTab";
 
 type AuditLogDoc = {
   actorUid?: string;
@@ -37,6 +38,7 @@ function formatTs(ts?: any) {
 export default function HRActivity() {
   const { claims } = useAuth();
   const canRead = !!(claims?.admin || claims?.owner || claims?.super_admin);
+  const [activeTab, setActiveTab] = useState<"audit" | "employee">("employee");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -172,134 +174,169 @@ export default function HRActivity() {
   }, [rows, actionFilter]);
 
   return (
-    <div className="space-y-3">
-      <div className="grid md:grid-cols-5 gap-2">
-        <input
-          className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-800"
-          placeholder="Actor UID"
-          value={actorUid}
-          onChange={(e) => setActorUid(e.target.value)}
-        />
-        <input
-          className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-800"
-          placeholder="Action contains…"
-          value={actionFilter}
-          onChange={(e) => setActionFilter(e.target.value)}
-        />
-        <input
-          type="date"
-          className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-800"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-        />
-        <input
-          type="date"
-          className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-800"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-        />
-        <div className="flex items-center gap-2">
+    <div className="space-y-6">
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200 dark:border-gray-700">
+        <nav className="flex space-x-8">
           <button
-            className={`px-3 py-1.5 rounded-md text-white ${
-              loading ? "bg-zinc-400" : "bg-blue-600 hover:bg-blue-700"
+            onClick={() => setActiveTab("employee")}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === "employee"
+                ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             }`}
-            onClick={() => load("reset")}
-            disabled={loading}
           >
-            Apply
+            Employee Activity
           </button>
           <button
-            className="px-3 py-1.5 rounded-md bg-zinc-200 dark:bg-zinc-700"
-            onClick={() => {
-              setActorUid("");
-              setActionFilter("");
-              setStartDate("");
-              setEndDate("");
-            }}
+            onClick={() => setActiveTab("audit")}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === "audit"
+                ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
           >
-            Reset
+            System Audit Logs
           </button>
-        </div>
+        </nav>
       </div>
 
-      {error && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 p-2 rounded">
-          {error}
-        </div>
-      )}
-
-      {!canRead ? (
-        <div className="text-sm text-zinc-600">You do not have access.</div>
+      {/* Tab Content */}
+      {activeTab === "employee" ? (
+        <EmployeeActivityTab />
       ) : (
-        <div className="overflow-auto border rounded-md">
-          <table className="min-w-full text-sm">
-            <thead className="bg-zinc-50 dark:bg-zinc-800">
-              <tr>
-                <th className="text-left p-2">At</th>
-                <th className="text-left p-2">Actor</th>
-                <th className="text-left p-2">Action</th>
-                <th className="text-left p-2">Target</th>
-              </tr>
-            </thead>
-            <tbody>
-              {applied.map((r) => {
-                const actorName = r.actorUid
-                  ? actorNames[r.actorUid] || r.actorUid
-                  : "—";
-                const targetPath = `${(
-                  r.targetRef?.collection || ""
-                ).toString()}/${(r.targetRef?.id || "").toString()}`;
-                const link = resolveTargetLink(r.targetRef);
-                return (
-                  <tr className="border-t align-top" key={r.id}>
-                    <td className="p-2 whitespace-nowrap">{formatTs(r.at)}</td>
-                    <td className="p-2 whitespace-nowrap text-zinc-700">
-                      {actorName}
-                    </td>
-                    <td className="p-2 whitespace-pre text-zinc-800">
-                      {r.action || "—"}
-                    </td>
-                    <td className="p-2 whitespace-pre text-blue-700">
-                      {link ? (
-                        <Link to={link} className="underline">
-                          {targetPath}
-                        </Link>
-                      ) : (
-                        <span>{targetPath || "—"}</span>
-                      )}
-                    </td>
+        <div className="space-y-3">
+          <div className="grid md:grid-cols-5 gap-2">
+            <input
+              className="border rounded-md px-2 py-1 card-bg"
+              placeholder="Actor UID"
+              value={actorUid}
+              onChange={(e) => setActorUid(e.target.value)}
+            />
+            <input
+              className="border rounded-md px-2 py-1 card-bg"
+              placeholder="Action contains…"
+              value={actionFilter}
+              onChange={(e) => setActionFilter(e.target.value)}
+            />
+            <input
+              type="date"
+              className="border rounded-md px-2 py-1 card-bg"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+            <input
+              type="date"
+              className="border rounded-md px-2 py-1 card-bg"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+            <div className="flex items-center gap-2">
+              <button
+                className={`px-3 py-1.5 rounded-md text-white ${
+                  loading ? "bg-zinc-400" : "bg-blue-600 hover:bg-blue-700"
+                }`}
+                onClick={() => load("reset")}
+                disabled={loading}
+              >
+                Apply
+              </button>
+              <button
+                className="px-3 py-1.5 rounded-md bg-zinc-200 dark:bg-zinc-700"
+                onClick={() => {
+                  setActorUid("");
+                  setActionFilter("");
+                  setStartDate("");
+                  setEndDate("");
+                }}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-200 p-2 rounded">
+              {error}
+            </div>
+          )}
+
+          {!canRead ? (
+            <div className="text-sm text-zinc-600">You do not have access.</div>
+          ) : (
+            <div className="overflow-auto border rounded-md">
+              <table className="min-w-full text-sm">
+                <thead className="bg-zinc-50 dark:bg-zinc-800">
+                  <tr>
+                    <th className="text-left p-2">At</th>
+                    <th className="text-left p-2">Actor</th>
+                    <th className="text-left p-2">Action</th>
+                    <th className="text-left p-2">Target</th>
                   </tr>
-                );
-              })}
-              {applied.length === 0 && !loading && (
-                <tr>
-                  <td className="p-3 text-zinc-500" colSpan={4}>
-                    No results
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {applied.map((r) => {
+                    const actorName = r.actorUid
+                      ? actorNames[r.actorUid] || r.actorUid
+                      : "—";
+                    const targetPath = `${(
+                      r.targetRef?.collection || ""
+                    ).toString()}/${(r.targetRef?.id || "").toString()}`;
+                    const link = resolveTargetLink(r.targetRef);
+                    return (
+                      <tr className="border-t align-top" key={r.id}>
+                        <td className="p-2 whitespace-nowrap">
+                          {formatTs(r.at)}
+                        </td>
+                        <td className="p-2 whitespace-nowrap text-zinc-700">
+                          {actorName}
+                        </td>
+                        <td className="p-2 whitespace-pre text-zinc-800">
+                          {r.action || "—"}
+                        </td>
+                        <td className="p-2 whitespace-pre text-blue-700">
+                          {link ? (
+                            <Link to={link} className="underline">
+                              {targetPath}
+                            </Link>
+                          ) : (
+                            <span>{targetPath || "—"}</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {applied.length === 0 && !loading && (
+                    <tr>
+                      <td className="p-3 text-zinc-500" colSpan={4}>
+                        No results
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <button
+              className="px-3 py-1.5 rounded-md bg-zinc-200 dark:bg-zinc-700"
+              onClick={() => load("prev")}
+              disabled={loading || pageStack.current.length <= 1}
+            >
+              Prev
+            </button>
+            <button
+              className="px-3 py-1.5 rounded-md bg-zinc-200 dark:bg-zinc-700"
+              onClick={() => load("next")}
+              disabled={loading || !lastDoc.current}
+            >
+              Next
+            </button>
+            {loading && <span className="text-sm text-zinc-500">Loading…</span>}
+          </div>
         </div>
       )}
-
-      <div className="flex items-center gap-2">
-        <button
-          className="px-3 py-1.5 rounded-md bg-zinc-200 dark:bg-zinc-700"
-          onClick={() => load("prev")}
-          disabled={loading || pageStack.current.length <= 1}
-        >
-          Prev
-        </button>
-        <button
-          className="px-3 py-1.5 rounded-md bg-zinc-200 dark:bg-zinc-700"
-          onClick={() => load("next")}
-          disabled={loading || !lastDoc.current}
-        >
-          Next
-        </button>
-        {loading && <span className="text-sm text-zinc-500">Loading…</span>}
-      </div>
     </div>
   );
 }

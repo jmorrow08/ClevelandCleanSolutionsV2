@@ -425,7 +425,7 @@ export default function TimesheetView() {
       )}
 
       {/* Payroll History */}
-      <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-sm">
+      <div className="card-bg border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-sm">
         <div className="p-4 border-b border-zinc-200 dark:border-zinc-700">
           <h3 className="text-lg font-medium">Payroll History</h3>
         </div>
@@ -470,13 +470,13 @@ export default function TimesheetView() {
       </div>
 
       {/* Timesheet Section */}
-      <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-sm">
+      <div className="card-bg border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-sm">
         <div className="p-4 border-b border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium">My Timesheets (30 days)</h3>
             <RoleGuard allow={["owner", "super_admin", "admin"]}>
               <button
-                className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-800 text-sm"
+                className="px-3 py-1.5 rounded-md border card-bg text-sm"
                 onClick={openNew}
               >
                 Add Entry
@@ -490,7 +490,7 @@ export default function TimesheetView() {
           ) : rows.length === 0 ? (
             <div className="text-sm text-zinc-500">No entries.</div>
           ) : (
-            <div className="overflow-x-auto rounded-lg bg-white dark:bg-zinc-800 shadow-elev-1">
+            <div className="overflow-x-auto rounded-lg card-bg shadow-elev-1">
               <table className="min-w-full text-sm">
                 <thead className="text-left text-zinc-500">
                   <tr>
@@ -566,7 +566,7 @@ export default function TimesheetView() {
       </div>
 
       {editing && (
-        <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-2 border border-zinc-200 dark:border-zinc-700">
+        <div className="rounded-lg p-3 card-bg shadow-elev-2 border border-zinc-200 dark:border-zinc-700">
           <div className="text-sm font-medium mb-2">
             {editing.id ? "Edit Entry" : "Add Entry"}
           </div>
@@ -575,7 +575,7 @@ export default function TimesheetView() {
               <div className="text-xs text-zinc-500">Start</div>
               <input
                 type="datetime-local"
-                className="mt-1 w-full px-2 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                className="mt-1 w-full px-2 py-1.5 rounded-md border card-bg"
                 value={editing.startInput}
                 onChange={(e) =>
                   setEditing((prev) =>
@@ -588,7 +588,7 @@ export default function TimesheetView() {
               <div className="text-xs text-zinc-500">End</div>
               <input
                 type="datetime-local"
-                className="mt-1 w-full px-2 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                className="mt-1 w-full px-2 py-1.5 rounded-md border card-bg"
                 value={editing.endInput}
                 onChange={(e) =>
                   setEditing((prev) =>
@@ -602,7 +602,7 @@ export default function TimesheetView() {
               <input
                 type="text"
                 placeholder="job-123"
-                className="mt-1 w-full px-2 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                className="mt-1 w-full px-2 py-1.5 rounded-md border card-bg"
                 value={editing.jobId}
                 onChange={(e) =>
                   setEditing((prev) =>
@@ -616,7 +616,7 @@ export default function TimesheetView() {
                 <div className="text-xs text-zinc-500">Comment (optional)</div>
                 <textarea
                   placeholder="Add a comment about this change..."
-                  className="mt-1 w-full px-2 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                  className="mt-1 w-full px-2 py-1.5 rounded-md border card-bg"
                   value={editing.employeeComment || ""}
                   onChange={(e) =>
                     setEditing((prev) =>
@@ -634,7 +634,7 @@ export default function TimesheetView() {
           </div>
           <div className="mt-3 flex items-center justify-end gap-2">
             <button
-              className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+              className="px-3 py-1.5 rounded-md border card-bg"
               onClick={() => setEditing(null)}
               disabled={saving}
             >

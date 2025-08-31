@@ -47,7 +47,7 @@ export default function RecordUsageModal({
         className="absolute inset-0 bg-black/40"
         onClick={() => !saving && onClose()}
       />
-      <div className="relative w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 shadow-elev-3 p-4">
+      <div className="relative w-full max-w-md rounded-lg card-bg shadow-elev-3 p-4">
         <div className="text-lg font-medium">Record Usage - {item.name}</div>
         <div className="mt-3 space-y-3">
           <div>
@@ -56,7 +56,7 @@ export default function RecordUsageModal({
               type="number"
               min="1"
               step="1"
-              className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+              className="w-full border rounded-md px-3 py-2 card-bg"
               value={qty}
               onChange={(e) => setQty(e.target.value)}
             />
@@ -77,7 +77,7 @@ export default function RecordUsageModal({
               <div>
                 <label className="block text-sm mb-1">Linked Invoice ID</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={linkedInvoiceId}
                   onChange={(e) => setLinkedInvoiceId(e.target.value)}
                   placeholder="invoice doc id"
@@ -88,7 +88,7 @@ export default function RecordUsageModal({
                   Linked Job ID (optional)
                 </label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={linkedJobId}
                   onChange={(e) => setLinkedJobId(e.target.value)}
                   placeholder="service job id"
@@ -99,7 +99,7 @@ export default function RecordUsageModal({
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
           <button
-            className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+            className="px-3 py-1.5 rounded-md border card-bg"
             onClick={() => onClose()}
             disabled={saving}
           >

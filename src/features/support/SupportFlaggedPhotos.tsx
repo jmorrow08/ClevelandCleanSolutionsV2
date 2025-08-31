@@ -76,7 +76,7 @@ export default function SupportFlaggedPhotos() {
           <label htmlFor="per-page">Show</label>
           <select
             id="per-page"
-            className="border rounded-md px-2 py-1 bg-white dark:bg-zinc-800"
+            className="border rounded-md px-2 py-1 card-bg"
             value={perPage}
             onChange={(e) => {
               setPerPage(parseInt(e.target.value) || 10);
@@ -99,10 +99,7 @@ export default function SupportFlaggedPhotos() {
           <div className="text-sm text-zinc-500">No flagged photos.</div>
         ) : (
           items.map((p) => (
-            <div
-              key={p.id}
-              className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1"
-            >
+            <div key={p.id} className="rounded-lg p-4 card-bg shadow-elev-1">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
                   {p.photoUrl ? (

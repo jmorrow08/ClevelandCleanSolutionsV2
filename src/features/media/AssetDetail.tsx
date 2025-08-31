@@ -222,7 +222,7 @@ export default function AssetDetail() {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-md p-3 bg-white dark:bg-zinc-800 shadow-elev-1 space-y-3">
+            <div className="rounded-md p-3 card-bg shadow-elev-1 space-y-3">
               <div className="text-sm font-medium">Preview</div>
               <div className="border rounded-md overflow-hidden">
                 {canPreviewImage && url ? (
@@ -266,13 +266,13 @@ export default function AssetDetail() {
               </div>
             </div>
 
-            <div className="rounded-md p-3 bg-white dark:bg-zinc-800 shadow-elev-1 space-y-3">
+            <div className="rounded-md p-3 card-bg shadow-elev-1 space-y-3">
               <div className="text-sm font-medium">Metadata</div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm mb-1">Category</label>
                   <select
-                    className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                    className="w-full border rounded-md px-3 py-2 card-bg"
                     value={category}
                     onChange={(e) => setCategory(e.target.value as Category)}
                   >
@@ -286,7 +286,7 @@ export default function AssetDetail() {
                 <div>
                   <label className="block text-sm mb-1">Audience</label>
                   <select
-                    className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                    className="w-full border rounded-md px-3 py-2 card-bg"
                     value={audience}
                     onChange={(e) => setAudience(e.target.value as Audience)}
                   >
@@ -299,7 +299,7 @@ export default function AssetDetail() {
                 <div className="md:col-span-2">
                   <label className="block text-sm mb-1">Tags</label>
                   <input
-                    className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                    className="w-full border rounded-md px-3 py-2 card-bg"
                     value={tagsCsv}
                     onChange={(e) => setTagsCsv(e.target.value)}
                     placeholder="policy, safety, onboarding"
@@ -310,7 +310,7 @@ export default function AssetDetail() {
                   <input
                     type="number"
                     min={1}
-                    className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                    className="w-full border rounded-md px-3 py-2 card-bg"
                     value={version}
                     onChange={(e) => setVersion(e.target.value)}
                   />
@@ -320,7 +320,7 @@ export default function AssetDetail() {
                   <input
                     type="number"
                     min={0}
-                    className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                    className="w-full border rounded-md px-3 py-2 card-bg"
                     value={durationSec}
                     onChange={(e) => setDurationSec(e.target.value)}
                   />
@@ -346,7 +346,7 @@ export default function AssetDetail() {
               <RoleGuard allow={["owner", "super_admin", "admin", "marketing"]}>
                 <div className="flex items-center justify-end gap-2">
                   <button
-                    className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                    className="px-3 py-1.5 rounded-md border card-bg"
                     onClick={() => window.history.back()}
                     disabled={saving}
                   >
@@ -366,13 +366,13 @@ export default function AssetDetail() {
             </div>
           </div>
 
-          <div className="rounded-md p-3 bg-white dark:bg-zinc-800 shadow-elev-1 space-y-3">
+          <div className="rounded-md p-3 card-bg shadow-elev-1 space-y-3">
             <div className="text-sm font-medium">Related Entities</div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
                 <label className="block text-sm mb-1">Client IDs</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={clientIds}
                   onChange={(e) => setClientIds(e.target.value)}
                   placeholder="clientId1, clientId2"
@@ -381,7 +381,7 @@ export default function AssetDetail() {
               <div>
                 <label className="block text-sm mb-1">Location IDs</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={locationIds}
                   onChange={(e) => setLocationIds(e.target.value)}
                   placeholder="locationId1, locationId2"
@@ -390,7 +390,7 @@ export default function AssetDetail() {
               <div>
                 <label className="block text-sm mb-1">Employee IDs</label>
                 <input
-                  className="w-full border rounded-md px-3 py-2 bg-white dark:bg-zinc-800"
+                  className="w-full border rounded-md px-3 py-2 card-bg"
                   value={employeeIds}
                   onChange={(e) => setEmployeeIds(e.target.value)}
                   placeholder="employeeUid1, employeeUid2"
@@ -399,7 +399,7 @@ export default function AssetDetail() {
             </div>
           </div>
 
-          <div className="rounded-md p-3 bg-white dark:bg-zinc-800 shadow-elev-1 space-y-3">
+          <div className="rounded-md p-3 card-bg shadow-elev-1 space-y-3">
             <div className="text-sm font-medium">Where used</div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
               <div className="rounded-md border p-3">
@@ -445,9 +445,3 @@ export default function AssetDetail() {
     </div>
   );
 }
-
-
-
-
-
-

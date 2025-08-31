@@ -265,7 +265,7 @@ export default function PayrollRunDetail() {
       ) : loading || !run ? (
         <div className="text-sm text-zinc-500">Loading…</div>
       ) : (
-        <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1">
+        <div className="rounded-lg p-3 card-bg shadow-elev-1">
           <div className="text-sm">
             Period: {fmt(run.periodStart)} - {fmt(run.periodEnd)}
           </div>
@@ -291,7 +291,7 @@ export default function PayrollRunDetail() {
                   : "Lock & Compute Totals"}
               </button>
               <button
-                className="px-3 py-1.5 rounded-md border bg-white dark:bg-zinc-900"
+                className="px-3 py-1.5 rounded-md border card-bg"
                 onClick={exportCsv}
                 disabled={!run.totals}
               >
@@ -302,7 +302,7 @@ export default function PayrollRunDetail() {
         </div>
       )}
 
-      <div className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1">
+      <div className="rounded-lg p-3 card-bg shadow-elev-1">
         <div className="flex items-center justify-between">
           <div className="font-medium">Timesheets in Period</div>
           <div className="text-sm text-zinc-500">

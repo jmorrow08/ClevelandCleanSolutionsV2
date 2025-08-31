@@ -95,7 +95,7 @@ export default function PasswordChange() {
               type={showCurrent ? "text" : "password"}
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="border rounded-md px-3 py-2 bg-white dark:bg-zinc-900 flex-1"
+              className="border rounded-md px-3 py-2 card-bg flex-1"
               placeholder="Enter current password"
               required
               autoComplete="current-password"
@@ -123,7 +123,7 @@ export default function PasswordChange() {
               type={showNew ? "text" : "password"}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="border rounded-md px-3 py-2 bg-white dark:bg-zinc-900 flex-1"
+              className="border rounded-md px-3 py-2 card-bg flex-1"
               placeholder="Enter new password"
               minLength={6}
               required
@@ -152,7 +152,7 @@ export default function PasswordChange() {
               type={showConfirm ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="border rounded-md px-3 py-2 bg-white dark:bg-zinc-900 flex-1"
+              className="border rounded-md px-3 py-2 card-bg flex-1"
               placeholder="Confirm new password"
               minLength={6}
               required

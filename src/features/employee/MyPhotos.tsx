@@ -18,6 +18,7 @@ type PhotoItem = {
   id: string;
   photoUrl: string;
   uploadedAt?: any;
+  locationId?: string;
   locationName?: string | null;
   notes?: string | null;
 };
@@ -93,16 +94,13 @@ export default function MyPhotos() {
       ) : error ? (
         <div className="text-sm text-red-500">{error}</div>
       ) : rows.length === 0 ? (
-        <div className="rounded-lg p-4 bg-white dark:bg-zinc-800 shadow-elev-1 text-sm text-zinc-500">
+        <div className="rounded-lg p-4 card-bg shadow-elev-1 text-sm text-zinc-500">
           You have not uploaded any photos today.
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           {rows.map((p) => (
-            <div
-              key={p.id}
-              className="rounded-lg p-3 bg-white dark:bg-zinc-800 shadow-elev-1"
-            >
+            <div key={p.id} className="rounded-lg p-3 card-bg shadow-elev-1">
               <img
                 src={p.photoUrl}
                 alt="job"

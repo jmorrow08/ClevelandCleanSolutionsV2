@@ -15,7 +15,7 @@ import {
   getLocationNames,
   getEmployeeNames,
 } from "../../services/queries/resolvers";
-import { startOfWeek, endOfWeek, format, eachDayOfInterval } from "date-fns";
+import { eachDayOfInterval } from "date-fns";
 import { Link } from "react-router-dom";
 import {
   Calendar,
@@ -27,6 +27,15 @@ import {
   X,
 } from "lucide-react";
 import { formatJobWindow } from "../../utils/time";
+import {
+  getWeekBounds,
+  groupJobsByBusinessDate,
+  formatBusinessDate,
+  getBusinessDateKey,
+  toFirestoreTimestamp,
+  toBusinessTimezone,
+  toUTC,
+} from "../../utils/timezone";
 
 type Job = {
   id: string;
@@ -66,14 +75,27 @@ export default function WeekView() {
   useEffect(() => {
     async function load() {
       try {
+        setLoading(true);
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
-        const start = startOfWeek(new Date(), { weekStartsOn: 0 });
-        const end = endOfWeek(new Date(), { weekStartsOn: 0 });
+
+        // Use the same week calculation as the display
+        const now = toBusinessTimezone(new Date());
+        const sunday = new Date(now);
+        sunday.setDate(now.getDate() - now.getDay());
+        const saturday = new Date(sunday);
+        saturday.setDate(sunday.getDate() + 6);
+
+        // Create bounds for Firestore query
+        const bounds = {
+          start: toUTC(sunday),
+          end: toUTC(saturday),
+        };
+
         const q = query(
           collection(db, "serviceHistory"),
-          where("serviceDate", ">=", Timestamp.fromDate(start)),
-          where("serviceDate", "<", Timestamp.fromDate(end)),
+          where("serviceDate", ">=", toFirestoreTimestamp(bounds.start)),
+          where("serviceDate", "<", toFirestoreTimestamp(bounds.end)),
           orderBy("serviceDate", "asc")
         );
         const snap = await getDocs(q);
@@ -90,28 +112,35 @@ export default function WeekView() {
   }, []);
 
   const grouped = useMemo(() => {
+    const groups = groupJobsByBusinessDate(jobs);
     const g = new Map<string, Job[]>();
-    jobs.forEach((j) => {
-      const d = j.serviceDate?.toDate ? j.serviceDate.toDate() : undefined;
-      const key = d ? d.toISOString().slice(0, 10) : "";
-      if (!key) return;
-      if (!g.has(key)) g.set(key, []);
-      g.get(key)!.push(j);
+    Object.entries(groups).forEach(([key, jobs]) => {
+      g.set(key, jobs);
     });
     return g;
   }, [jobs]);
 
   const weekDays = useMemo(() => {
-    const start = startOfWeek(new Date(), { weekStartsOn: 0 });
-    const end = endOfWeek(new Date(), { weekStartsOn: 0 });
-    return eachDayOfInterval({ start, end });
+    // Get the current date in business timezone
+    const now = toBusinessTimezone(new Date());
+
+    // Find the Sunday of the current week
+    const sunday = new Date(now);
+    sunday.setDate(now.getDate() - now.getDay());
+
+    // Generate exactly 7 days from Sunday to Saturday
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      days.push(new Date(sunday.getTime() + i * 24 * 60 * 60 * 1000));
+    }
+
+    return days;
   }, []);
 
   const jobsForDrawer = useMemo(() => {
     if (!drawerDay) return [] as Job[];
     return jobs.filter((j) => {
-      const d = j.serviceDate?.toDate ? j.serviceDate.toDate() : undefined;
-      const key = d ? d.toISOString().slice(0, 10) : "";
+      const key = getBusinessDateKey(j.serviceDate);
       return key === drawerDay;
     });
   }, [jobs, drawerDay]);
@@ -226,12 +255,12 @@ export default function WeekView() {
   return (
     <div className="space-y-4">
       {/* Week Overview */}
-      <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
+      <div className="card-bg rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
         <div className="flex items-center gap-3 mb-6">
           <Calendar className="h-6 w-6 text-blue-600 dark:text-blue-400" />
           <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            Week of {format(weekDays[0], "MMM d")} -{" "}
-            {format(weekDays[6], "MMM d, yyyy")}
+            Week of {formatBusinessDate(weekDays[0], "MMM d")} -{" "}
+            {formatBusinessDate(weekDays[6], "MMM d, yyyy")}
           </h3>
           <span className="ml-auto text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-3 py-1 rounded-full">
             {jobs.length} total jobs
@@ -241,11 +270,10 @@ export default function WeekView() {
         {/* Days Grid */}
         <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
           {weekDays.map((day) => {
-            const key = day.toISOString().slice(0, 10);
+            const key = getBusinessDateKey(day);
             const dayJobs = grouped.get(key) || [];
 
-            const isToday =
-              format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+            const isToday = getBusinessDateKey(new Date()) === key;
 
             return (
               <button
@@ -260,10 +288,10 @@ export default function WeekView() {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                        {format(day, "EEE")}
+                        {formatBusinessDate(day, "EEE")}
                       </div>
                       <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                        {format(day, "d")}
+                        {formatBusinessDate(day, "d")}
                       </div>
                     </div>
                   </div>
@@ -302,7 +330,7 @@ export default function WeekView() {
                         return (
                           <div
                             key={j.id}
-                            className="bg-white dark:bg-zinc-800 rounded-md p-3 border border-zinc-200 dark:border-zinc-600"
+                            className="card-bg rounded-md p-3 border border-zinc-200 dark:border-zinc-600"
                           >
                             <div className="flex items-start gap-2">
                               <MapPin className="h-3 w-3 text-zinc-500 dark:text-zinc-400 flex-shrink-0 mt-0.5" />
@@ -353,14 +381,14 @@ export default function WeekView() {
           onClick={() => setDrawerDay(null)}
         >
           <div
-            className="bg-white dark:bg-zinc-900 rounded-t-xl md:rounded-xl p-6 w-full md:w-[600px] max-h-[80vh] overflow-y-auto"
+            className="card-bg rounded-t-xl md:rounded-xl p-6 w-full md:w-[600px] max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                  {format(new Date(drawerDay), "EEEE, MMMM d")}
+                  {formatBusinessDate(drawerDay, "EEEE, MMMM d")}
                 </h3>
               </div>
               <button
