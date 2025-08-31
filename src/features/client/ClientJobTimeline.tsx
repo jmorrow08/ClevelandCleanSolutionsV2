@@ -10,7 +10,7 @@ import {
   getDocs,
   Timestamp,
 } from "firebase/firestore";
-import { firebaseConfig, makeDayBounds } from "../../services/firebase";
+import { firebaseConfig } from "../../services/firebase";
 import {
   makeDayBounds as makeDayBoundsUtil,
   formatJobWindow,
@@ -18,6 +18,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { getLocationName } from "../../services/queries/resolvers";
 import { deriveClientStatus } from "../../services/statusMap";
+import PhotoModal from "../../components/ui/PhotoModal";
 
 type Job = {
   id: string;
@@ -42,7 +43,12 @@ export default function ClientJobTimeline() {
   const { profileId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [allJobs, setAllJobs] = useState<Job[]>([]);
-  const [modal, setModal] = useState<null | { type: "photos"; job: Job }>(null);
+  const [modal, setModal] = useState<null | {
+    type: "photos";
+    job: Job;
+    photos: Photo[];
+    currentIndex: number;
+  }>(null);
 
   useEffect(() => {
     async function load() {
@@ -140,25 +146,39 @@ export default function ClientJobTimeline() {
             title="In Progress"
             jobs={inProgress}
             accent="bg-amber-100 dark:bg-amber-900/30"
-            onSelect={(j) => setModal({ type: "photos", job: j })}
+            onSelect={(j, photos) =>
+              setModal({ type: "photos", job: j, photos, currentIndex: 0 })
+            }
           />
           <TimelineColumn
             title="Upcoming"
             jobs={upcoming}
             accent="bg-blue-100 dark:bg-blue-900/30"
-            onSelect={(j) => setModal({ type: "photos", job: j })}
+            onSelect={(j, photos) =>
+              setModal({ type: "photos", job: j, photos, currentIndex: 0 })
+            }
           />
           <TimelineColumn
             title="Past"
             jobs={completed}
             accent="bg-zinc-100 dark:bg-zinc-700"
-            onSelect={(j) => setModal({ type: "photos", job: j })}
+            onSelect={(j, photos) =>
+              setModal({ type: "photos", job: j, photos, currentIndex: 0 })
+            }
           />
         </div>
       )}
 
       {modal?.type === "photos" && (
-        <PhotosModal job={modal.job} onClose={() => setModal(null)} />
+        <PhotoModal
+          isOpen={true}
+          onClose={() => setModal(null)}
+          photos={modal.photos}
+          currentIndex={modal.currentIndex}
+          onIndexChange={(index) =>
+            setModal((prev) => (prev ? { ...prev, currentIndex: index } : null))
+          }
+        />
       )}
     </div>
   );
@@ -173,12 +193,13 @@ function TimelineColumn({
   title: string;
   jobs: Job[];
   accent: string;
-  onSelect: (j: Job) => void;
+  onSelect: (j: Job, photos: Photo[]) => void;
 }) {
   const [windows, setWindows] = useState<Record<string, string>>({});
   const [locationNames, setLocationNames] = useState<Record<string, string>>(
     {}
   );
+  const [jobPhotos, setJobPhotos] = useState<Record<string, Photo[]>>({});
 
   useEffect(() => {
     (async () => {
@@ -271,6 +292,36 @@ function TimelineColumn({
     })();
   }, [jobs]);
 
+  // Load photos for jobs when clicked
+  const loadPhotosForJob = async (job: Job): Promise<Photo[]> => {
+    try {
+      if (!getApps().length) initializeApp(firebaseConfig);
+      const db = getFirestore();
+      const svcDate: Date | null = job.serviceDate?.toDate
+        ? job.serviceDate.toDate()
+        : null;
+      const { start, end } = makeDayBoundsUtil(
+        svcDate || new Date(),
+        "America/New_York"
+      );
+      const qref = query(
+        collection(db, "servicePhotos"),
+        where("locationId", "==", job.locationId || ""),
+        where("uploadedAt", ">=", Timestamp.fromDate(start)),
+        where("uploadedAt", "<=", Timestamp.fromDate(end)),
+        where("isClientVisible", "==", true),
+        orderBy("uploadedAt", "desc")
+      );
+      const snap = await getDocs(qref);
+      const list: Photo[] = [];
+      snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
+      return list;
+    } catch (e: any) {
+      console.warn("Client photos query may require index", e?.message);
+      return [];
+    }
+  };
+
   return (
     <div className="space-y-2">
       <div className="text-sm font-semibold">{title}</div>
@@ -282,7 +333,10 @@ function TimelineColumn({
             <li
               key={j.id}
               className="py-2 cursor-pointer"
-              onClick={() => onSelect(j)}
+              onClick={async () => {
+                const photos = await loadPhotosForJob(j);
+                onSelect(j, photos);
+              }}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0 flex-1">
@@ -300,138 +354,20 @@ function TimelineColumn({
                     {locationNames[j.id] || "Loading..."}
                   </div>
                 </div>
-                <span className={`px-2 py-0.5 rounded-md text-xs ${accent}`}>
-                  {j.status || "—"}
+                <span
+                  className={`px-2 py-0.5 rounded-md text-xs ${
+                    title === "Past"
+                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                      : accent
+                  }`}
+                >
+                  {title === "Past" ? "Completed" : j.status || "—"}
                 </span>
               </div>
             </li>
           ))}
         </ul>
       )}
-    </div>
-  );
-}
-
-function PhotosModal({ job, onClose }: { job: Job; onClose: () => void }) {
-  const [loading, setLoading] = useState(true);
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [locationNameResolved, setLocationNameResolved] = useState<string>("");
-
-  useEffect(() => {
-    (async () => {
-      const name = await getLocationName(job.locationId);
-      setLocationNameResolved(name);
-    })();
-  }, [job.locationId]);
-
-  useEffect(() => {
-    async function loadPhotos() {
-      try {
-        if (!getApps().length) initializeApp(firebaseConfig);
-        const db = getFirestore();
-        const svcDate: Date | null = job.serviceDate?.toDate
-          ? job.serviceDate.toDate()
-          : null;
-        const { start, end } = makeDayBounds(
-          svcDate || new Date(),
-          "America/New_York"
-        );
-        const qref = query(
-          collection(db, "servicePhotos"),
-          where("locationId", "==", job.locationId || ""),
-          where("uploadedAt", ">=", Timestamp.fromDate(start)),
-          where("uploadedAt", "<=", Timestamp.fromDate(end)),
-          where("isClientVisible", "==", true),
-          orderBy("uploadedAt", "desc")
-        );
-        const snap = await getDocs(qref);
-        const list: Photo[] = [];
-        snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
-        console.log(
-          `Loaded ${list.length} photos for timeline:`,
-          list.map((p) => ({ id: p.id, url: p.photoUrl }))
-        );
-        setPhotos(list);
-      } catch (e: any) {
-        console.warn("Client photos query may require index", e?.message);
-        setPhotos([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadPhotos();
-  }, [job.id]);
-
-  const dt = job.serviceDate?.toDate ? job.serviceDate.toDate() : null;
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-      onClick={onClose}
-    >
-      <div
-        className="card-bg rounded-lg shadow-elev-2 max-w-3xl w-full p-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <div className="text-lg font-semibold">Service Photos</div>
-          <button
-            className="px-2 py-1 text-sm rounded-md border"
-            onClick={onClose}
-          >
-            Close
-          </button>
-        </div>
-        <div className="text-sm text-zinc-500 mt-1">
-          {formatDateTimeInET(dt)} —{" "}
-          {locationNameResolved || job.locationId || "—"}
-        </div>
-        <div className="mt-3 min-h-[120px]">
-          {loading ? (
-            <div className="text-sm text-zinc-500">Loading…</div>
-          ) : photos.length === 0 ? (
-            <div className="text-sm text-zinc-500">
-              No photos for this service.
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {photos.map((p) => (
-                <a
-                  key={p.id}
-                  href={p.photoUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block"
-                >
-                  <img
-                    src={p.photoUrl || ""}
-                    alt="Service photo"
-                    className="w-full h-32 object-cover rounded-md"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      console.warn(`Failed to load image: ${p.photoUrl}`, e);
-                      target.src =
-                        "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjgwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMCAyMEg2MFY2MEgyMFYyMFoiIGZpbGw9IiNEMUQ1REIiLz4KPHBhdGggZD0iTTI1IDI1SDU1VjU1SDI1VjI1WiIgZmlsbD0iI0YzRjRGNiIvPgo8Y2lyY2xlIGN4PSIzNSIgY3k9IjM1IiByPSI1IiBmaWxsPSIjOUI5QkEwIi8+CjxwYXRoIGQ9Ik0yMCA1NUwzMCA0NUw0MCA1NUw1MCA0NUw2MCA1NVY2MEgyMFY1NVoiIGZpbGw9IiM5QjlCQTAiLz4KPC9zdmc+";
-                      target.classList.add("opacity-50");
-                    }}
-                    onLoad={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      console.log(`Successfully loaded image: ${p.photoUrl}`);
-                      target.classList.remove("opacity-50");
-                      target.classList.add("opacity-100");
-                    }}
-                  />
-                  <div className="mt-1 text-[10px] text-zinc-500">
-                    {p.uploadedAt?.toDate
-                      ? formatDateTimeInET(p.uploadedAt.toDate())
-                      : ""}
-                  </div>
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

@@ -26,6 +26,7 @@ import {
   getEmployeeNames,
 } from "../../services/queries/resolvers";
 import { deriveClientStatus } from "../../services/statusMap";
+import PhotoModal from "../../components/ui/PhotoModal";
 
 type Job = {
   id: string;
@@ -45,8 +46,12 @@ type Review = {
 };
 
 export default function ServicesPage() {
-  const { profileId } = useAuth();
+  const { profileId, claims } = useAuth();
   const [loading, setLoading] = useState(true);
+
+  // Client authentication validation
+  const isClient = claims?.client || false;
+  const hasClientRole = claims?.role === "client" || false;
   const [allJobs, setAllJobs] = useState<Job[]>([]);
   const [locationNames, setLocationNames] = useState<Record<string, string>>(
     {}
@@ -54,6 +59,10 @@ export default function ServicesPage() {
   const [reviewsByJob, setReviewsByJob] = useState<Record<string, Review>>({});
 
   const [detailsModal, setDetailsModal] = useState<null | { job: Job }>(null);
+  const [photoModal, setPhotoModal] = useState<null | {
+    photos: any[];
+    currentIndex: number;
+  }>(null);
   const [allJobsCursor, setAllJobsCursor] = useState<any | null>(null);
   const [allJobsHasMore, setAllJobsHasMore] = useState<boolean>(false);
   const [allJobsWindows, setAllJobsWindows] = useState<Record<string, string>>(
@@ -105,6 +114,15 @@ export default function ServicesPage() {
   useEffect(() => {
     async function load() {
       try {
+        // Check client authentication before attempting data loading
+        if (!isClient && !hasClientRole) {
+          console.warn(
+            "User does not have client permissions to view services"
+          );
+          setLoading(false);
+          return;
+        }
+
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
         if (!profileId) return;
@@ -182,7 +200,7 @@ export default function ServicesPage() {
     }
     setLoading(true);
     load();
-  }, [profileId]);
+  }, [profileId, isClient, hasClientRole]);
 
   // Backfill any missing location names when jobs change (e.g., after pagination or live updates)
   useEffect(() => {
@@ -265,46 +283,6 @@ export default function ServicesPage() {
   }, [allJobs]);
 
   const noJobs = useMemo(() => allJobs.length === 0, [allJobs.length]);
-
-  // Categorize jobs using deriveClientStatus (keeping for potential future use)
-  const categorizedJobs = useMemo(() => {
-    const now = new Date();
-    const categorized = {
-      completed: [] as Job[],
-      inProgress: [] as Job[],
-      upcoming: [] as Job[],
-    };
-
-    allJobs.forEach((job) => {
-      const clientStatus = deriveClientStatus(job, now);
-      if (clientStatus === "completed") {
-        categorized.completed.push(job);
-      } else if (clientStatus === "in_progress") {
-        categorized.inProgress.push(job);
-      } else if (clientStatus === "upcoming") {
-        categorized.upcoming.push(job);
-      }
-    });
-
-    // Sort each category appropriately
-    categorized.completed.sort((a, b) => {
-      const aDate = a.serviceDate?.toDate?.() || new Date(0);
-      const bDate = b.serviceDate?.toDate?.() || new Date(0);
-      return bDate.getTime() - aDate.getTime(); // newest first
-    });
-    categorized.inProgress.sort((a, b) => {
-      const aDate = a.serviceDate?.toDate?.() || new Date(0);
-      const bDate = b.serviceDate?.toDate?.() || new Date(0);
-      return bDate.getTime() - aDate.getTime(); // newest first
-    });
-    categorized.upcoming.sort((a, b) => {
-      const aDate = a.serviceDate?.toDate?.() || new Date(0);
-      const bDate = b.serviceDate?.toDate?.() || new Date(0);
-      return aDate.getTime() - bDate.getTime(); // oldest first
-    });
-
-    return categorized;
-  }, [allJobs]);
 
   // Create a single sorted list of all jobs by date
   const sortedJobs = useMemo(() => {
@@ -504,6 +482,23 @@ export default function ServicesPage() {
           job={detailsModal.job}
           reviewsByJob={reviewsByJob}
           onClose={() => setDetailsModal(null)}
+          onPhotoClick={(photos, currentIndex) =>
+            setPhotoModal({ photos, currentIndex })
+          }
+        />
+      )}
+
+      {photoModal && (
+        <PhotoModal
+          isOpen={true}
+          onClose={() => setPhotoModal(null)}
+          photos={photoModal.photos}
+          currentIndex={photoModal.currentIndex}
+          onIndexChange={(index) =>
+            setPhotoModal((prev) =>
+              prev ? { ...prev, currentIndex: index } : null
+            )
+          }
         />
       )}
     </div>
@@ -579,7 +574,7 @@ function RatingModal({
       onClick={onClose}
     >
       <div
-        className="card-bg rounded-lg shadow-elev-2 max-w-md w-full p-4"
+        className="card-bg border border-[var(--border)] rounded-lg shadow-elev-2 max-w-md w-full p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -645,11 +640,14 @@ function ServiceDetailsModal({
   job,
   reviewsByJob,
   onClose,
+  onPhotoClick,
 }: {
   job: Job;
   reviewsByJob: Record<string, Review>;
   onClose: () => void;
+  onPhotoClick: (photos: any[], currentIndex: number) => void;
 }) {
+  const { claims } = useAuth();
   const [loading, setLoading] = useState(true);
   const [photos, setPhotos] = useState<
     Array<{ id: string; photoUrl?: string; uploadedAt?: any }>
@@ -658,14 +656,61 @@ function ServiceDetailsModal({
   const [assignedNames, setAssignedNames] = useState<string[]>([]);
   const [adminNote, setAdminNote] = useState<string>("");
 
+  // Client authentication validation
+  const isClient = claims?.client || false;
+  const hasClientRole = claims?.role === "client" || false;
+
   useEffect(() => {
+    // Check client authentication before attempting data loading
+    if (!isClient && !hasClientRole) {
+      console.warn("User does not have client permissions");
+      setLocationNameResolved("Access denied");
+      setAssignedNames([]);
+      setAdminNote("Access denied");
+      setLoading(false);
+      return;
+    }
+
     (async () => {
-      const [name] = await getLocationNames([job.locationId]);
-      setLocationNameResolved(
-        name ||
-          (job as any).locationName ||
-          (job.locationId ? `Location ${job.locationId.slice(0, 8)}...` : "—")
-      );
+      // Resolve location name with error handling and retry logic
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      while (retryCount < maxRetries) {
+        try {
+          const [name] = await getLocationNames([job.locationId]);
+          setLocationNameResolved(
+            name ||
+              (job as any).locationName ||
+              (job.locationId
+                ? `Location ${job.locationId.slice(0, 8)}...`
+                : "—")
+          );
+          break; // Success, exit retry loop
+        } catch (error) {
+          retryCount++;
+          console.warn(
+            `Location resolution attempt ${retryCount} failed:`,
+            error
+          );
+          if (retryCount >= maxRetries) {
+            console.error("All location resolution attempts failed");
+            // Fallback to job data or truncated ID
+            setLocationNameResolved(
+              (job as any).locationName ||
+                (job.locationId
+                  ? `Location ${job.locationId.slice(0, 8)}...`
+                  : "—")
+            );
+          } else {
+            // Wait before retry
+            await new Promise((resolve) =>
+              setTimeout(resolve, 1000 * retryCount)
+            );
+          }
+        }
+      }
+
       // Resolve staff names with client-safe precedence:
       // 1) employeeDisplayNames (preferred)
       // 2) employeeAssignments[].name (legacy)
@@ -686,12 +731,33 @@ function ServiceDetailsModal({
         const assignedIds = Array.isArray((job as any).assignedEmployees)
           ? ((job as any).assignedEmployees as string[])
           : [];
-        try {
-          const names = assignedIds.length
-            ? await getEmployeeNames(assignedIds)
-            : [];
-          setAssignedNames(names.filter(Boolean));
-        } catch {
+        if (assignedIds.length) {
+          let staffRetryCount = 0;
+          const staffMaxRetries = 3;
+
+          while (staffRetryCount < staffMaxRetries) {
+            try {
+              const names = await getEmployeeNames(assignedIds);
+              setAssignedNames(names.filter(Boolean));
+              break; // Success, exit retry loop
+            } catch (error) {
+              staffRetryCount++;
+              console.warn(
+                `Staff resolution attempt ${staffRetryCount} failed:`,
+                error
+              );
+              if (staffRetryCount >= staffMaxRetries) {
+                console.error("All staff resolution attempts failed");
+                setAssignedNames([]);
+              } else {
+                // Wait before retry
+                await new Promise((resolve) =>
+                  setTimeout(resolve, 1000 * staffRetryCount)
+                );
+              }
+            }
+          }
+        } else {
           setAssignedNames([]);
         }
       }
@@ -719,9 +785,17 @@ function ServiceDetailsModal({
         }
       }
     })();
-  }, [job]);
+  }, [job, isClient, hasClientRole]);
 
   useEffect(() => {
+    // Check client authentication before attempting photo loading
+    if (!isClient && !hasClientRole) {
+      console.warn("User does not have client permissions for photo loading");
+      setPhotos([]);
+      setLoading(false);
+      return;
+    }
+
     async function loadPhotos() {
       try {
         if (!getApps().length) initializeApp(firebaseConfig);
@@ -733,23 +807,51 @@ function ServiceDetailsModal({
           svcDate || new Date(),
           "America/New_York"
         );
-        const qref = query(
-          collection(db, "servicePhotos"),
-          where("locationId", "==", job.locationId || ""),
-          where("uploadedAt", ">=", Timestamp.fromDate(start)),
-          where("uploadedAt", "<=", Timestamp.fromDate(end)),
-          where("isClientVisible", "==", true),
-          orderBy("uploadedAt", "desc")
-        );
-        const snap = await getDocs(qref);
-        const list: Array<{ id: string; photoUrl?: string; uploadedAt?: any }> =
-          [];
-        snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
-        console.log(
-          `Loaded ${list.length} photos for service:`,
-          list.map((p) => ({ id: p.id, url: p.photoUrl }))
-        );
-        setPhotos(list);
+
+        // Add retry logic for photo queries
+        let retryCount = 0;
+        const maxRetries = 3;
+
+        while (retryCount < maxRetries) {
+          try {
+            const qref = query(
+              collection(db, "servicePhotos"),
+              where("locationId", "==", job.locationId || ""),
+              where("uploadedAt", ">=", Timestamp.fromDate(start)),
+              where("uploadedAt", "<=", Timestamp.fromDate(end)),
+              where("isClientVisible", "==", true),
+              orderBy("uploadedAt", "desc")
+            );
+            const snap = await getDocs(qref);
+            const list: Array<{
+              id: string;
+              photoUrl?: string;
+              uploadedAt?: any;
+            }> = [];
+            snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
+            console.log(
+              `Loaded ${list.length} photos for service:`,
+              list.map((p) => ({ id: p.id, url: p.photoUrl }))
+            );
+            setPhotos(list);
+            break; // Success, exit retry loop
+          } catch (e: any) {
+            retryCount++;
+            console.warn(
+              `Photo query attempt ${retryCount} failed:`,
+              e?.message
+            );
+            if (retryCount >= maxRetries) {
+              console.error("All photo query attempts failed");
+              setPhotos([]);
+            } else {
+              // Wait before retry
+              await new Promise((resolve) =>
+                setTimeout(resolve, 1000 * retryCount)
+              );
+            }
+          }
+        }
       } catch (e: any) {
         console.warn("Client photos query may require index", e?.message);
         setPhotos([]);
@@ -758,7 +860,7 @@ function ServiceDetailsModal({
       }
     }
     loadPhotos();
-  }, [job.id]);
+  }, [job.id, isClient, hasClientRole]);
 
   const dt = job.serviceDate?.toDate ? job.serviceDate.toDate() : null;
 
@@ -768,7 +870,7 @@ function ServiceDetailsModal({
       onClick={onClose}
     >
       <div
-        className="card-bg rounded-lg shadow-elev-2 max-w-4xl w-full p-4"
+        className="card-bg border border-[var(--border)] rounded-lg shadow-elev-2 max-w-4xl w-full p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -823,18 +925,16 @@ function ServiceDetailsModal({
                 </div>
                 <div className="rounded-md border p-2 max-h-[360px] overflow-y-auto">
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {photos.map((p) => (
-                      <a
+                    {photos.map((p, index) => (
+                      <div
                         key={p.id}
-                        href={p.photoUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="block"
+                        className="block cursor-pointer"
+                        onClick={() => onPhotoClick(photos, index)}
                       >
                         <img
                           src={p.photoUrl || ""}
                           alt="Service photo"
-                          className="w-full h-32 object-cover rounded-md"
+                          className="w-full h-32 object-cover rounded-md hover:opacity-80 transition-opacity"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             console.warn(
@@ -859,7 +959,7 @@ function ServiceDetailsModal({
                             ? p.uploadedAt.toDate().toLocaleString()
                             : ""}
                         </div>
-                      </a>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -871,7 +971,7 @@ function ServiceDetailsModal({
         {/* Admin Notes */}
         <div className="mt-4">
           <div className="text-sm font-medium">Admin Notes</div>
-          <div className="mt-2 rounded-md border p-3 text-sm bg-zinc-50 dark:bg-zinc-900">
+          <div className="mt-2 rounded-md border p-3 text-sm bg-[var(--muted)]">
             {adminNote ? adminNote : "No notes provided"}
           </div>
         </div>
