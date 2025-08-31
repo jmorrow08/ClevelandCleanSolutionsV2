@@ -326,6 +326,272 @@
         { "fieldPath": "locationId", "order": "ASCENDING" },
         { "fieldPath": "clockInTime", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "serviceHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientProfileId", "order": "ASCENDING" },
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "serviceDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeMasterList",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "lastName", "order": "ASCENDING" },
+        { "fieldPath": "firstName", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeRates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeProfileId", "order": "ASCENDING" },
+        { "fieldPath": "locationName", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "locations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "locationName", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeTimeTracking",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "clockInTime", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "locations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "serviceFrequency", "order": "ASCENDING" },
+        { "fieldPath": "nextServiceDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "servicePhotos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "serviceHistoryId", "order": "ASCENDING" },
+        { "fieldPath": "uploadedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "serviceHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeProfileId", "order": "ASCENDING" },
+        { "fieldPath": "serviceDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "servicePhotos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "uploadedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "servicePhotos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeProfileId", "order": "ASCENDING" },
+        { "fieldPath": "uploadedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "serviceAgreements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientId", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "contractStartDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "serviceHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "archived", "order": "ASCENDING" },
+        { "fieldPath": "serviceDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "servicePhotos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "uploadedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "locations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientProfileId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "locationName", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeTimeTracking",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "clockInTime", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "clientMasterList",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "companyName", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "serviceHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "archived", "order": "ASCENDING" },
+        { "fieldPath": "serviceDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "locations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientProfileId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "nextServiceDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "servicePhotos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isClientVisible", "order": "ASCENDING" },
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "uploadedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "servicePhotos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isClientVisible", "order": "ASCENDING" },
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "uploadedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "locations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientProfileId", "order": "ASCENDING" },
+        { "fieldPath": "locationName", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeePayroll",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "payPeriodId", "order": "ASCENDING" },
+        { "fieldPath": "employeeName", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeRates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeName", "order": "ASCENDING" },
+        { "fieldPath": "locationName", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "invoices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeMasterList",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "lastName", "order": "ASCENDING" },
+        { "fieldPath": "firstName", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "servicePhotos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "flagged", "order": "ASCENDING" },
+        { "fieldPath": "uploadedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "email", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeMasterList",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "fullName", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeTimeTracking",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clockOutTime", "order": "ASCENDING" },
+        { "fieldPath": "employeeProfileId", "order": "ASCENDING" },
+        { "fieldPath": "clockInTime", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "serviceHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "serviceDate", "order": "ASCENDING" },
+        { "fieldPath": "payrollProcessed", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "employeeMasterList",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "lastName", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
