@@ -6,7 +6,7 @@ import { ScheduleJobProvider } from "../features/scheduling/ScheduleJobModal";
 
 type NavItem = { label: string; to: string };
 
-const NAV_ITEMS: NavItem[] = [
+const ALL_NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", to: "/" },
   { label: "Finance", to: "/finance" },
   { label: "Inventory", to: "/inventory" },
@@ -25,6 +25,18 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Support", to: "/support" },
   { label: "Logout", to: "/logout" },
 ];
+
+// Hidden sections: Training, Audit Log, Notifications, Tools
+const HIDDEN_SECTIONS = [
+  "/training/admin",
+  "/settings/audit",
+  "/notifications",
+  "/tools/validator",
+];
+
+const NAV_ITEMS = ALL_NAV_ITEMS.filter(
+  (item) => !HIDDEN_SECTIONS.includes(item.to)
+);
 
 function ThemeToggle() {
   const [enabled, setEnabled] = useState(false);

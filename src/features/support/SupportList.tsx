@@ -15,10 +15,7 @@ import {
   loadAssignableEmployees,
   type SupportTicket,
 } from "./supportUtils";
-import {
-  getClientNames,
-  getLocationNames,
-} from "../../services/queries/resolvers";
+import { getClientNames } from "../../services/queries/resolvers";
 
 type FilterState = {
   status: "all" | "open" | "in_progress" | "resolved";
@@ -38,9 +35,6 @@ export default function SupportList() {
     Array<{ id: string; fullName: string }>
   >([]);
   const [clientNames, setClientNames] = useState<Record<string, string>>({});
-  const [locationNames, setLocationNames] = useState<Record<string, string>>(
-    {}
-  );
   const [assigneeNames, setAssigneeNames] = useState<Record<string, string>>(
     {}
   );
@@ -70,22 +64,13 @@ export default function SupportList() {
       const clientIds = Array.from(
         new Set(tickets.map((t) => t.clientId).filter(Boolean))
       ) as string[];
-      const locationIds = Array.from(
-        new Set(tickets.map((t) => t.locationId).filter(Boolean))
-      ) as string[];
       const assigneeIds = Array.from(
         new Set(tickets.map((t) => t.assigneeId).filter(Boolean))
       ) as string[];
-      const [clientNameList, locationNameList] = await Promise.all([
-        getClientNames(clientIds),
-        getLocationNames(locationIds),
-      ]);
+      const clientNameList = await getClientNames(clientIds);
       const cn: Record<string, string> = {};
-      const ln: Record<string, string> = {};
       clientIds.forEach((id, i) => (cn[id] = clientNameList[i] || id));
-      locationIds.forEach((id, i) => (ln[id] = locationNameList[i] || id));
       setClientNames(cn);
-      setLocationNames(ln);
       const an: Record<string, string> = {};
       await Promise.all(
         assigneeIds.map(async (id) => (an[id] = await getEmployeeName(id)))
@@ -96,7 +81,6 @@ export default function SupportList() {
       loadNames();
     } else {
       setClientNames({});
-      setLocationNames({});
       setAssigneeNames({});
     }
   }, [tickets]);
@@ -208,7 +192,7 @@ export default function SupportList() {
             <tr>
               <th className="px-3 py-2">ID</th>
               <th className="px-3 py-2">Subject</th>
-              <th className="px-3 py-2">Client/Location</th>
+              <th className="px-3 py-2">Client</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Priority</th>
               <th className="px-3 py-2">Assignee</th>
@@ -218,13 +202,13 @@ export default function SupportList() {
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-3 py-4" colSpan={7}>
+                <td className="px-3 py-4" colSpan={6}>
                   Loading…
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td className="px-3 py-4 text-zinc-500" colSpan={7}>
+                <td className="px-3 py-4 text-zinc-500" colSpan={6}>
                   No tickets.
                 </td>
               </tr>
@@ -253,13 +237,19 @@ export default function SupportList() {
                   <td className="px-3 py-2 max-w-[320px]">
                     <div
                       className="truncate"
-                      title={`${clientNames[t.clientId || ""] || "Client"} — ${
-                        locationNames[t.locationId || ""] || "Location"
-                      }`}
+                      title={
+                        t.clientName ||
+                        clientNames[t.clientId || ""] ||
+                        (t.clientId
+                          ? `Client ${t.clientId.slice(0, 8)}...`
+                          : "Unknown Client")
+                      }
                     >
-                      {(clientNames[t.clientId || ""] || "Client") +
-                        " — " +
-                        (locationNames[t.locationId || ""] || "Location")}
+                      {t.clientName ||
+                        clientNames[t.clientId || ""] ||
+                        (t.clientId
+                          ? `Client ${t.clientId.slice(0, 8)}...`
+                          : "Unknown Client")}
                     </div>
                   </td>
                   <td className="px-3 py-2">

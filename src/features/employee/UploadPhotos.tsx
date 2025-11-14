@@ -502,7 +502,7 @@ export default function UploadPhotos() {
             />
           </label>
         </div>
-        <div className="px-3 py-2 rounded-md bg-zinc-50 dark:bg-zinc-900 text-sm">
+        <div className="px-3 py-2 rounded-md bg-[var(--muted)] text-sm">
           {files.length ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between">

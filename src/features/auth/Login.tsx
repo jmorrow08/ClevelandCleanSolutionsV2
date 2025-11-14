@@ -1,18 +1,13 @@
 import { useEffect, useState } from "react";
-import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signInWithEmailAndPassword,
-} from "firebase/auth";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import { Link, useNavigate } from "react-router-dom";
 import { claimsToHome } from "../../utils/roleHome";
 import { useAuth } from "../../context/AuthContext";
 
 export default function Login() {
   const auth = getAuth();
   const navigate = useNavigate();
-  const location = useLocation();
+  // const location = useLocation();
   const { claims } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,27 +46,6 @@ export default function Login() {
       }
     } catch (err: any) {
       setError(err.message || "Failed to sign in");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleGoogleLogin() {
-    setError(null);
-    setLoading(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      const u = auth.currentUser;
-      if (u) {
-        const token = await u.getIdTokenResult();
-        const home = claimsToHome(token.claims as any);
-        navigate(home, { replace: true });
-      } else {
-        navigate("/", { replace: true });
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to sign in with Google");
     } finally {
       setLoading(false);
     }
@@ -119,21 +93,11 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 py-2 font-medium disabled:opacity-50"
+            className="w-full rounded-md bg-[var(--brand)] text-white py-2 font-medium disabled:opacity-50"
           >
             {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
-
-        <div className="mt-4">
-          <button
-            onClick={handleGoogleLogin}
-            disabled={loading}
-            className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 py-2 text-sm disabled:opacity-50"
-          >
-            Continue with Google
-          </button>
-        </div>
 
         <div className="mt-4 text-xs text-zinc-600 dark:text-zinc-400">
           <span>Having trouble?</span>{" "}

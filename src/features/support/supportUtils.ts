@@ -26,7 +26,9 @@ export type SupportPriority = "low" | "normal" | "high" | "urgent";
 export type SupportTicket = {
   id: string;
   subject?: string;
+  message?: string;
   clientId?: string | null;
+  clientName?: string;
   locationId?: string | null;
   status?: SupportStatus;
   priority?: SupportPriority;

@@ -6,11 +6,22 @@ import {
   cleanupProcessedJobsWithoutRuns,
   analyzePayrollState,
 } from "../../services/payrollCleanup";
+import {
+  getFirestore,
+  collection,
+  query,
+  where,
+  getDocs,
+  writeBatch,
+  doc,
+} from "firebase/firestore";
+import { getFirestoreInstance } from "../../services/firebase";
 
 export default function PayrollAdminTab() {
   const { show } = useToast();
   const [processingClockEvents, setProcessingClockEvents] = useState(false);
   const [cleaningUp, setCleaningUp] = useState(false);
+  const [cleaningUpRates, setCleaningUpRates] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
 
@@ -70,6 +81,56 @@ export default function PayrollAdminTab() {
       });
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const handleCleanupRates = async () => {
+    setCleaningUpRates(true);
+    try {
+      const db = getFirestoreInstance();
+
+      // Get all timesheets that might have undefined monthlyPayDay
+      const timesheetsQuery = query(collection(db, "timesheets"));
+      const timesheetsSnap = await getDocs(timesheetsQuery);
+
+      const batch = writeBatch(db);
+      let fixedCount = 0;
+
+      timesheetsSnap.forEach((doc) => {
+        const data = doc.data();
+        const rateSnapshot = data.rateSnapshot;
+
+        if (rateSnapshot && rateSnapshot.monthlyPayDay === undefined) {
+          // Remove the undefined monthlyPayDay field
+          const { monthlyPayDay, ...cleanRateSnapshot } = rateSnapshot;
+          batch.update(doc.ref, {
+            rateSnapshot: cleanRateSnapshot,
+            updatedAt: new Date(),
+          });
+          fixedCount++;
+        }
+      });
+
+      if (fixedCount > 0) {
+        await batch.commit();
+        show({
+          type: "success",
+          message: `Fixed ${fixedCount} timesheets with undefined monthlyPayDay`,
+        });
+      } else {
+        show({
+          type: "info",
+          message: "No timesheets with undefined monthlyPayDay found",
+        });
+      }
+    } catch (error: any) {
+      console.error("Error cleaning up rates:", error);
+      show({
+        type: "error",
+        message: `Failed to cleanup rates: ${error.message}`,
+      });
+    } finally {
+      setCleaningUpRates(false);
     }
   };
 
@@ -183,6 +244,22 @@ export default function PayrollAdminTab() {
                 className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50"
               >
                 {cleaningUp ? "Cleaning..." : "Cleanup Jobs"}
+              </button>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-medium">Fix Undefined Rate Fields</div>
+                <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                  Remove undefined monthlyPayDay fields from timesheet rate
+                  snapshots
+                </div>
+              </div>
+              <button
+                onClick={handleCleanupRates}
+                disabled={cleaningUpRates}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+              >
+                {cleaningUpRates ? "Cleaning..." : "Fix Rate Fields"}
               </button>
             </div>
           </div>

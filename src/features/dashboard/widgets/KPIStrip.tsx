@@ -13,6 +13,7 @@ import { firebaseConfig } from "../../../services/firebase";
 import { startOfDay, subDays } from "date-fns";
 import { ServiceAgreementProjectionService } from "../../../services/serviceAgreementProjections";
 import AgreementDetailsModal from "../../../components/ui/AgreementDetailsModal";
+import JobsTodayModal from "../../../components/ui/JobsTodayModal";
 import { Calendar } from "lucide-react";
 
 type KpiData = {
@@ -34,6 +35,7 @@ export default function KPIStrip() {
   });
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [showJobsModal, setShowJobsModal] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -158,7 +160,12 @@ export default function KPIStrip() {
         value: String(data.unpaidCount),
         hasButton: false,
       },
-      { label: "Jobs Today", value: String(data.jobsToday), hasButton: false },
+      {
+        label: "Jobs Today",
+        value: String(data.jobsToday),
+        hasButton: true,
+        buttonAction: () => setShowJobsModal(true),
+      },
       {
         label: "Open Tickets",
         value: String(data.openTickets),
@@ -184,7 +191,11 @@ export default function KPIStrip() {
                 <button
                   onClick={k.buttonAction}
                   className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-md transition-colors ml-2"
-                  title="View agreement details"
+                  title={
+                    k.label === "Jobs Today"
+                      ? "View today's jobs"
+                      : "View agreement details"
+                  }
                 >
                   <Calendar className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
                 </button>
@@ -197,6 +208,11 @@ export default function KPIStrip() {
       <AgreementDetailsModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
+      />
+
+      <JobsTodayModal
+        isOpen={showJobsModal}
+        onClose={() => setShowJobsModal(false)}
       />
     </>
   );

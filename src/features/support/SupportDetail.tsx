@@ -39,7 +39,7 @@ export function SupportEditForm({
   writeComment,
 }: {
   ticket: SupportTicket;
-  onSave: (updated: Partial<SupportTicket>) => Promise<void> | void;
+  onSave?: (updated: Partial<SupportTicket>) => Promise<void> | void;
   loadEmployees?: () => Promise<Employee[]>;
   writeComment?: (payload: {
     ticketId: string;
@@ -52,6 +52,8 @@ export function SupportEditForm({
   const [assignee, setAssignee] = useState<string>(ticket.assigneeId || "");
   const [comment, setComment] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -65,6 +67,7 @@ export function SupportEditForm({
   }, [loadEmployees]);
 
   async function handleSave() {
+    if (!onSave) return;
     setSaving(true);
     try {
       await onSave({ status, assigneeId: assignee || null });
@@ -77,74 +80,146 @@ export function SupportEditForm({
     }
   }
 
+  async function handleAttachSubmit() {
+    if (files.length === 0 || !writeComment) return;
+    setUploading(true);
+    try {
+      const metas = await uploadSupportAttachments(ticket.id, files);
+      await writeComment({ ticketId: ticket.id, attachments: metas });
+      setFiles([]);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   const statusOptions: SupportStatus[] = useMemo(
     () => ["open", "in_progress", "resolved"],
     []
   );
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-        <div>
-          <label className="block text-sm mb-1" htmlFor="support-status">
-            Status
-          </label>
-          <select
-            id="support-status"
-            className="w-full border rounded-md p-2 card-bg"
-            value={status}
-            onChange={(e) => setStatus(e.target.value as SupportStatus)}
-          >
-            {statusOptions.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+    <div className="space-y-4">
+      {/* Ticket Management Section - only show if user can edit */}
+      {onSave && (
+        <div className="rounded-lg card-bg shadow-elev-1 p-4">
+          <h3 className="text-lg font-semibold mb-4">Update Ticket</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+            <div>
+              <label className="block text-sm mb-1" htmlFor="support-status">
+                Status
+              </label>
+              <select
+                id="support-status"
+                className="w-full border rounded-md p-2 card-bg"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as SupportStatus)}
+              >
+                {statusOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {s.replace("_", " ")}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm mb-1" htmlFor="support-assignee">
+                Assignee
+              </label>
+              <select
+                id="support-assignee"
+                className="w-full border rounded-md p-2 card-bg"
+                value={assignee}
+                onChange={(e) => setAssignee(e.target.value)}
+              >
+                <option value="">— Unassigned —</option>
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.fullName}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="text-right">
+              <button
+                className={`px-3 py-2 rounded-md text-white ${
+                  saving
+                    ? "bg-zinc-400 cursor-not-allowed"
+                    : "bg-blue-600 hover:bg-blue-700"
+                }`}
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </div>
         </div>
-        <div>
-          <label className="block text-sm mb-1" htmlFor="support-assignee">
-            Assignee
-          </label>
-          <select
-            id="support-assignee"
-            className="w-full border rounded-md p-2 card-bg"
-            value={assignee}
-            onChange={(e) => setAssignee(e.target.value)}
-          >
-            <option value="">—</option>
-            {employees.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.fullName}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="text-right">
-          <button
-            className={`px-3 py-2 rounded-md text-white ${
-              saving
-                ? "bg-zinc-400 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700"
-            }`}
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? "Saving…" : "Save Changes"}
-          </button>
-        </div>
-      </div>
+      )}
 
-      <div>
-        <div className="text-sm font-medium mb-1">Add a comment</div>
-        <textarea
-          className="w-full border rounded-md p-2 card-bg"
-          rows={3}
-          placeholder="Write a comment…"
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-        />
-      </div>
+      {/* Comment & Attachment Section - only show if user can comment */}
+      {writeComment && (
+        <div className="rounded-lg card-bg shadow-elev-1 p-4">
+          <h3 className="text-lg font-semibold mb-4">
+            Add Comment & Attachments
+          </h3>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm mb-1" htmlFor="support-comment">
+                Comment
+              </label>
+              <textarea
+                id="support-comment"
+                className="w-full border rounded-md p-2 card-bg"
+                rows={4}
+                placeholder="Add a comment to this ticket..."
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm mb-1" htmlFor="support-files">
+                Attachments (optional)
+              </label>
+              <input
+                id="support-files"
+                type="file"
+                multiple
+                onChange={(e) => setFiles(Array.from(e.target.files || []))}
+                className="w-full border rounded-md p-2 card-bg"
+              />
+              {files.length > 0 && (
+                <div className="mt-2 text-sm text-zinc-600">
+                  {files.length} file{files.length !== 1 ? "s" : ""} selected
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center">
+              <div className="text-sm text-zinc-500">
+                {comment.trim() || files.length > 0
+                  ? "Comment and attachments will be posted together"
+                  : "Add a comment or select files to attach"}
+              </div>
+              <div className="flex gap-2">
+                {(comment.trim() || files.length > 0) && (
+                  <button
+                    className={`px-3 py-2 rounded-md text-white ${
+                      uploading
+                        ? "bg-zinc-400 cursor-not-allowed"
+                        : "bg-green-600 hover:bg-green-700"
+                    }`}
+                    onClick={handleAttachSubmit}
+                    disabled={uploading}
+                  >
+                    {uploading ? "Uploading…" : "Post Comment"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -163,8 +238,6 @@ export default function SupportDetail() {
     }>
   >([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -174,8 +247,20 @@ export default function SupportDetail() {
         const db = getFirestore();
         const snap = await getDoc(doc(db, "supportTickets", id));
         if (snap.exists()) {
-          setTicket({ id: snap.id, ...(snap.data() as any) } as SupportTicket);
+          const ticketData = snap.data() as any;
+          const ticket = { id: snap.id, ...ticketData } as SupportTicket;
+
+          // Log for debugging - check if message field exists
+          if (!ticket.message) {
+            console.warn(
+              `Support ticket ${id} is missing message field`,
+              ticketData
+            );
+          }
+
+          setTicket(ticket);
         } else {
+          console.warn(`Support ticket ${id} not found`);
           setTicket(null);
         }
         const cq = query(
@@ -249,24 +334,6 @@ export default function SupportDetail() {
     ]);
   }
 
-  async function handleUpload(ev: React.ChangeEvent<HTMLInputElement>) {
-    const list = Array.from(ev.target.files || []);
-    setFiles(list);
-  }
-
-  async function handleAttachSubmit() {
-    if (!commentable || files.length === 0) return;
-    if (!ticket) return;
-    setUploading(true);
-    try {
-      const metas = await uploadSupportAttachments(ticket.id, files);
-      await writeComment({ ticketId: ticket.id, attachments: metas });
-      setFiles([]);
-    } finally {
-      setUploading(false);
-    }
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
@@ -292,11 +359,46 @@ export default function SupportDetail() {
         </div>
       </div>
 
-      {editable ? (
-        <SupportEditForm ticket={ticket} onSave={onSave} />
+      {/* Combined Edit Form - renders once with both editing and commenting capabilities */}
+      {editable || commentable ? (
+        <SupportEditForm
+          ticket={ticket}
+          onSave={editable ? onSave : undefined}
+          writeComment={commentable ? (p) => writeComment(p) : undefined}
+          loadEmployees={editable ? loadAssignableEmployees : undefined}
+        />
       ) : (
         <div className="text-xs text-zinc-500">
-          You do not have permission to edit status or assignee.
+          You do not have permission to edit this ticket or add comments.
+        </div>
+      )}
+
+      {/* Original Client Message Section */}
+      {ticket?.message && ticket.message.trim() && (
+        <div className="rounded-lg card-bg shadow-elev-1 p-4">
+          <div className="text-sm font-medium mb-2">
+            Client's Original Message
+          </div>
+          <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-md">
+            <div className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+              {ticket.message}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fallback message if ticket exists but no message */}
+      {ticket && (!ticket.message || !ticket.message.trim()) && (
+        <div className="rounded-lg card-bg shadow-elev-1 p-4">
+          <div className="text-sm font-medium mb-2">
+            Client's Original Message
+          </div>
+          <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+            <div className="text-sm text-yellow-800 dark:text-yellow-200">
+              ⚠️ The original message for this ticket could not be loaded. The
+              ticket may have been created with incomplete data.
+            </div>
+          </div>
         </div>
       )}
 
@@ -343,40 +445,6 @@ export default function SupportDetail() {
           </ul>
         )}
       </div>
-
-      {commentable ? (
-        <div className="rounded-lg card-bg shadow-elev-1 p-4 space-y-3">
-          <div>
-            <div className="text-sm font-medium mb-1">Add a comment</div>
-            <SupportEditForm
-              ticket={ticket}
-              onSave={onSave}
-              writeComment={(p) => writeComment(p)}
-            />
-          </div>
-          <div>
-            <div className="text-sm font-medium mb-1">Add attachments</div>
-            <input type="file" multiple onChange={handleUpload} />
-            <div className="mt-2">
-              <button
-                className={`px-3 py-2 rounded-md text-white ${
-                  uploading || files.length === 0
-                    ? "bg-zinc-400 cursor-not-allowed"
-                    : "bg-blue-600 hover:bg-blue-700"
-                }`}
-                onClick={handleAttachSubmit}
-                disabled={uploading || files.length === 0}
-              >
-                {uploading ? "Uploading…" : "Upload & Comment"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="text-xs text-zinc-500">
-          You can view comments but cannot add new ones.
-        </div>
-      )}
     </div>
   );
 }

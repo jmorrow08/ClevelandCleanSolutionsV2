@@ -37,7 +37,16 @@ export default function AgreementDetailsModal({
       setLoading(true);
       const projections =
         await ServiceAgreementProjectionService.getFinancialProjections(30);
-      setAgreements(projections.agreements);
+
+      // Sort agreements by nextPaymentDate (earliest to latest)
+      const sortedAgreements = projections.agreements.sort((a, b) => {
+        if (!a.nextPaymentDate && !b.nextPaymentDate) return 0;
+        if (!a.nextPaymentDate) return 1;
+        if (!b.nextPaymentDate) return -1;
+        return a.nextPaymentDate.getTime() - b.nextPaymentDate.getTime();
+      });
+
+      setAgreements(sortedAgreements);
     } catch (error) {
       console.error("Error loading agreements:", error);
     } finally {
@@ -134,7 +143,7 @@ export default function AgreementDetailsModal({
               </div>
 
               {/* Agreements Table */}
-              <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg overflow-hidden">
+              <div className="bg-[var(--muted)] rounded-lg overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-100 dark:bg-zinc-800">

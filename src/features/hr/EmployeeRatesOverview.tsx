@@ -8,9 +8,13 @@ import {
   updateDoc,
   doc,
   serverTimestamp,
+  query,
+  where,
+  orderBy,
 } from "firebase/firestore";
 import { firebaseConfig } from "../../services/firebase";
 import { RoleGuard } from "../../context/RoleGuard";
+import EmployeeRateModal from "./EmployeeRateModal";
 
 type RawRate = any;
 type RateDoc = {
@@ -34,40 +38,114 @@ type Employee = {
   lastName?: string;
 };
 
+type Location = {
+  id: string;
+  locationName: string;
+};
+
 export default function EmployeeRatesOverview() {
   const [loading, setLoading] = useState(true);
   const [rates, setRates] = useState<RateDoc[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<
     "all" | "per_visit" | "hourly" | "monthly"
   >("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<RateDoc | null>(null);
-  const [form, setForm] = useState<{
-    employeeId: string;
-    rateType: "per_visit" | "hourly" | "monthly";
-    amount: string;
-    effectiveDate: string;
-    locationId: string;
-    monthlyPayDay: string;
-  }>({
-    employeeId: "",
-    rateType: "per_visit",
-    amount: "",
-    effectiveDate: "",
-    locationId: "",
-    monthlyPayDay: "1",
-  });
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
+
+  const handleAddRate = (employeeId: string) => {
+    setSelectedEmployeeId(employeeId);
+    setEditing(null);
+    setModalOpen(true);
+  };
+
+  const handleEditRate = (rate: RateDoc) => {
+    setSelectedEmployeeId(rate.employeeId || "");
+    setEditing(rate);
+    setModalOpen(true);
+  };
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+    setEditing(null);
+    setSelectedEmployeeId("");
+  };
+
+  const handleRateSaved = async () => {
+    // Refresh the rates list
+    try {
+      if (!getApps().length) initializeApp(firebaseConfig);
+      const db = getFirestore();
+      const [ratesSnap, employeesSnap, locationsSnap] = await Promise.all([
+        getDocs(collection(db, "employeeRates")),
+        getDocs(collection(db, "employeeMasterList")),
+        getDocs(query(
+          collection(db, "locations"),
+          where("status", "==", true),
+          orderBy("locationName", "asc")
+        )),
+      ]);
+
+      const employeeList: Employee[] = [];
+      employeesSnap.forEach((d) =>
+        employeeList.push({ id: d.id, ...(d.data() as any) })
+      );
+      const employeeNameMap = new Map<string, string>();
+      for (const e of employeeList) {
+        const name =
+          e.fullName ||
+          [e.firstName, e.lastName].filter(Boolean).join(" ") ||
+          e.id;
+        employeeNameMap.set(e.id, name);
+      }
+
+      const locationsList: Location[] = [];
+      locationsSnap.forEach((d) => {
+        const data = d.data() as any;
+        locationsList.push({
+          id: d.id,
+          locationName: data.locationName || "Unnamed Location",
+        });
+      });
+
+      const list: RateDoc[] = [];
+      ratesSnap.forEach((d) => {
+        const raw = { id: d.id, ...(d.data() as any) };
+        const norm = normalizeRate(raw);
+        const eid = norm.employeeId || norm.employeeProfileId || "";
+        const employeeName =
+          raw.employeeName || employeeNameMap.get(eid) || eid || "";
+        list.push({ ...norm, id: d.id, employeeName });
+      });
+      list.sort(
+        (a, b) =>
+          (normalizeEffectiveDate(b)?.getTime?.() || 0) -
+          (normalizeEffectiveDate(a)?.getTime?.() || 0)
+      );
+      setEmployees(employeeList);
+      setLocations(locationsList);
+      setRates(list);
+    } catch (error) {
+      console.error("Error refreshing rates:", error);
+    }
+  };
 
   useEffect(() => {
     async function load() {
       try {
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
-        const [ratesSnap, employeesSnap] = await Promise.all([
+        const [ratesSnap, employeesSnap, locationsSnap] = await Promise.all([
           getDocs(collection(db, "employeeRates")),
           getDocs(collection(db, "employeeMasterList")),
+          getDocs(query(
+            collection(db, "locations"),
+            where("status", "==", true),
+            orderBy("locationName", "asc")
+          )),
         ]);
         const employeeList: Employee[] = [];
         employeesSnap.forEach((d) =>
@@ -81,6 +159,15 @@ export default function EmployeeRatesOverview() {
             e.id;
           employeeNameMap.set(e.id, name);
         }
+
+        const locationsList: Location[] = [];
+        locationsSnap.forEach((d) => {
+          const data = d.data() as any;
+          locationsList.push({
+            id: d.id,
+            locationName: data.locationName || "Unnamed Location",
+          });
+        });
         const list: RateDoc[] = [];
         ratesSnap.forEach((d) => {
           const raw = { id: d.id, ...(d.data() as any) };
@@ -96,6 +183,7 @@ export default function EmployeeRatesOverview() {
             (normalizeEffectiveDate(a)?.getTime?.() || 0)
         );
         setEmployees(employeeList);
+        setLocations(locationsList);
         setRates(list);
       } finally {
         setLoading(false);
@@ -117,95 +205,10 @@ export default function EmployeeRatesOverview() {
     });
   }, [rates, search, filterType]);
 
-  function openAdd() {
-    setEditing(null);
-    setForm({
-      employeeId: "",
-      rateType: "per_visit",
-      amount: "",
-      effectiveDate: "",
-      locationId: "",
-      monthlyPayDay: "1",
-    });
-    setModalOpen(true);
-  }
 
-  function openEdit(r: RateDoc) {
-    setEditing(r);
-    const eff = normalizeEffectiveDate(r);
-    setForm({
-      employeeId: r.employeeId || r.employeeProfileId || "",
-      rateType: r.rateType,
-      amount: String(r.amount ?? ""),
-      effectiveDate: eff
-        ? new Date(eff.getTime() - eff.getTimezoneOffset() * 60000)
-            .toISOString()
-            .slice(0, 10)
-        : "",
-      locationId: r.locationId || "",
-      monthlyPayDay: String((r as any).monthlyPayDay || "1"),
-    });
-    setModalOpen(true);
-  }
 
-  async function save() {
-    const selectedEmployeeId = form.employeeId.trim();
-    if (!selectedEmployeeId) return alert("Select employee");
-    const amountNum = Number(form.amount);
-    if (!Number.isFinite(amountNum) || amountNum <= 0)
-      return alert("Invalid amount");
-    if (!form.effectiveDate) return alert("Effective date required");
-    if (!getApps().length) initializeApp(firebaseConfig);
-    const db = getFirestore();
 
-    const payload: any = {
-      employeeId: selectedEmployeeId,
-      employeeProfileId: selectedEmployeeId,
-      rateType: form.rateType,
-      amount: amountNum,
-      effectiveDate: new Date(form.effectiveDate + "T00:00:00"),
-      locationId: form.locationId?.trim() ? form.locationId.trim() : null,
-      updatedAt: serverTimestamp(),
-    };
-    if (form.rateType === "hourly") payload.hourlyRate = amountNum;
-    if (form.rateType === "per_visit") payload.rate = amountNum;
-    if (form.rateType === "monthly") {
-      payload.monthlyRate = amountNum;
-      payload.monthlyPayDay = Number(form.monthlyPayDay) || 1;
-    }
 
-    const employeeName = employees.find((e) => e.id === selectedEmployeeId);
-    if (employeeName) {
-      payload.employeeName =
-        employeeName.fullName ||
-        [employeeName.firstName, employeeName.lastName]
-          .filter(Boolean)
-          .join(" ") ||
-        employeeName.id;
-    }
-
-    if (editing?.id)
-      await updateDoc(doc(db, "employeeRates", editing.id), payload);
-    else
-      await addDoc(collection(db, "employeeRates"), {
-        ...payload,
-        createdAt: serverTimestamp(),
-      });
-
-    // Refresh list
-    const snap = await getDocs(collection(db, "employeeRates"));
-    const list: RateDoc[] = [];
-    snap.forEach((d) =>
-      list.push(normalizeRate({ id: d.id, ...(d.data() as any) }))
-    );
-    list.sort(
-      (a, b) =>
-        (normalizeEffectiveDate(b)?.getTime?.() || 0) -
-        (normalizeEffectiveDate(a)?.getTime?.() || 0)
-    );
-    setRates(list);
-    setModalOpen(false);
-  }
 
   return (
     <div className="space-y-3">
@@ -235,7 +238,11 @@ export default function EmployeeRatesOverview() {
         <RoleGuard allow={["owner", "super_admin"]}>
           <button
             className="h-10 px-3 rounded-md border card-bg"
-            onClick={openAdd}
+            onClick={() => {
+              setSelectedEmployeeId("");
+              setEditing(null);
+              setModalOpen(true);
+            }}
           >
             Add Rate
           </button>
@@ -290,7 +297,7 @@ export default function EmployeeRatesOverview() {
                     <RoleGuard allow={["owner", "super_admin"]}>
                       <button
                         className="text-blue-600 dark:text-blue-400 underline"
-                        onClick={() => openEdit(r)}
+                        onClick={() => handleEditRate(r)}
                       >
                         Edit
                       </button>
@@ -303,145 +310,14 @@ export default function EmployeeRatesOverview() {
         </table>
       </div>
 
-      {modalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setModalOpen(false)}
-          />
-          <div className="relative w-[640px] max-w-[96vw] rounded-lg card-bg shadow-elev-2 p-4">
-            <div className="text-lg font-medium mb-2">
-              {editing?.id ? "Edit Rate" : "Add Rate"}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="md:col-span-2">
-                <label className="block text-xs text-zinc-500 mb-1">
-                  Employee
-                </label>
-                <select
-                  className="w-full border rounded-md px-3 py-2 card-bg"
-                  value={form.employeeId}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, employeeId: e.target.value }))
-                  }
-                >
-                  <option value="">-- Select Employee --</option>
-                  {employees.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.fullName ||
-                        [e.firstName, e.lastName].filter(Boolean).join(" ") ||
-                        e.id}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-zinc-500 mb-1">
-                  Rate Type
-                </label>
-                <select
-                  className="w-full border rounded-md px-3 py-2 card-bg"
-                  value={form.rateType}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, rateType: e.target.value as any }))
-                  }
-                >
-                  <option value="per_visit">per_visit (piece-rate)</option>
-                  <option value="hourly">hourly</option>
-                  <option value="monthly">monthly</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-zinc-500 mb-1">
-                  Amount
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="w-full border rounded-md px-3 py-2 card-bg"
-                  value={form.amount}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, amount: e.target.value }))
-                  }
-                />
-              </div>
-              {form.rateType === "monthly" && (
-                <div>
-                  <label className="block text-xs text-zinc-500 mb-1">
-                    Monthly Pay Day
-                  </label>
-                  <select
-                    className="w-full border rounded-md px-3 py-2 card-bg"
-                    value={form.monthlyPayDay}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, monthlyPayDay: e.target.value }))
-                    }
-                  >
-                    {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                      <option key={day} value={String(day)}>
-                        {day}
-                        {day === 1
-                          ? "st"
-                          : day === 2
-                          ? "nd"
-                          : day === 3
-                          ? "rd"
-                          : "th"}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div>
-                <label className="block text-xs text-zinc-500 mb-1">
-                  Effective Date
-                </label>
-                <input
-                  type="date"
-                  className="w-full border rounded-md px-3 py-2 card-bg"
-                  value={form.effectiveDate}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, effectiveDate: e.target.value }))
-                  }
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-zinc-500 mb-1">
-                  Location ID (optional)
-                </label>
-                <input
-                  className="w-full border rounded-md px-3 py-2 card-bg"
-                  value={form.locationId}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, locationId: e.target.value }))
-                  }
-                  placeholder="locationId (leave blank for all)"
-                />
-              </div>
-            </div>
-            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded mt-3 p-2">
-              Per job/visit rate (piece-rate) — not hourly
-            </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                className="px-3 py-1.5 rounded-md border card-bg"
-                onClick={() => setModalOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={save}
-                disabled={
-                  !form.employeeId || !form.amount || !form.effectiveDate
-                }
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <EmployeeRateModal
+        isOpen={modalOpen}
+        onClose={handleModalClose}
+        employeeId={selectedEmployeeId || undefined}
+        employees={employees}
+        editingRate={editing}
+        onSave={handleRateSaved}
+      />
     </div>
   );
 }

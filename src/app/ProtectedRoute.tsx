@@ -62,12 +62,15 @@ export default function ProtectedRoute({ requireRole }: Props) {
   const { show } = useToast();
   const warnedRef = useRef(false);
 
-  // Compute authorization once per render based on required role
+  // Only compute authorization if claims have been loaded (not null/undefined)
+  // This prevents showing authorization errors during the initial claims fetch
   let authorized = true;
-  if (requireRole === "admin-or-above") authorized = isAdminOrAbove(claims);
-  if (requireRole === "employee-or-above")
-    authorized = isEmployeeOrAbove(claims);
-  if (requireRole === "client-or-above") authorized = isClientOrAbove(claims);
+  if (requireRole && claims !== null) {
+    if (requireRole === "admin-or-above") authorized = isAdminOrAbove(claims);
+    if (requireRole === "employee-or-above")
+      authorized = isEmployeeOrAbove(claims);
+    if (requireRole === "client-or-above") authorized = isClientOrAbove(claims);
+  }
 
   // Side-effects (toasts) must not run during render
   useEffect(() => {
@@ -80,18 +83,27 @@ export default function ProtectedRoute({ requireRole }: Props) {
 
   useEffect(() => {
     if (loading) return;
-    if (user && requireRole && !authorized && !warnedRef.current) {
+    // Only show authorization error if claims have been loaded and user is still unauthorized
+    if (
+      user &&
+      requireRole &&
+      claims !== null &&
+      !authorized &&
+      !warnedRef.current
+    ) {
       warnedRef.current = true;
       show({
         type: "error",
         message: "You are not authorized to access this area.",
       });
     }
-  }, [loading, user, requireRole, authorized, show]);
+  }, [loading, user, requireRole, authorized, claims, show]);
 
   if (loading) return <div className="p-6">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
-  if (requireRole && !authorized) return <Navigate to="/login" replace />;
+  // Only redirect if claims have been loaded and user is unauthorized
+  if (requireRole && claims !== null && !authorized)
+    return <Navigate to="/login" replace />;
 
   return <Outlet />;
 }

@@ -42,6 +42,20 @@ type Agreement = {
   locationName?: string;
   contractStartDate?: Date;
   contractEndDate?: Date;
+  renewalTerms?: string;
+  serviceAgreementUrl?: string;
+  specialInstructions?: string;
+  serviceDays?: string[];
+  scheduleDetails?: {
+    serviceDays?: string[];
+    monthlyDay?: number;
+    oneTimeDate?: any;
+  };
+  paymentScheduleDetails?: {
+    monthlyPaymentDay?: number;
+    quarterlyMonth?: number;
+    quarterlyDay?: number;
+  };
 };
 
 // Generate a meaningful agreement name if none exists
@@ -645,7 +659,7 @@ function ServiceDetailsModal({
       onClick={onClose}
     >
       <div
-        className="card-bg rounded-lg shadow-elev-2 max-w-4xl w-full p-4"
+        className="card-bg border border-[var(--border)] rounded-lg shadow-elev-2 max-w-4xl w-full p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -738,7 +752,7 @@ function ServiceDetailsModal({
         {/* Admin Notes */}
         <div className="mt-4">
           <div className="text-sm font-medium">Admin Notes</div>
-          <div className="mt-2 rounded-md border p-3 text-sm bg-zinc-50 dark:bg-zinc-900">
+          <div className="mt-2 rounded-md border p-3 text-sm bg-[var(--muted)]">
             {adminNote ? adminNote : "No notes provided"}
           </div>
         </div>
@@ -754,47 +768,350 @@ function AgreementModal({
   agreement: Agreement;
   onClose: () => void;
 }) {
+  // Helper function to format dates
+  const formatDate = (date: any) => {
+    if (!date) return "—";
+    try {
+      const d = date?.toDate ? date.toDate() : new Date(date);
+      return d.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    } catch {
+      return "—";
+    }
+  };
+
+  // Helper function to format payment schedule
+  const formatPaymentSchedule = () => {
+    if (!agreement.paymentScheduleDetails) return null;
+
+    const { monthlyPaymentDay, quarterlyMonth, quarterlyDay } =
+      agreement.paymentScheduleDetails;
+
+    if (agreement.paymentFrequency === "monthly" && monthlyPaymentDay) {
+      const suffix =
+        monthlyPaymentDay === 1
+          ? "st"
+          : monthlyPaymentDay === 2
+          ? "nd"
+          : monthlyPaymentDay === 3
+          ? "rd"
+          : "th";
+      return `${monthlyPaymentDay}${suffix} of each month`;
+    }
+
+    if (
+      agreement.paymentFrequency === "quarterly" &&
+      quarterlyMonth &&
+      quarterlyDay
+    ) {
+      const monthNames = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+      ];
+      const suffix =
+        quarterlyDay === 1
+          ? "st"
+          : quarterlyDay === 2
+          ? "nd"
+          : quarterlyDay === 3
+          ? "rd"
+          : "th";
+      return `${
+        monthNames[quarterlyMonth - 1]
+      } ${quarterlyDay}${suffix} each quarter`;
+    }
+
+    return null;
+  };
+
+  // Helper function to format service days
+  const formatServiceDays = () => {
+    const serviceDays =
+      agreement.serviceDays || agreement.scheduleDetails?.serviceDays;
+    if (Array.isArray(serviceDays) && serviceDays.length > 0) {
+      const dayNames = [
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ];
+      return serviceDays
+        .map((day) => {
+          const dayIndex = parseInt(day);
+          return isNaN(dayIndex) ? day : dayNames[dayIndex] || day;
+        })
+        .join(", ");
+    }
+    return null;
+  };
+
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
       onClick={onClose}
     >
       <div
-        className="card-bg rounded-lg shadow-elev-2 max-w-2xl w-full p-4"
+        className="card-bg border border-[var(--border)] rounded-lg shadow-elev-2 max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between">
-          <div className="text-lg font-semibold">
+        <div className="flex items-center justify-between mb-6">
+          <div className="text-xl font-semibold">
             {generateAgreementName(agreement)}
           </div>
           <button
-            className="px-2 py-1 text-sm rounded-md border"
+            className="px-3 py-1.5 text-sm rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-700"
             onClick={onClose}
           >
             Close
           </button>
         </div>
-        <div className="mt-3 text-sm space-y-2">
-          <div>Service Frequency: {agreement.frequency || "—"}</div>
-          <div>
-            Payment:{" "}
-            {agreement.paymentAmount
-              ? `$${Number(agreement.paymentAmount).toLocaleString()}`
-              : "—"}
-            {agreement.paymentFrequency ? `/${agreement.paymentFrequency}` : ""}
+
+        {/* Basic Information */}
+        <div className="mb-6">
+          <h3 className="text-lg font-medium mb-3 text-zinc-800 dark:text-zinc-200">
+            Basic Information
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="card-bg border border-[var(--border)] p-4 rounded-lg">
+              <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                Service Type
+              </div>
+              <div className="text-base text-zinc-900 dark:text-zinc-200">
+                {agreement.serviceType || "Cleaning Service"}
+              </div>
+            </div>
+            <div className="card-bg border border-[var(--border)] p-4 rounded-lg">
+              <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                Frequency
+              </div>
+              <div className="text-base capitalize text-zinc-900 dark:text-zinc-200">
+                {agreement.frequency || "—"}
+              </div>
+            </div>
+            <div className="card-bg border border-[var(--border)] p-4 rounded-lg">
+              <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                Status
+              </div>
+              <div className="text-base">
+                <span
+                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    agreement.isActive
+                      ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                      : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
+                  }`}
+                >
+                  {agreement.isActive ? "Active" : "Inactive"}
+                </span>
+              </div>
+            </div>
+            {agreement.locationName && (
+              <div className="card-bg border border-[var(--border)] p-4 rounded-lg">
+                <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                  Location
+                </div>
+                <div className="text-base text-zinc-900 dark:text-zinc-200">
+                  {agreement.locationName}
+                </div>
+              </div>
+            )}
           </div>
-          <div>
-            Included Services:{" "}
-            {Array.isArray(agreement.includedServices) &&
-            agreement.includedServices.length
-              ? agreement.includedServices.join(", ")
-              : "—"}
-          </div>
-          <div>Status: {agreement.isActive ? "Active" : "Inactive"}</div>
-          {agreement.locationName && (
-            <div>Location: {agreement.locationName}</div>
-          )}
         </div>
+
+        {/* Schedule Details */}
+        <div className="mb-6">
+          <h3 className="text-lg font-medium mb-3 text-zinc-800 dark:text-zinc-200">
+            Schedule Details
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {formatServiceDays() && (
+              <div className="card-bg border border-[var(--border)] p-4 rounded-lg">
+                <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                  Service Days
+                </div>
+                <div className="text-base text-zinc-900 dark:text-zinc-200">
+                  {formatServiceDays()}
+                </div>
+              </div>
+            )}
+            {agreement.scheduleDetails?.monthlyDay &&
+              agreement.frequency === "monthly" && (
+                <div className="card-bg border border-[var(--border)] p-4 rounded-lg">
+                  <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                    Monthly Service Day
+                  </div>
+                  <div className="text-base text-zinc-900 dark:text-zinc-200">
+                    {agreement.scheduleDetails.monthlyDay}
+                    {agreement.scheduleDetails.monthlyDay === 1
+                      ? "st"
+                      : agreement.scheduleDetails.monthlyDay === 2
+                      ? "nd"
+                      : agreement.scheduleDetails.monthlyDay === 3
+                      ? "rd"
+                      : "th"}{" "}
+                    of each month
+                  </div>
+                </div>
+              )}
+            {agreement.contractStartDate && (
+              <div className="card-bg border border-[var(--border)] p-4 rounded-lg">
+                <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                  Contract Start Date
+                </div>
+                <div className="text-base text-zinc-900 dark:text-zinc-200">
+                  {formatDate(agreement.contractStartDate)}
+                </div>
+              </div>
+            )}
+            {agreement.contractEndDate && (
+              <div className="card-bg border border-[var(--border)] p-4 rounded-lg">
+                <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                  Contract End Date
+                </div>
+                <div className="text-base text-zinc-900 dark:text-zinc-200">
+                  {formatDate(agreement.contractEndDate)}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Payment Information */}
+        <div className="mb-6">
+          <h3 className="text-lg font-medium mb-3 text-zinc-800 dark:text-zinc-200">
+            Payment Information
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="card-bg border border-[var(--border)] p-4 rounded-lg">
+              <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                Payment Amount
+              </div>
+              <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-200">
+                {agreement.paymentAmount
+                  ? `$${Number(agreement.paymentAmount).toLocaleString()}`
+                  : "—"}
+              </div>
+            </div>
+            <div className="card-bg border border-[var(--border)] p-4 rounded-lg">
+              <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                Payment Frequency
+              </div>
+              <div className="text-base capitalize text-zinc-900 dark:text-zinc-200">
+                {agreement.paymentFrequency || "—"}
+              </div>
+            </div>
+            {formatPaymentSchedule() && (
+              <div className="card-bg border border-[var(--border)] p-4 rounded-lg md:col-span-2">
+                <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                  Payment Schedule
+                </div>
+                <div className="text-base text-zinc-900 dark:text-zinc-200">
+                  {formatPaymentSchedule()}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Services */}
+        {Array.isArray(agreement.includedServices) &&
+          agreement.includedServices.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-medium mb-3 text-zinc-800 dark:text-zinc-200">
+                Included Services
+              </h3>
+              <div className="card-bg border border-[var(--border)] p-4 rounded-lg">
+                <div className="flex flex-wrap gap-2">
+                  {agreement.includedServices.map((service, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
+                    >
+                      {service}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+        {/* Additional Details */}
+        {(agreement.specialInstructions ||
+          agreement.renewalTerms ||
+          agreement.serviceAgreementUrl) && (
+          <div className="mb-6">
+            <h3 className="text-lg font-medium mb-3 text-zinc-800 dark:text-zinc-200">
+              Additional Details
+            </h3>
+            <div className="space-y-4">
+              {agreement.specialInstructions && (
+                <div className="card-bg border border-[var(--border)] p-4 rounded-lg">
+                  <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2">
+                    Special Instructions
+                  </div>
+                  <div className="text-base whitespace-pre-wrap text-zinc-900 dark:text-zinc-200">
+                    {agreement.specialInstructions}
+                  </div>
+                </div>
+              )}
+              {agreement.renewalTerms && (
+                <div className="card-bg border border-[var(--border)] p-4 rounded-lg">
+                  <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2">
+                    Renewal Terms
+                  </div>
+                  <div className="text-base capitalize text-zinc-900 dark:text-zinc-200">
+                    {agreement.renewalTerms}
+                  </div>
+                </div>
+              )}
+              {agreement.serviceAgreementUrl && (
+                <div className="card-bg border border-[var(--border)] p-4 rounded-lg">
+                  <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2">
+                    Service Agreement Document
+                  </div>
+                  <div className="text-base">
+                    <a
+                      href={agreement.serviceAgreementUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <svg
+                        className="w-4 h-4 mr-2"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                      View Agreement PDF
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

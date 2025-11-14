@@ -136,7 +136,7 @@ export default function AudienceBuilder({
       <div>
         <label className="block text-sm mb-1">JSON (read-only)</label>
         <textarea
-          className="w-full border rounded-md px-3 py-2 text-xs font-mono bg-zinc-50 dark:bg-zinc-900"
+          className="w-full border rounded-md px-3 py-2 text-xs font-mono bg-[var(--muted)]"
           readOnly
           rows={4}
           value={JSON.stringify(local, null, 2)}

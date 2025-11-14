@@ -52,6 +52,9 @@ export default function ServicesPage() {
   // Client authentication validation
   const isClient = claims?.client || false;
   const hasClientRole = claims?.role === "client" || false;
+
+  // Authentication validation complete
+
   const [allJobs, setAllJobs] = useState<Job[]>([]);
   const [locationNames, setLocationNames] = useState<Record<string, string>>(
     {}
@@ -449,13 +452,30 @@ export default function ServicesPage() {
               setRatingState((s) =>
                 s ? { ...s, submitting: true, error: undefined } : s
               );
-              await addDoc(collection(db, "serviceReviews"), {
-                jobId: payload.jobId,
-                clientProfileId: profileId,
-                rating,
-                comment,
+              // Find the job details to include location and service date
+              const jobDetails = allJobs.find((j) => j.id === payload.jobId);
+              const locationName =
+                locationNames[jobDetails?.locationId || ""] ||
+                (jobDetails as any)?.locationName ||
+                (jobDetails as any)?.name ||
+                null;
+
+              // Prepare rating data for submission
+
+              // Ensure all data types are correct for Firestore rules validation
+              const reviewData = {
+                jobId: String(payload.jobId),
+                clientId: String(profileId || ""),
+                clientProfileId: String(profileId || ""),
+                rating: Number(rating),
+                comment: String(comment || ""),
+                locationName: locationName ? String(locationName) : null,
+                serviceDate: jobDetails?.serviceDate || null,
                 timestamp: serverTimestamp(),
-              });
+              };
+
+              // Submit the rating to Firestore
+              await addDoc(collection(db, "serviceReviews"), reviewData);
               setReviewsByJob((prev) => ({
                 ...prev,
                 [payload.jobId]: {

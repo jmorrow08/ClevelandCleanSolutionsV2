@@ -75,7 +75,38 @@ Legacy → Canonical map in `src/services/statusMap.ts`:
 
 Configured via `tailwind.config.js` and `src/styles/tailwind.css` (imported by `src/index.css`).
 
+### Recent Features & Updates
+
+#### Hidden Navigation Sections (December 2024)
+
+- **Training**, **Audit Log**, **Notifications**, and **Tools** sections have been temporarily hidden from the admin side panel navigation
+- Routes remain functional for direct access but are not visible in the main navigation menu
+- These sections can be easily re-enabled by modifying the `HIDDEN_SECTIONS` array in `src/app/AppLayout.tsx`
+- This allows for future reactivation without code changes
+
+#### Payroll System Enhancements
+
+- **Employee Payroll Features**: Added current period summary and payroll history to employee timesheet view
+- **Payroll Safety Features**: Implemented rate snapshot backfilling and locked timesheet protection
+- **Enhanced Security**: Employees can now read/write their own timesheets with field-level restrictions
+- **Payroll History**: Employees can view their completed payroll runs and earnings history
+
+#### Firestore Rules Updates
+
+- Updated security rules to support V2 while maintaining V1 compatibility
+- Enhanced timesheet permissions for employee self-service
+- Added payroll run access controls for employees to view locked runs
+- Maintained backward compatibility with existing V1 functionality
+
+#### Additional Features
+
+- **Maps Integration**: Added Google Maps support for location visualization
+- **Favicon Upload**: Dynamic favicon management through admin settings
+- **Upload Optimization**: Enhanced file upload handling and optimization
+- **Dark Background Audit**: Comprehensive audit system for background processes
+
 ### Notes
 
 - Uses React 19, Vite 7, TypeScript 5, Tailwind 4.
 - Shares Firebase config with V1; keep `.env.local` in V2 in sync with V1.
+- All V2 features are designed to be non-disruptive to V1 operations.

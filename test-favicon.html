@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Favicon Test - Cleveland Clean Solutions</title>
+
+    <!-- Test favicon configuration -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" sizes="any" href="/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.svg" />
+
+    <!-- Apple touch icon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicon.svg" />
+
+    <!-- Web app manifest -->
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Additional meta tags for better favicon recognition -->
+    <meta name="msapplication-TileColor" content="#1e40af" />
+    <meta name="theme-color" content="#1e40af" />
+    <meta name="msapplication-config" content="none" />
+
+    <!-- Search engine favicon recognition -->
+    <meta property="og:image" content="/favicon.svg" />
+    <meta property="og:image:type" content="image/svg+xml" />
+    <meta property="og:image:width" content="32" />
+    <meta property="og:image:height" content="32" />
+
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .favicon-preview {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        margin: 20px 0;
+        padding: 20px;
+        background: #f8f9fa;
+        border-radius: 8px;
+      }
+      .favicon-display {
+        width: 32px;
+        height: 32px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: white;
+      }
+      .status {
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: bold;
+      }
+      .success {
+        background: #d4edda;
+        color: #155724;
+      }
+      .info {
+        background: #d1ecf1;
+        color: #0c5460;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🔍 Favicon Test Page</h1>
+      <p>
+        This page tests the favicon configuration for Cleveland Clean Solutions.
+      </p>
+
+      <div class="favicon-preview">
+        <div class="favicon-display">
+          <img src="/favicon.svg" alt="Favicon" width="32" height="32" />
+        </div>
+        <div>
+          <h3>Current Favicon</h3>
+          <p>
+            This should display your custom CCS favicon (blue background with
+            white "CCS" text)
+          </p>
+          <span class="status success">✓ SVG Favicon Loaded</span>
+        </div>
+      </div>
+
+      <h2>What We Fixed</h2>
+      <ul>
+        <li>
+          ✅ Removed placeholder favicon files that were causing the triangle
+          icon issue
+        </li>
+        <li>✅ Updated HTML to properly reference the SVG favicon</li>
+        <li>✅ Added proper meta tags for better favicon recognition</li>
+        <li>✅ Created web app manifest for better icon handling</li>
+        <li>✅ Fixed the useFavicon hook to use SVG as default</li>
+        <li>✅ Added cache-busting meta tags</li>
+        <li>✅ Added Open Graph meta tags for social media</li>
+      </ul>
+
+      <h2>Expected Results</h2>
+      <p>After these changes, your favicon should:</p>
+      <ul>
+        <li>✅ Display correctly in browser tabs</li>
+        <li>✅ Show in Google search results instead of the triangle icon</li>
+        <li>✅ Work properly across all devices and platforms</li>
+        <li>✅ Update dynamically when you change it in the admin panel</li>
+      </ul>
+
+      <h2>Next Steps</h2>
+      <p>To see the changes take effect:</p>
+      <ol>
+        <li>Clear your browser cache and cookies</li>
+        <li>Wait for Google to re-crawl your site (can take a few days)</li>
+        <li>Test in different browsers and devices</li>
+        <li>Check Google search results after a few days</li>
+      </ol>
+
+      <div class="status info">
+        <strong>Note:</strong> Search engine favicon updates can take several
+        days to propagate. The changes are now live on your website.
+      </div>
+    </div>
+  </body>
+</html>

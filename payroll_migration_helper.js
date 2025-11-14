@@ -396,12 +396,18 @@ const PayrollMigrationHelper = {
     const rateSnap = await rateQuery.get();
     if (!rateSnap.empty) {
       const data = rateSnap.docs[0].data();
-      return {
+      const rateSnapshot = {
         type: data.rateType || (data.hourlyRate ? "hourly" : "per_visit"),
         amount:
           data.amount || data.hourlyRate || data.perVisitRate || data.rate || 0,
-        monthlyPayDay: data.monthlyPayDay,
       };
+
+      // Only include monthlyPayDay if it's defined and not null
+      if (data.monthlyPayDay !== undefined && data.monthlyPayDay !== null) {
+        rateSnapshot.monthlyPayDay = data.monthlyPayDay;
+      }
+
+      return rateSnapshot;
     }
     return null;
   },

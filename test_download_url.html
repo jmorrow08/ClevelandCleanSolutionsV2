@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test Download URL</title>
+    <script type="module">
+      // Import Firebase modules
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+      import {
+        getAuth,
+        signInAnonymously,
+      } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+      import {
+        getStorage,
+        ref,
+        getDownloadURL,
+      } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+      import {
+        getFirestore,
+        collection,
+        getDocs,
+        query,
+        where,
+        orderBy,
+      } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+      // Firebase config
+      const firebaseConfig = {
+        apiKey: "AIzaSyAJEuOcNLg8dYtzhMEyhMZtidfIXNALcgU",
+        authDomain: "cleveland-clean-portal.firebaseapp.com",
+        projectId: "cleveland-clean-portal",
+        storageBucket: "cleveland-clean-portal.firebasestorage.app",
+        messagingSenderId: "938625547862",
+        appId: "1:938625547862:web:3655b2b380b858702705f7",
+        measurementId: "G-7KZMMKZ1XW",
+      };
+
+      // Initialize Firebase
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const storage = getStorage(app);
+      const db = getFirestore(app);
+
+      async function testDownloadURL() {
+        console.log("Starting download URL test...");
+
+        try {
+          // Sign in anonymously for testing
+          console.log("Signing in anonymously...");
+          await signInAnonymously(auth);
+          console.log("✅ Signed in successfully");
+
+          // Test the specific path
+          const testPath =
+            "media/client/shared/3ea41eca-a063-40e8-a537-c3a6765e1457-Client Portal Tutorial.mp4";
+          console.log("Testing download URL for path:", testPath);
+
+          const storageRef = ref(storage, testPath);
+          const url = await getDownloadURL(storageRef);
+          console.log("✅ Download URL generated successfully:", url);
+
+          // Also test querying the document
+          console.log("Querying mediaAssets collection...");
+          const q = query(
+            collection(db, "mediaAssets"),
+            where("category", "==", "client_resource"),
+            where("audience", "==", "clients"),
+            orderBy("uploadedAt", "desc")
+          );
+
+          const snapshot = await getDocs(q);
+          console.log("Found", snapshot.docs.length, "documents");
+
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            console.log("Document:", doc.id, data);
+          });
+        } catch (error) {
+          console.error("❌ Test failed:", error);
+          console.error("Error code:", error.code);
+          console.error("Error message:", error.message);
+        }
+      }
+
+      // Run test when page loads
+      window.addEventListener("load", testDownloadURL);
+    </script>
+  </head>
+  <body>
+    <h1>Testing Download URL Generation</h1>
+    <div id="results">Check console for results...</div>
+  </body>
+</html>

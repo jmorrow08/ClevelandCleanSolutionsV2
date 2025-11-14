@@ -38,6 +38,7 @@ export default function TodaysJobs() {
   const [activeEntryId, setActiveEntryId] = useState<string | null>(null);
   const [clockInAt, setClockInAt] = useState<Date | null>(null);
   const [clockInLocName, setClockInLocName] = useState<string>("");
+
   const [activeLocationId, setActiveLocationId] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string>("");
@@ -316,15 +317,6 @@ export default function TodaysJobs() {
     } finally {
       setSaving(false);
     }
-  }
-
-  function formatDate(dt?: Date | null): string {
-    if (!dt) return "No date";
-    return dt.toLocaleDateString(undefined, {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    });
   }
 
   function formatTime(dt?: Date | null): string {

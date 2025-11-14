@@ -11,7 +11,7 @@ import {
   Timestamp,
   onSnapshot,
 } from "firebase/firestore";
-import type { DocumentData } from "firebase/firestore";
+
 import { firebaseConfig } from "../../../services/firebase";
 import { getEmployeeNames } from "../../../services/queries/resolvers";
 
@@ -165,7 +165,7 @@ export default function PresencePulse() {
       try {
         const presenceCol = collection(db, "presence");
         const usersCol = collection(db, "users");
-        const [probePresence, probeUsers] = await Promise.all([
+        const [probePresence] = await Promise.all([
           getDocs(query(presenceCol, limit(1))).catch(() => null),
           getDocs(
             query(usersCol, where("presence.online", "==", true), limit(1))

@@ -19,7 +19,6 @@ import {
   doc,
   getDoc,
   setDoc,
-  updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
 import type { User } from "firebase/auth";

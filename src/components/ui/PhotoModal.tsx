@@ -75,18 +75,25 @@ export default function PhotoModal({
   };
 
   const handleFlagPhoto = async () => {
-    if (!currentPhoto || !user) return;
+    if (!currentPhoto || !user || !user.email) {
+      console.error("Missing required data:", {
+        currentPhoto: !!currentPhoto,
+        user: !!user,
+        email: user?.email,
+      });
+      alert("Unable to flag photo: Missing user information");
+      return;
+    }
 
     try {
       setFlagging(true);
-      if (!getApps().length) initializeApp(firebaseConfig);
       const db = getFirestore();
 
       await updateDoc(doc(db, "servicePhotos", currentPhoto.id), {
         flagged: true,
         flagReason: flagReason.trim() || "Flagged by client",
         flaggedAt: serverTimestamp(),
-        flaggedBy: user.uid,
+        flaggedByEmail: user.email,
       });
 
       // Update the local photo state
@@ -99,7 +106,8 @@ export default function PhotoModal({
       );
     } catch (error: any) {
       console.error("Error flagging photo:", error);
-      alert(`Failed to flag photo: ${error.message || "Unknown error"}`);
+      const errorMessage = error?.message || "Unknown error";
+      alert(`Failed to flag photo: ${errorMessage}`);
     } finally {
       setFlagging(false);
     }

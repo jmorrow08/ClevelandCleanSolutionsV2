@@ -362,9 +362,6 @@ function AgreementCard({ agreement }: { agreement: Agreement }) {
         <div>
           <span className="text-zinc-500">Included:</span> {services || "—"}
         </div>
-        <div>
-          <span className="text-zinc-500">Payment:</span> {payment || "—"}
-        </div>
       </div>
       {agreement.specialInstructions ? (
         <details className="mt-2">

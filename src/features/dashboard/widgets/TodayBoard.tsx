@@ -6,7 +6,6 @@ import {
   query,
   where,
   orderBy,
-  getDocs,
   onSnapshot,
 } from "firebase/firestore";
 import { firebaseConfig } from "../../../services/firebase";

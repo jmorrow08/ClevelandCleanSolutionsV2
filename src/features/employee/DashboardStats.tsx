@@ -27,7 +27,7 @@ type DashboardStatsData = {
 
 export default function DashboardStats() {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStatsData>({
     clockStatus: "Loading...",
     isClockedIn: false,
@@ -35,7 +35,7 @@ export default function DashboardStats() {
     assignedJobs: 0,
     currentLocation: "Not Selected",
   });
-  const [profileId, setProfileId] = useState<string | null>(null);
+  const [, setProfileId] = useState<string | null>(null);
   const [locations, setLocations] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {

@@ -353,7 +353,7 @@ export default function NewInvoiceModal({
           <div className="text-xl font-medium mb-4">New Invoice</div>
 
           {loading && (
-            <div className="absolute inset-0 bg-white/80 dark:bg-zinc-900/80 flex items-center justify-center z-10">
+            <div className="absolute inset-0 bg-[var(--bg)]/80 flex items-center justify-center z-10">
               <div className="text-center">
                 <div className="text-lg font-medium">Loading...</div>
                 <div className="text-sm text-zinc-500">

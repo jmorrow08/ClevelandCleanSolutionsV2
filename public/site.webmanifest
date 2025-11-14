@@ -1,0 +1,16 @@
+{
+  "name": "Cleveland Clean Solutions",
+  "short_name": "CCS",
+  "description": "Professional cleaning services in Cleveland",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1e40af",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

@@ -45,6 +45,9 @@ export default function SupportFlaggedPhotos() {
         const list: FlaggedPhoto[] = [] as any;
         snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
         setAll(list);
+      } catch (error: any) {
+        console.error("Error loading flagged photos:", error);
+        setAll([]); // Clear on error
       } finally {
         setLoading(false);
       }
@@ -59,13 +62,18 @@ export default function SupportFlaggedPhotos() {
   }, [all, perPage, page]);
 
   async function clearFlag(id: string) {
-    if (!getApps().length) initializeApp(firebaseConfig);
-    const db = getFirestore();
-    await updateDoc(doc(db, "servicePhotos", id), {
-      flagged: false,
-      reviewedAt: new Date(),
-    });
-    setAll((prev) => prev.filter((p) => p.id !== id));
+    try {
+      if (!getApps().length) initializeApp(firebaseConfig);
+      const db = getFirestore();
+      await updateDoc(doc(db, "servicePhotos", id), {
+        flagged: false,
+        reviewedAt: new Date(),
+      });
+      setAll((prev) => prev.filter((p) => p.id !== id));
+    } catch (error: any) {
+      console.error("Error clearing flag:", error);
+      alert(`Failed to clear flag: ${error.message || "Unknown error"}`);
+    }
   }
 
   return (

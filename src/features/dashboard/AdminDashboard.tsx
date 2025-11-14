@@ -1,11 +1,6 @@
 import KPIStrip from "./widgets/KPIStrip";
-import TodayBoard from "./widgets/TodayBoard";
-import Approvals from "./widgets/Approvals";
-import Alerts from "./widgets/Alerts";
-import CashSnapshot from "./widgets/CashSnapshot";
-
-import MyQueue from "./widgets/MyQueue";
-import PresencePulse from "./widgets/PresencePulse";
+import EmployeeTimeTracking from "./widgets/EmployeeTimeTracking";
+import JobsNeedingCompletion from "./widgets/JobsNeedingCompletion";
 import QuickActions from "./actions/QuickActions";
 import { QuickAddProvider } from "./QuickAddPanel";
 
@@ -19,13 +14,8 @@ export default function AdminDashboard() {
         </div>
         <KPIStrip />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <TodayBoard />
-          <Approvals />
-          <Alerts />
-          <CashSnapshot />
-
-          <MyQueue />
-          <PresencePulse />
+          <JobsNeedingCompletion />
+          <EmployeeTimeTracking />
         </div>
       </div>
     </QuickAddProvider>

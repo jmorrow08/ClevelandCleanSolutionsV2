@@ -521,6 +521,14 @@ export class ServiceAgreementProjectionService {
       (a, b) => a.paymentDate.getTime() - b.paymentDate.getTime()
     );
 
+    // Sort agreement details by nextPaymentDate (earliest to latest)
+    agreementDetails.sort((a, b) => {
+      if (!a.nextPaymentDate && !b.nextPaymentDate) return 0;
+      if (!a.nextPaymentDate) return 1;
+      if (!b.nextPaymentDate) return -1;
+      return a.nextPaymentDate.getTime() - b.nextPaymentDate.getTime();
+    });
+
     return {
       totalExpectedRevenue,
       agreements: agreementDetails,

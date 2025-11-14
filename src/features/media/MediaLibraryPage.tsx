@@ -7,16 +7,25 @@ import {
   orderBy,
   limit,
   getDocs,
+  deleteDoc,
+  doc,
 } from "firebase/firestore";
+import {
+  getStorage,
+  ref,
+  deleteObject,
+  getDownloadURL,
+} from "firebase/storage";
 import { firebaseConfig } from "../../services/firebase";
-import { getStorage, ref, uploadBytes } from "firebase/storage";
 import { useToast } from "../../context/ToastContext";
 import { RoleGuard, HideFor } from "../../context/RoleGuard";
-import { addDoc, serverTimestamp, where } from "firebase/firestore";
+import { where } from "firebase/firestore";
 import UploadDialog from "./UploadDialog";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function MediaLibraryPage() {
+  const navigate = useNavigate();
+  const { show } = useToast();
   const [loading, setLoading] = useState(true);
   const [assets, setAssets] = useState<any[]>([]);
   const [showUpload, setShowUpload] = useState(false);
@@ -31,7 +40,6 @@ export default function MediaLibraryPage() {
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const { show } = useToast();
   useEffect(() => {
     async function load() {
       try {
@@ -109,9 +117,86 @@ export default function MediaLibraryPage() {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   }
+
+  // Admin action functions
+  function editAsset(assetId: string) {
+    navigate(`/media/${assetId}`);
+  }
+
+  function moveAsset(assetId: string) {
+    // For now, just navigate to edit page where user can change category/audience
+    navigate(`/media/${assetId}`);
+  }
+
+  async function copyLink(asset: any) {
+    if (asset.audience === "public" && asset.path) {
+      try {
+        if (!getApps().length) initializeApp(firebaseConfig);
+        const storage = getStorage();
+        const url = await getDownloadURL(ref(storage, asset.path));
+        await navigator.clipboard.writeText(url);
+        show({ type: "success", message: "Link copied to clipboard" });
+      } catch (error) {
+        show({ type: "error", message: "Failed to copy link" });
+      }
+    } else {
+      show({ type: "error", message: "Asset must be public to copy link" });
+    }
+  }
+
+  async function deleteAsset(assetId: string) {
+    if (
+      !confirm(
+        "Are you sure you want to delete this asset? This action cannot be undone."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      if (!getApps().length) initializeApp(firebaseConfig);
+      const db = getFirestore();
+      const storage = getStorage();
+
+      // Find the asset to get its path
+      const asset = assets.find((a) => a.id === assetId);
+      if (!asset) {
+        show({ type: "error", message: "Asset not found" });
+        return;
+      }
+
+      // Delete from Firestore
+      await deleteDoc(doc(db, "mediaAssets", assetId));
+
+      // Delete from Storage if path exists
+      if (asset.path) {
+        try {
+          await deleteObject(ref(storage, asset.path));
+        } catch (storageError) {
+          console.warn("Failed to delete from storage:", storageError);
+          // Don't fail the whole operation if storage delete fails
+        }
+      }
+
+      // Remove from local state
+      setAssets((prev) => prev.filter((a) => a.id !== assetId));
+      show({ type: "success", message: "Asset deleted successfully" });
+    } catch (error) {
+      console.error("Failed to delete asset:", error);
+      show({ type: "error", message: "Failed to delete asset" });
+    }
+  }
   return (
     <div className="space-y-3">
-      <h1 className="text-2xl font-semibold">Media Library</h1>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Media Library</h1>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+            Upload and manage documents, videos, presentations, and other media
+            files
+          </p>
+        </div>
+      </div>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800">
           {(
@@ -138,10 +223,23 @@ export default function MediaLibraryPage() {
         </div>
         <RoleGuard allow={["admin", "owner", "marketing", "super_admin"]}>
           <button
-            className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm"
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
             onClick={() => setShowUpload(true)}
           >
-            Upload
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              />
+            </svg>
+            Upload Media
           </button>
         </RoleGuard>
       </div>
@@ -200,7 +298,51 @@ export default function MediaLibraryPage() {
       {loading ? (
         <div className="text-sm text-zinc-500">Loading…</div>
       ) : assets.length === 0 ? (
-        <div className="text-sm text-zinc-500">No media assets.</div>
+        <div className="text-center py-12">
+          <div className="text-zinc-500 mb-4">
+            <svg
+              className="w-16 h-16 mx-auto mb-4 text-zinc-300"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1}
+                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+              />
+            </svg>
+            <p className="text-lg font-medium text-zinc-600 dark:text-zinc-400 mb-2">
+              No media assets yet
+            </p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-500">
+              Get started by uploading your first document, video, or
+              presentation
+            </p>
+          </div>
+          <RoleGuard allow={["admin", "owner", "marketing", "super_admin"]}>
+            <button
+              className="px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 mx-auto"
+              onClick={() => setShowUpload(true)}
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                />
+              </svg>
+              Upload Your First Media
+            </button>
+          </RoleGuard>
+        </div>
       ) : (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -311,13 +453,22 @@ export default function MediaLibraryPage() {
                       )}
                     </td>
                     <td className="p-2 space-x-2">
-                      <button className="px-2 py-1 rounded-md border text-xs">
+                      <button
+                        className="px-2 py-1 rounded-md border text-xs hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                        onClick={() => editAsset(a.id)}
+                      >
                         Edit
                       </button>
-                      <button className="px-2 py-1 rounded-md border text-xs">
+                      <button
+                        className="px-2 py-1 rounded-md border text-xs hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                        onClick={() => moveAsset(a.id)}
+                      >
                         Move
                       </button>
-                      <button className="px-2 py-1 rounded-md border text-xs">
+                      <button
+                        className="px-2 py-1 rounded-md border text-xs hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                        onClick={() => copyLink(a)}
+                      >
                         Copy Link
                       </button>
                       <HideFor roles={["super_admin"]}>
@@ -331,9 +482,8 @@ export default function MediaLibraryPage() {
                       </HideFor>
                       <RoleGuard allow={["super_admin"]}>
                         <button
-                          className="px-2 py-1 text-xs rounded-md bg-red-600/10 text-red-700 dark:text-red-400 cursor-not-allowed"
-                          title="Delete not implemented"
-                          disabled
+                          className="px-2 py-1 text-xs rounded-md bg-red-600/10 text-red-700 dark:text-red-400 hover:bg-red-600/20"
+                          onClick={() => deleteAsset(a.id)}
                         >
                           Delete
                         </button>

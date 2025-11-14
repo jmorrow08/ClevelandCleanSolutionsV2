@@ -64,16 +64,8 @@ function formatDate(dt?: Date | null): string {
   });
 }
 
-function formatTime(dt?: Date | null): string {
-  if (!dt) return "No time";
-  return dt.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 export default function MyJobs() {
-  const { user, claims } = useAuth();
+  const { user } = useAuth();
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");

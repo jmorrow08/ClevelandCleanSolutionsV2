@@ -423,7 +423,7 @@ export function ServiceAgreementModal({
                     ].map((day) => (
                       <label
                         key={day}
-                        className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer"
+                        className="flex items-center space-x-2 p-2 rounded-lg hover:bg-[var(--muted)] cursor-pointer"
                       >
                         <input
                           type="checkbox"
@@ -669,7 +669,7 @@ export function ServiceAgreementModal({
                     ].map((service) => (
                       <label
                         key={service}
-                        className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer"
+                        className="flex items-center space-x-2 p-2 rounded-lg hover:bg-[var(--muted)] cursor-pointer"
                       >
                         <input
                           type="checkbox"
@@ -772,7 +772,7 @@ export function ServiceAgreementModal({
                   onChange={(v) => update("specialInstructions", v)}
                 />
 
-                <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-zinc-800 rounded-lg">
+                <div className="flex items-center space-x-3 p-3 bg-[var(--muted)] rounded-lg">
                   <input
                     id="isActive"
                     type="checkbox"

@@ -52,9 +52,9 @@ function updateFavicon(faviconDataUrl?: string) {
       link.type = "image/x-icon";
     }
   } else {
-    // Use default favicon
-    link.href = "/favicon.ico";
-    link.type = "image/x-icon";
+    // Use default SVG favicon
+    link.href = "/favicon.svg";
+    link.type = "image/svg+xml";
   }
 
   // Add the link to the document head
@@ -74,5 +74,5 @@ export function isDefaultFavicon(): boolean {
   const favicon = document.querySelector(
     'link[rel*="icon"]'
   ) as HTMLLinkElement;
-  return favicon?.href?.includes("/favicon.ico") || !favicon?.href;
+  return favicon?.href?.includes("/favicon.svg") || !favicon?.href;
 }

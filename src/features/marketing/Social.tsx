@@ -264,21 +264,21 @@ function ComposerTab() {
             value={mediaAssetId}
             onChange={(e) => setMediaAssetId(e.target.value)}
             placeholder="mediaAssetId (optional)"
-            className="w-full px-3 py-2 rounded-md bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm"
+            className="w-full px-3 py-2 rounded-md card-bg border border-[var(--border)] text-sm"
           />
           <div className="text-sm font-medium">Caption</div>
           <textarea
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
             placeholder="Write your caption…"
-            className="w-full min-h-[100px] px-3 py-2 rounded-md bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm"
+            className="w-full min-h-[100px] px-3 py-2 rounded-md card-bg border border-[var(--border)] text-sm"
           />
           <div className="text-sm font-medium">Schedule</div>
           <input
             type="datetime-local"
             value={scheduledAt}
             onChange={(e) => setScheduledAt(e.target.value)}
-            className="px-3 py-2 rounded-md bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm"
+            className="px-3 py-2 rounded-md card-bg border border-[var(--border)] text-sm"
           />
           <div className="pt-2">
             <button

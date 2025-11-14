@@ -65,8 +65,8 @@ export default function TimesheetView() {
         .then(() => {
           // console.log("Token refreshed successfully");
         })
-        .catch((error) => {
-          // console.error("Token refresh failed:", error);
+        .catch(() => {
+          // console.error("Token refresh failed");
         });
     }
   }, [user, claims]);

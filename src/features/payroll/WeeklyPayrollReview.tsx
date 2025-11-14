@@ -13,17 +13,22 @@ import {
   updateDoc,
   doc,
   writeBatch,
+  getDoc,
 } from "firebase/firestore";
 import {
   formatCurrency,
   calculateTimesheetEarnings,
 } from "../../utils/rateUtils";
+import { getLocationName } from "../../services/queries/resolvers";
 import type { Timesheet } from "../../types/timesheet";
+import { getApps, initializeApp } from "firebase/app";
+import { firebaseConfig } from "../../services/firebase";
 
 type WeeklyTimesheet = Timesheet & {
   employeeName?: string;
   jobDate?: Date;
   earnings?: number;
+  locationId?: string;
 };
 
 type WeeklySummary = {
@@ -50,6 +55,9 @@ export default function WeeklyPayrollReview() {
     startOfWeek.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
     return startOfWeek;
   });
+  const [locationNames, setLocationNames] = useState<Record<string, string>>(
+    {}
+  );
 
   const isAdmin = claims?.admin || claims?.owner || claims?.super_admin;
 
@@ -147,6 +155,107 @@ export default function WeeklyPayrollReview() {
 
     return unsubscribe;
   }, [user?.uid, isAdmin, weekStart, weekEnd, employeeNames, show]);
+
+  // Resolve location names for timesheets
+  useEffect(() => {
+    (async () => {
+      try {
+        // First, collect all unique location IDs from timesheets that have them
+        const uniqueLocationIds = Array.from(
+          new Set(
+            timesheets
+              .map((ts) => ts.locationId)
+              .filter((v): v is string => typeof v === "string" && !!v)
+          )
+        );
+
+        // Also collect job IDs for timesheets that don't have locationId
+        const timesheetsNeedingLocationLookup = timesheets.filter(
+          (ts) => !ts.locationId && ts.jobId
+        );
+
+        const locationNamePromises = uniqueLocationIds.map(
+          async (locationId) => {
+            try {
+              const name = await getLocationName(locationId);
+              return { locationId, name };
+            } catch (error) {
+              console.warn(
+                `Failed to resolve location name for ${locationId}:`,
+                error
+              );
+              return { locationId, name: locationId };
+            }
+          }
+        );
+
+        // Look up location IDs from serviceHistory for timesheets that don't have them
+        const serviceHistoryLocationPromises =
+          timesheetsNeedingLocationLookup.map(async (ts) => {
+            try {
+              if (!getApps().length) initializeApp(firebaseConfig);
+              const db = getFirestore();
+              if (!ts.jobId) {
+                return { jobId: ts.id, locationId: null, locationName: ts.id };
+              }
+              const serviceHistoryDoc = await getDoc(
+                doc(db, "serviceHistory", ts.jobId)
+              );
+              if (serviceHistoryDoc.exists()) {
+                const serviceData = serviceHistoryDoc.data();
+                const locationId = serviceData.locationId;
+                if (locationId) {
+                  const locationName = await getLocationName(locationId);
+                  return { jobId: ts.jobId, locationId, locationName };
+                }
+              }
+              return {
+                jobId: ts.jobId,
+                locationId: null,
+                locationName: ts.jobId,
+              };
+            } catch (error) {
+              console.warn(
+                `Failed to resolve location for job ${ts.jobId}:`,
+                error
+              );
+              return {
+                jobId: ts.jobId,
+                locationId: null,
+                locationName: ts.jobId,
+              };
+            }
+          });
+
+        const [locationNameResults, serviceHistoryResults] = await Promise.all([
+          Promise.all(locationNamePromises),
+          Promise.all(serviceHistoryLocationPromises),
+        ]);
+
+        const newLocationNames: Record<string, string> = {};
+
+        // Add direct location name resolutions
+        locationNameResults.forEach(({ locationId, name }) => {
+          newLocationNames[locationId] = name;
+        });
+
+        // Add serviceHistory-based location name resolutions
+        serviceHistoryResults.forEach(({ jobId, locationId, locationName }) => {
+          if (locationId && typeof locationId === "string") {
+            newLocationNames[locationId] = locationName || locationId;
+          }
+          // Also store by jobId for direct lookup
+          if (jobId && typeof jobId === "string") {
+            newLocationNames[jobId] = locationName || jobId;
+          }
+        });
+
+        setLocationNames((prev) => ({ ...prev, ...newLocationNames }));
+      } catch (error) {
+        console.error("Error resolving location names:", error);
+      }
+    })();
+  }, [timesheets]);
 
   // Group timesheets by employee
   const weeklySummaries = useMemo(() => {
@@ -369,7 +478,7 @@ export default function WeeklyPayrollReview() {
                     </div>
                     {ts.jobId && (
                       <div className="text-xs text-zinc-500">
-                        Job: {ts.jobId}
+                        Job: {locationNames[ts.jobId] || ts.jobId}
                       </div>
                     )}
                   </div>

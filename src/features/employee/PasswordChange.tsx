@@ -43,8 +43,6 @@ export default function PasswordChange() {
 
     setLoading(true);
     try {
-      const auth = getAuth();
-
       // Re-authenticate user before changing password
       const credential = EmailAuthProvider.credential(
         user.email,

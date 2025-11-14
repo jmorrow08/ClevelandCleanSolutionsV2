@@ -4,12 +4,10 @@ import { getAuth } from "firebase/auth";
 import {
   getFirestore,
   collection,
-  doc,
   query,
   where,
   orderBy,
   getDocs,
-  getDoc,
 } from "firebase/firestore";
 import { firebaseConfig } from "../../services/firebase";
 import { useSettings } from "../../context/SettingsContext";

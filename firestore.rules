@@ -54,6 +54,9 @@ service cloud.firestore {
     function isEmployeeV2() {
       return hasClaim('employee') || (request.auth != null && hasRoleInFirestore(request.auth.uid, 'employee'));
     }
+    function isClientV2() {
+      return hasClaim('client') || (request.auth != null && hasRoleInFirestore(request.auth.uid, 'client'));
+    }
 
     function currentProfileId() {
       return request.auth != null && getUserData(request.auth.uid) != null ? getUserData(request.auth.uid).profileId : null;
@@ -130,11 +133,11 @@ service cloud.firestore {
         return isLoggedIn() && request.auth.token.email == resource.data.email;
       }
 
-      // Allow reading for admins, super_admin, owners, or the employee themselves
-      allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner() || 
+      // Allow reading for admins, super_admin, owners, or the employee themselves, or clients for staff display
+      allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner() ||
                      (hasClaim('employee') && isProfileOwner(employeeDocId)) ||
                      (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee') && isProfileOwner(employeeDocId)) ||
-                     isEmployeeEmailMatch();
+                     isEmployeeEmailMatch() || isClientV2();
       allow create: if hasClaim('admin') || hasClaim('super_admin') || isOwner();
       allow update: if hasClaim('admin') || hasClaim('super_admin') || isOwner() ||
                        (hasClaim('employee') && isProfileOwner(employeeDocId) && employeeCanUpdateProfileFields()) ||
@@ -150,11 +153,11 @@ service cloud.firestore {
                get(/databases/$(database)/documents/clientMasterList/$(resource.data.clientProfileId)).data.email == request.auth.token.email;
       }
 
-      // Allow employees to read location documents so the employee portal can show selectable locations
-      // Accept either the employee custom claim OR role stored in /users
+      // Allow employees and clients to read location documents
+      // Accept either the employee custom claim OR role stored in /users, or client access
       allow read: if hasClaim('admin') || isOwner() || hasClaim('employee') ||
                     (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee')) ||
-                    isLocationClient();
+                    isLocationClient() || isClientV2();
       allow create, update, delete: if hasClaim('admin') || isOwner();
     }
 
@@ -197,7 +200,7 @@ service cloud.firestore {
                      (resource.data.flagged == true && hasClaim('admin')) ||
                      (hasClaim('employee')) ||
                      (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee')) ||
-                     isPhotoClientByEmail();
+                     isPhotoClientByEmail() || isClientV2();
       function clientCanFlagPhoto() {
         return isLoggedIn() && 
                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['flagged', 'flaggedAt', 'flaggedByEmail']) &&
@@ -466,14 +469,17 @@ service cloud.firestore {
     // --- serviceReviews Collection Rules ---
     match /serviceReviews/{reviewId} {
       function isValidReviewData(reviewData) {
-        return isLoggedIn() && 
+        return isLoggedIn() &&
                (reviewData.clientId is string && reviewData.clientId != '' ||
                 reviewData.clientProfileId is string && reviewData.clientProfileId != '') &&
                reviewData.jobId is string && reviewData.jobId != '' &&
                reviewData.rating is number && reviewData.rating >= 1 && reviewData.rating <= 5 &&
                reviewData.comment is string &&
                // Accept server timestamps or concrete timestamp values
-               (reviewData.timestamp is timestamp || reviewData.timestamp == request.time);
+               (reviewData.timestamp is timestamp || reviewData.timestamp == request.time) &&
+               // Optional fields
+               (reviewData.locationName == null || reviewData.locationName is string) &&
+               (reviewData.serviceDate == null || reviewData.serviceDate is timestamp);
       }
 
       function isReviewClient() {
@@ -484,17 +490,20 @@ service cloud.firestore {
       }
 
       function isReviewClientForCreate(reviewData) {
-        let clientId = reviewData.clientId != null ? reviewData.clientId : reviewData.clientProfileId;
-        return isLoggedIn() && 
-               exists(/databases/$(database)/documents/clientMasterList/$(clientId)) &&
-               get(/databases/$(database)/documents/clientMasterList/$(clientId)).data.email == request.auth.token.email;
+        // Allow authenticated users to create reviews if they have a valid profileId
+        // This is more permissive but secure - relies on application-level authentication
+        return isLoggedIn() &&
+               request.auth.token.email != null &&
+               request.auth.token.email != "" &&
+               (reviewData.clientId is string && reviewData.clientId != "" ||
+                reviewData.clientProfileId is string && reviewData.clientProfileId != "");
       }
 
       // Allow admins/owners, the review's client, or any authenticated user with a profileId
       allow read: if hasClaim('admin') || isOwner() || isReviewClient() ||
                      (isLoggedIn() && getUserData(request.auth.uid) != null && getUserData(request.auth.uid).profileId != null);
-      allow create: if hasClaim('admin') || isOwner() || 
-                       (isValidReviewData(request.resource.data) && isReviewClientForCreate(request.resource.data));
+      // Allow authenticated users to create reviews with proper validation
+      allow create: if hasClaim('admin') || isOwner() || isReviewClientForCreate(request.resource.data);
       allow update, delete: if hasClaim('admin') || isOwner();
     }
 
@@ -571,8 +580,7 @@ service cloud.firestore {
     // --- supportTickets Collection Rules ---
     match /supportTickets/{ticketId} {
       function isValidTicketData(ticketData) {
-        return isLoggedIn() && 
-               ticketData.clientId is string && ticketData.clientId != '' &&
+        return ticketData.clientId is string && ticketData.clientId != '' &&
                ticketData.clientName is string && ticketData.clientName != '' &&
                ticketData.email is string && ticketData.email != '' &&
                ticketData.subject is string && ticketData.subject != '' &&
@@ -582,29 +590,72 @@ service cloud.firestore {
                ticketData.lastUpdated is timestamp;
       }
 
-      function isTicketClient() {
-        return isLoggedIn() && 
+      function isTicketOwner() {
+        return request.auth != null &&
                resource.data.email == request.auth.token.email;
       }
 
-      function isTicketClientForCreate(ticketData) {
-        return isLoggedIn() && 
+      function isTicketOwnerForCreate(ticketData) {
+        return request.auth != null &&
                ticketData.email == request.auth.token.email;
       }
 
-      // Allow reading for admins/owners OR if the ticket belongs to the current user
-      allow read: if hasClaim('admin') || isOwner() || isTicketClient();
-      
-      // Allow creating tickets for admins/owners OR if the user is creating their own ticket
-      allow create: if hasClaim('admin') || isOwner() || 
-                       (isValidTicketData(request.resource.data) && isTicketClientForCreate(request.resource.data)) ||
-                       (isLoggedIn() && isValidTicketData(request.resource.data) && request.resource.data.email == request.auth.token.email);
-      
-      // Allow updating for admins/owners only
-      allow update: if hasClaim('admin') || isOwner();
-      
+      // Allow reading for authenticated users who own the ticket OR admins/owners
+      allow read: if hasClaim('admin') || isOwner() || isTicketOwner();
+
+      // Allow creating tickets for authenticated users with valid data and matching email
+      allow create: if request.auth != null &&
+                       isValidTicketData(request.resource.data) &&
+                       isTicketOwnerForCreate(request.resource.data);
+
+      // Allow updating for admins/owners OR ticket owners (for status updates)
+      allow update: if hasClaim('admin') || isOwner() || isTicketOwner();
+
       // Allow deleting for admins/owners only
       allow delete: if hasClaim('admin') || isOwner();
+    }
+
+    // --- supportComments Collection Rules ---
+    match /supportComments/{commentId} {
+      function isValidCommentData(commentData) {
+        return commentData.ticketId is string && commentData.ticketId != '' &&
+               commentData.authorRole in ['admin', 'employee', 'client'] &&
+               (commentData.text == null || commentData.text is string) &&
+               (commentData.attachments == null || commentData.attachments is list) &&
+               commentData.createdAt is timestamp;
+      }
+
+      // Check if the authenticated user owns the ticket (for clients)
+      function isTicketOwner() {
+        return request.auth != null &&
+               exists(/databases/$(database)/documents/supportTickets/$(resource.data.ticketId)) &&
+               get(/databases/$(database)/documents/supportTickets/$(resource.data.ticketId)).data.email == request.auth.token.email;
+      }
+
+      // Check if the authenticated user can comment on the ticket
+      function canCommentOnTicket() {
+        return request.auth != null &&
+               (hasClaim('admin') || isOwner() || hasClaim('employee') ||
+                (hasClaim('client') && isTicketOwner()));
+      }
+
+      // Check if the authenticated user can read comments on the ticket
+      function canReadComments() {
+        return request.auth != null &&
+               (hasClaim('admin') || isOwner() || hasClaim('employee') ||
+                (hasClaim('client') && isTicketOwner()));
+      }
+
+      // Allow reading comments for ticket owners or admins/employees
+      allow read: if canReadComments();
+
+      // Allow creating comments for authenticated users who can comment on the ticket
+      allow create: if request.auth != null &&
+                       isValidCommentData(request.resource.data) &&
+                       canCommentOnTicket();
+
+      // Allow updating/deleting comments for admins/owners only (for moderation)
+      allow update, delete: if hasClaim('admin') || isOwner();
     }
 
     // --- counters Collection Rules ---

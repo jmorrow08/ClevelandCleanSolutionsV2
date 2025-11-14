@@ -111,7 +111,7 @@ export default function Reports() {
             onClick={() => setTab(t.k as any)}
             className={`px-3 py-1 rounded-md ${
               tab === t.k
-                ? "bg-zinc-900 text-white"
+                ? "bg-[var(--brand)] text-white"
                 : "bg-zinc-200 dark:bg-zinc-700"
             }`}
           >
@@ -140,10 +140,7 @@ export default function Reports() {
             </thead>
             <tbody>
               {visible.map((r, idx) => (
-                <tr
-                  key={idx}
-                  className="odd:bg-zinc-50/40 dark:odd:bg-zinc-900/40"
-                >
+                <tr key={idx} className="odd:bg-[var(--muted)]/40">
                   {Object.keys(visible[0]).map((h) => (
                     <td key={h} className="px-3 py-2 whitespace-nowrap">
                       {String(r[h] ?? "")}

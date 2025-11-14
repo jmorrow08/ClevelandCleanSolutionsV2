@@ -153,11 +153,6 @@ export default function JobDetailsModal({
 
         // Look for active time entry (no clock out time) for this employee at this location today
         const timeTrackingRef = collection(db, "employeeTimeTracking");
-        const activeQuery = {
-          employeeProfileId: profileId,
-          locationId: jobData.locationId,
-          clockOutTime: null,
-        };
 
         // For now, we'll use a simple approach - check if there's any active entry
         // In a more sophisticated implementation, we'd query by date range
@@ -383,7 +378,7 @@ export default function JobDetailsModal({
                   <div className="text-sm text-zinc-500 dark:text-zinc-400">
                     Notes
                   </div>
-                  <div className="text-sm bg-zinc-50 dark:bg-zinc-900 p-3 rounded-md">
+                  <div className="text-sm bg-[var(--muted)] p-3 rounded-md">
                     {jobData.notes}
                   </div>
                 </div>
@@ -410,7 +405,7 @@ export default function JobDetailsModal({
 
                 <div className="space-y-4">
                   {/* Current Status */}
-                  <div className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-900 rounded-lg">
+                  <div className="flex items-center justify-between p-4 bg-[var(--muted)] rounded-lg">
                     <div className="flex items-center gap-3">
                       <div
                         className={`h-3 w-3 rounded-full ${

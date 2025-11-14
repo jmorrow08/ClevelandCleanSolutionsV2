@@ -57,13 +57,8 @@ service firebase.storage {
     match /media/{assetId}/{all=**} {
       allow write: if request.auth != null && (request.auth.token.admin == true || request.auth.token.owner == true || request.auth.token.marketing == true);
       allow delete: if request.auth != null && request.auth.token.super_admin == true;
-      allow read: if request.auth != null && 
-        (request.auth.token.admin == true || 
-         request.auth.token.owner == true || 
-         request.auth.token.marketing == true || 
-         request.auth.token.super_admin == true ||
-         request.auth.token.client == true ||
-         request.auth.token.employee == true);
+      // TEMP: Allow all authenticated users to read for debugging
+      allow read: if request.auth != null;
     }
   }
 }

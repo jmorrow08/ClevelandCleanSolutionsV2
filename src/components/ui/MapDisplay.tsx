@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   initGoogleMaps,
   isGoogleMapsLoaded,
-  geoPointToLatLng,
   createMapMarker,
   fitMapToMarkers,
   formatCoordinates,
