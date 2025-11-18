@@ -26,3 +26,7 @@ dist-ssr
 # Firebase service account exports (use GOOGLE_APPLICATION_CREDENTIALS instead)
 firebase-adminsdk-*.json
 *firebase-adminsdk-*.json
+
+# Firebase CLI local state (should not be committed)
+.firebase/
+.firebaserc
