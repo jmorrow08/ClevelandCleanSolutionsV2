@@ -155,14 +155,7 @@ match /campaignActivities/{id} {
 }
 
 // ---------------------------------------------------------------------------
-// mediaAssets (metadata for Storage uploads)
-// UI: Admin/Owner/Marketing browse and manage. Clients/employees do not read raw docs in V2.
-match /mediaAssets/{assetId} {
-  allow read: if isAdmin() || isOwner() || isMarketing();
-  allow create: if isAdmin() || isOwner() || isMarketing();
-  allow update: if isAdmin() || isOwner() || isMarketing();
-  allow delete: if isSuperAdmin();
-}
+// mediaAssets rules now live in firestore.rules (canonical). Do not duplicate here to avoid drift.
 
 // ---------------------------------------------------------------------------
 // notifications (in-app user inbox; multi-channel queue)

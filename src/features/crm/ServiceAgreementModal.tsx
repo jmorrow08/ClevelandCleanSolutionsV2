@@ -42,6 +42,13 @@ export type AgreementDoc = {
   serviceType?: string;
 };
 
+const SERVICE_FREQUENCY_OPTIONS = [
+  { value: "weekly", label: "Weekly" },
+  { value: "bi-weekly", label: "Bi-Weekly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "one-time", label: "One-Time" },
+];
+
 export function ServiceAgreementModal({
   clientId,
   agreementId,
@@ -396,10 +403,11 @@ export function ServiceAgreementModal({
                   readOnly={readOnly}
                   onChange={(v) => update("agreementName", v)}
                 />
-                <LabeledInput
+                <LabeledSelect
                   label="Frequency"
                   value={form.frequency || ""}
                   readOnly={readOnly}
+                  options={SERVICE_FREQUENCY_OPTIONS}
                   onChange={(v) => update("frequency", v)}
                 />
               </div>
@@ -499,6 +507,7 @@ export function ServiceAgreementModal({
                   label="Contract Start Date (YYYY-MM-DD)"
                   value={toDateInput(form.contractStartDate)}
                   readOnly={readOnly}
+                  type="date"
                   onChange={(v) =>
                     update("contractStartDate", fromDateInput(v))
                   }
@@ -507,6 +516,7 @@ export function ServiceAgreementModal({
                   label="Contract End Date (YYYY-MM-DD)"
                   value={toDateInput(form.contractEndDate)}
                   readOnly={readOnly}
+                  type="date"
                   onChange={(v) => update("contractEndDate", fromDateInput(v))}
                 />
                 <LabeledInput
@@ -864,16 +874,40 @@ function LabeledTextarea({
 }
 
 function toDateInput(ts: any): string {
+  if (!ts) return "";
   try {
-    const d: Date | null = ts?.toDate
-      ? ts.toDate()
-      : ts instanceof Date
-      ? ts
-      : null;
-    if (!d) return "";
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
+    let date: Date | null = null;
+
+    if (typeof ts?.toDate === "function") {
+      date = ts.toDate();
+    } else if (ts instanceof Date) {
+      date = ts;
+    } else if (
+      typeof ts === "object" &&
+      typeof ts?.seconds === "number" &&
+      typeof ts?.nanoseconds === "number"
+    ) {
+      const millis = ts.seconds * 1000 + Math.floor(ts.nanoseconds / 1_000_000);
+      date = new Date(millis);
+    } else if (typeof ts === "string") {
+      const trimmed = ts.trim();
+      if (trimmed) {
+        const normalized =
+          trimmed.length === 10 ? `${trimmed}T00:00:00` : trimmed;
+        const parsed = new Date(normalized);
+        if (!Number.isNaN(parsed.getTime())) {
+          date = parsed;
+        }
+      }
+    }
+
+    if (!date || Number.isNaN(date.getTime())) {
+      return "";
+    }
+
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
     return `${y}-${m}-${day}`;
   } catch {
     return "";
@@ -881,8 +915,45 @@ function toDateInput(ts: any): string {
 }
 
 function fromDateInput(s: string): any {
-  if (!s) return undefined;
-  const dt = new Date(s + "T00:00:00");
+  const trimmed = s?.trim();
+  if (!trimmed) return undefined;
+  const dt = new Date(`${trimmed}T00:00:00`);
+  if (Number.isNaN(dt.getTime())) return undefined;
   // Let Firestore convert via serverTimestamp on write if needed; here we return a JS Date
   return dt;
+}
+
+function LabeledSelect({
+  label,
+  value,
+  onChange,
+  readOnly,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  readOnly?: boolean;
+  options: Array<{ value: string; label: string }>;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        {label}
+      </label>
+      <select
+        className="w-full rounded-lg border border-gray-300 dark:border-zinc-600 card-bg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={readOnly}
+      >
+        <option value="">Select option…</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
 }

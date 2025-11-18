@@ -30,3 +30,6 @@ firebase-adminsdk-*.json
 # Firebase CLI local state (should not be committed)
 .firebase/
 .firebaserc
+
+# Cloud Functions build output
+functions/lib/
