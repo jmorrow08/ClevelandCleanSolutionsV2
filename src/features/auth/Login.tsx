@@ -1,30 +1,52 @@
 import { useEffect, useState } from "react";
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  type User,
+} from "firebase/auth";
+import { doc, getDoc, getFirestore } from "firebase/firestore";
 import { Link, useNavigate } from "react-router-dom";
-import { claimsToHome } from "../../utils/roleHome";
-import { useAuth } from "../../context/AuthContext";
+import { claimsToHome } from "@/utils/roleHome";
+import { useAuth } from "@/context/AuthContext";
 
 export default function Login() {
   const auth = getAuth();
   const navigate = useNavigate();
-  // const location = useLocation();
   const { claims } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  async function resolveHome(user: User) {
+    const token = await user.getIdTokenResult(true);
+    let fallbackRole: string | null = null;
+    try {
+      const db = getFirestore();
+      const snap = await getDoc(doc(db, "users", user.uid));
+      const role = snap.data()?.role;
+      fallbackRole =
+        typeof role === "string" && role.trim() ? role : null;
+    } catch {
+      fallbackRole = null;
+    }
+    return claimsToHome(token.claims as any, fallbackRole);
+  }
+
   useEffect(() => {
+    async function handleAuthChange(user: User) {
+      try {
+        const home = await resolveHome(user);
+        navigate(home, { replace: true });
+      } catch {
+        navigate("/", { replace: true });
+      }
+    }
+
     // If already logged in, send to role-based home
-    const unsub = auth.onAuthStateChanged(async (u) => {
+    const unsub = auth.onAuthStateChanged((u) => {
       if (u) {
-        try {
-          const token = await u.getIdTokenResult();
-          const home = claimsToHome(token.claims as any);
-          navigate(home, { replace: true });
-        } catch {
-          navigate("/", { replace: true });
-        }
+        void handleAuthChange(u);
       }
     });
     return () => unsub();
@@ -38,9 +60,12 @@ export default function Login() {
       await signInWithEmailAndPassword(auth, email.trim(), password);
       const u = auth.currentUser;
       if (u) {
-        const token = await u.getIdTokenResult();
-        const home = claimsToHome(token.claims as any);
-        navigate(home, { replace: true });
+        try {
+          const home = await resolveHome(u);
+          navigate(home, { replace: true });
+        } catch {
+          navigate("/", { replace: true });
+        }
       } else {
         navigate("/", { replace: true });
       }

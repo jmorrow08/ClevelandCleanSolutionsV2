@@ -22,38 +22,10 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import type { User } from "firebase/auth";
-import { firebaseConfig } from "../services/firebase";
+import { firebaseConfig } from "@/services/firebase";
+import { getRole } from "@/auth/claims";
 
 type Claims = Record<string, any>;
-
-type CanonicalRole = "super_admin" | "owner" | "admin" | "employee" | "client";
-
-function resolveCanonicalRole(
-  claims: Claims | null,
-  fallbackRole?: string | null
-): CanonicalRole | null {
-  const direct =
-    claims && typeof (claims as any).role === "string"
-      ? ((claims as any).role as string)
-      : null;
-  if (direct && ["super_admin", "owner", "admin", "employee", "client"].includes(direct)) {
-    return direct as CanonicalRole;
-  }
-  const priority: CanonicalRole[] = [
-    "super_admin",
-    "owner",
-    "admin",
-    "employee",
-    "client",
-  ];
-  for (const role of priority) {
-    if (claims?.[role]) return role;
-  }
-  if (fallbackRole && priority.includes(fallbackRole as CanonicalRole)) {
-    return fallbackRole as CanonicalRole;
-  }
-  return null;
-}
 
 function normalizeClaims(
   rawClaims: Claims | null,
@@ -61,10 +33,10 @@ function normalizeClaims(
 ): Claims | null {
   if (!rawClaims && !fallbackRole) return rawClaims;
   const normalized: Claims = { ...(rawClaims || {}) };
-  const canonical = resolveCanonicalRole(rawClaims, fallbackRole);
+  const canonical = getRole(normalized, fallbackRole ?? null);
   if (canonical) {
     normalized.role = canonical;
-    if (!normalized[canonical]) normalized[canonical] = true;
+    normalized[canonical] = true;
   }
   return normalized;
 }
