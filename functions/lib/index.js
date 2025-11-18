@@ -514,7 +514,7 @@ exports.approveTimesheetsInRun = functions
             const timesheetRef = db.collection("timesheets").doc(id);
             batch.update(timesheetRef, {
                 approvedInRunId: runId,
-                adminApproved: true,
+                adminApproved: true, // Automatically set when approving into run
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
             count += 1;

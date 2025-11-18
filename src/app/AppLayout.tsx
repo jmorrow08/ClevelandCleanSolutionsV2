@@ -366,7 +366,8 @@ export default function AppLayout() {
   const isEmployee = Boolean((claims as any)?.employee) || role === "employee";
   const isClient = Boolean((claims as any)?.client) || role === "client";
   const isAdminOrAbove = isSuperAdmin || isOwner || isAdmin;
-  const canToggleOwnerMode = isOwner || isSuperAdmin;
+  // Only owners can toggle between Admin and Employee views
+  const canToggleOwnerMode = isOwner;
   const ownerPrefersEmployeeView = canToggleOwnerMode && ownerMode === "employee";
 
   useEffect(() => {

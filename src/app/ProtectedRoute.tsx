@@ -4,7 +4,11 @@ import { useEffect, useRef } from "react";
 import { useToast } from "../context/ToastContext";
 
 type Props = {
-  requireRole?: "admin-or-above" | "employee-or-above" | "client-or-above";
+  requireRole?:
+    | "admin-or-above"
+    | "employee-or-above"
+    | "client-or-above"
+    | "owner-or-employee";
 };
 
 type Claims = Record<string, any> | null | undefined;
@@ -39,6 +43,11 @@ function isClientOrAbove(claims: Claims): boolean {
   );
 }
 
+function isOwnerOrEmployee(claims: Claims): boolean {
+  // Explicitly restrict to only owner or employee (no admin/super_admin)
+  return hasRole(claims, "owner") || hasRole(claims, "employee");
+}
+
 export default function ProtectedRoute({ requireRole }: Props) {
   const { user, loading, claims } = useAuth();
   const { show } = useToast();
@@ -52,6 +61,8 @@ export default function ProtectedRoute({ requireRole }: Props) {
     if (requireRole === "employee-or-above")
       authorized = isEmployeeOrAbove(claims);
     if (requireRole === "client-or-above") authorized = isClientOrAbove(claims);
+    if (requireRole === "owner-or-employee")
+      authorized = isOwnerOrEmployee(claims);
   }
 
   // Side-effects (toasts) must not run during render
