@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { FirebaseError, getApps, initializeApp } from "firebase/app";
+import { getApps, initializeApp } from "firebase/app";
 import {
   getFirestore,
   doc,
@@ -10,15 +10,12 @@ import {
   where,
   orderBy,
   addDoc,
-  updateDoc,
-  serverTimestamp,
   getDocs,
 } from "firebase/firestore";
 import { getStorage, ref, listAll, getDownloadURL } from "firebase/storage";
 import { firebaseConfig } from "@/services/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { HideFor, RoleGuard } from "@/context/RoleGuard";
-import { useToast } from "@/context/ToastContext";
 import EmployeeEditModal from "@/features/hr/EmployeeEditModal";
 import EmployeeRateModal from "@/features/hr/EmployeeRateModal";
 
@@ -73,9 +70,6 @@ export default function EmployeeDetail({
   const [docs, setDocs] = useState<{ name: string; url: string }[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const { claims } = useAuth();
-  const { show: showToast } = useToast();
-  const [statusUpdating, setStatusUpdating] = useState(false);
-  const [pendingStatus, setPendingStatus] = useState<boolean | null>(null);
 
   const [rateModalOpen, setRateModalOpen] = useState(false);
   const [editingRate, setEditingRate] = useState<RateDoc | null>(null);
@@ -138,72 +132,6 @@ export default function EmployeeDetail({
       setRatesLoading(false);
     }
   }
-
-  async function handleStatusChange(nextStatus: boolean) {
-    if (!employee) return;
-    if (typeof employee.status === "boolean" && employee.status === nextStatus)
-      return;
-
-    try {
-      setStatusUpdating(true);
-      setPendingStatus(nextStatus);
-      if (!getApps().length) initializeApp(firebaseConfig);
-      const db = getFirestore();
-      const timestamp = serverTimestamp();
-      const payload = {
-        status: nextStatus,
-        updatedAt: timestamp,
-      };
-
-      let updated = false;
-
-      try {
-        await updateDoc(doc(db, "employeeMasterList", employee.id), payload);
-        updated = true;
-      } catch (error) {
-        if (
-          !(error instanceof FirebaseError && error.code === "not-found")
-        ) {
-          throw error;
-        }
-      }
-
-      const userDocumentId = employee.userId || employee.id;
-
-      try {
-        await updateDoc(doc(db, "users", userDocumentId), payload);
-        updated = true;
-      } catch (error) {
-        if (
-          !(error instanceof FirebaseError && error.code === "not-found")
-        ) {
-          throw error;
-        }
-      }
-
-      if (!updated) {
-        throw new Error("Employee record not found");
-      }
-
-      setEmployee((prev) =>
-        prev ? { ...prev, status: nextStatus } : prev
-      );
-      showToast({
-        type: "success",
-        message: `Employee marked as ${nextStatus ? "active" : "inactive"}.`,
-      });
-    } catch (error: any) {
-      showToast({
-        type: "error",
-        message: error?.message || "Failed to update status",
-      });
-    } finally {
-      setStatusUpdating(false);
-      setPendingStatus(null);
-    }
-  }
-
-
 
   useEffect(() => {
     async function load() {
@@ -440,7 +368,7 @@ export default function EmployeeDetail({
                 <Field label="Job Title" value={employee.jobTitle || "—"} />
                 <div>
                   <div className="text-xs text-zinc-500">Status</div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                  <div className="mt-0.5 flex items-center gap-2">
                     <span
                       className={`px-2 py-0.5 rounded-md text-xs ${
                         employee.status === false
@@ -451,41 +379,24 @@ export default function EmployeeDetail({
                       {employee.status === false ? "inactive" : "active"}
                     </span>
                     <RoleGuard allow={["owner", "super_admin", "admin"]}>
-                      <div className="flex items-center gap-1">
-                        {[true, false].map((value) => {
-                          const isSelected =
-                            (employee.status !== false) === value;
-                          const isBusy =
-                            statusUpdating && pendingStatus === value;
-                          return (
-                            <button
-                              key={value ? "active" : "inactive"}
-                              type="button"
-                              className={`px-2 py-1 text-xs rounded-md border transition ${
-                                isSelected
-                                  ? "bg-brand-500 text-white border-brand-500 dark:border-brand-400"
-                                  : "card-bg border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300 hover:border-brand-300 hover:text-brand-600"
-                              }`}
-                              onClick={() => handleStatusChange(value)}
-                              aria-pressed={isSelected}
-                              disabled={isSelected || statusUpdating}
-                            >
-                              {isBusy ? "Saving…" : value ? "Active" : "Inactive"}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <span className="text-xs text-zinc-500">
+                        Use Edit to change status
+                      </span>
                     </RoleGuard>
                   </div>
                 </div>
               </div>
-              <div className="rounded-lg p-3 card-bg border border-zinc-200 dark:border-zinc-700">
-                <div className="text-sm font-medium">Auth/Claims</div>
-                <div className="text-sm text-zinc-500">Read-only</div>
-                <div className="text-xs mt-1">
-                  {JSON.stringify(claims || {}, null, 0)}
+              <RoleGuard allow={["super_admin"]}>
+                <div className="rounded-lg p-3 card-bg border border-zinc-200 dark:border-zinc-700">
+                  <div className="text-sm font-medium">Auth/Claims</div>
+                  <div className="text-sm text-zinc-500">
+                    Read-only (current session)
+                  </div>
+                  <div className="text-xs mt-1">
+                    {JSON.stringify(claims || {}, null, 0)}
+                  </div>
                 </div>
-              </div>
+              </RoleGuard>
             </div>
           )}
 

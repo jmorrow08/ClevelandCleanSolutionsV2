@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
-import { initializeApp, getApps } from "firebase/app";
-import { getFirestore, doc, updateDoc } from "firebase/firestore";
-import { firebaseConfig } from "../../services/firebase";
-import { useToast } from "../../context/ToastContext";
+import { FirebaseError, getApps, initializeApp } from "firebase/app";
+import { doc, getFirestore, updateDoc } from "firebase/firestore";
+import { firebaseConfig } from "@/services/firebase";
+import { useToast } from "@/context/ToastContext";
 
 export type Employee = {
   id: string;
   fullName?: string;
+  firstName?: string | null;
+  lastName?: string | null;
   email?: string | null;
   phone?: string | null;
   role?: string | null;
+  status?: boolean | null;
+  userId?: string | null;
 };
 
 export default function EmployeeEditModal({
@@ -23,14 +27,16 @@ export default function EmployeeEditModal({
 }) {
   const { show } = useToast();
   const [submitting, setSubmitting] = useState(false);
-  const [fullName, setFullName] = useState(employee.fullName || "");
+  const [fullName, setFullName] = useState(() => deriveDefaultName(employee));
   const [phone, setPhone] = useState(employee.phone || "");
   const [role, setRole] = useState(employee.role || "employee");
+  const [status, setStatus] = useState(employee.status !== false);
 
   useEffect(() => {
-    setFullName(employee.fullName || "");
+    setFullName(deriveDefaultName(employee));
     setPhone(employee.phone || "");
     setRole(employee.role || "employee");
+    setStatus(employee.status !== false);
   }, [employee]);
 
   async function handleSave() {
@@ -47,8 +53,28 @@ export default function EmployeeEditModal({
         fullName: name,
         phone: phone.trim() || null,
         role: role || "employee",
+        status,
       });
-      onUpdated?.({ fullName: name, phone: phone.trim() || null, role });
+
+      const userDocId = employee.userId || employee.id;
+      try {
+        await updateDoc(doc(db, "users", userDocId), {
+          fullName: name,
+          phone: phone.trim() || null,
+          role: role || "employee",
+          status,
+        });
+      } catch (err) {
+        if (!(err instanceof FirebaseError && err.code === "not-found")) {
+          throw err;
+        }
+      }
+      onUpdated?.({
+        fullName: name,
+        phone: phone.trim() || null,
+        role,
+        status,
+      });
       show({ type: "success", message: "Employee updated" });
       onClose();
     } catch (e: any) {
@@ -109,6 +135,29 @@ export default function EmployeeEditModal({
               <option value="super_admin">super_admin</option>
             </select>
           </div>
+          <div>
+            <div className="block text-sm mb-1">Status</div>
+            <div className="flex items-center gap-2">
+              {[true, false].map((value) => {
+                const isSelected = status === value;
+                return (
+                  <button
+                    key={value ? "active" : "inactive"}
+                    type="button"
+                    className={`px-3 py-1.5 rounded-md border text-sm transition ${
+                      isSelected
+                        ? "bg-brand-500 text-white border-brand-500 dark:border-brand-400"
+                        : "card-bg border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300 hover:border-brand-300 hover:text-brand-600"
+                    }`}
+                    onClick={() => setStatus(value)}
+                    disabled={submitting}
+                  >
+                    {value ? "Active" : "Inactive"}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
           <button
@@ -130,5 +179,14 @@ export default function EmployeeEditModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function deriveDefaultName(employee: Employee): string {
+  return (
+    employee.fullName ||
+    [employee.firstName, employee.lastName].filter(Boolean).join(" ").trim() ||
+    employee.email ||
+    employee.id
   );
 }
