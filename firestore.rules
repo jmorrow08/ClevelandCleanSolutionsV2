@@ -301,13 +301,13 @@ service cloud.firestore {
                request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedUpdateKeys);
       }
 
-      allow read: if hasClaim('admin') || isOwner() ||
+      allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner() ||
                     (isLoggedIn() && (hasClaim('employee') || hasRoleInFirestore(request.auth.uid, 'employee')) && isTimeEntryOwner());
 
-      allow create: if hasClaim('admin') || isOwner() || isValidTimeEntryDataForCreate(request.resource.data);
+      allow create: if hasClaim('admin') || hasClaim('super_admin') || isOwner() || isValidTimeEntryDataForCreate(request.resource.data);
 
       // Allow admin to update anything. Allow employee to update ONLY for clocking out.
-      allow update: if hasClaim('admin') || isOwner() || employeeCanClockOut(request.resource.data);
+      allow update: if hasClaim('admin') || hasClaim('super_admin') || isOwner() || employeeCanClockOut(request.resource.data);
 
       allow delete: if false; // Or if hasClaim('admin') if needed
     }
@@ -916,8 +916,8 @@ service cloud.firestore {
     // UI: Owner and super_admin can modify settings; others read-only as needed by apps.
     match /settings/{docId} {
       allow read: if request.auth != null; // any authenticated user may read
-      // Hardened: writes restricted to super_admin only
-      allow create, update: if isSuperAdmin();
+      // Hardened: writes restricted to owner or super_admin
+      allow create, update: if isOwner() || isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
 

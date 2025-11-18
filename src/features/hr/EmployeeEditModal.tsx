@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { FirebaseError, getApps, initializeApp } from "firebase/app";
-import { doc, getFirestore, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  limit,
+  query,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import { firebaseConfig } from "@/services/firebase";
 import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
@@ -59,6 +69,63 @@ export default function EmployeeEditModal({
     setStatus(employee.status !== false);
   }, [employee]);
 
+  async function resolveLinkedUserId(db: ReturnType<typeof getFirestore>) {
+    const directCandidates = [employee.userId, employee.id].filter(
+      (value): value is string => typeof value === "string" && value.trim().length > 0
+    );
+    for (const candidate of directCandidates) {
+      try {
+        const candidateDoc = await getDoc(doc(db, "users", candidate));
+        if (candidateDoc.exists()) {
+          return candidate;
+        }
+      } catch {
+        // Continue to next resolution attempt
+      }
+    }
+
+    const profileId = (employee.id || "").trim();
+    if (profileId) {
+      try {
+        const snap = await getDocs(
+          query(collection(db, "users"), where("profileId", "==", profileId), limit(1))
+        );
+        if (!snap.empty) {
+          return snap.docs[0].id;
+        }
+      } catch {
+        // Fall through to email lookup
+      }
+    }
+
+    const email = (employee.email || "").trim();
+    if (email) {
+      const lower = email.toLowerCase();
+      try {
+        const snap = await getDocs(
+          query(collection(db, "users"), where("emailLowercase", "==", lower), limit(1))
+        );
+        if (!snap.empty) {
+          return snap.docs[0].id;
+        }
+      } catch {
+        // Field may not exist; continue to raw email lookup
+      }
+      try {
+        const snap = await getDocs(
+          query(collection(db, "users"), where("email", "==", email), limit(1))
+        );
+        if (!snap.empty) {
+          return snap.docs[0].id;
+        }
+      } catch {
+        // No user matches the provided email
+      }
+    }
+
+    return null;
+  }
+
   async function handleSave() {
     const name = fullName.trim();
     if (!name) {
@@ -69,42 +136,55 @@ export default function EmployeeEditModal({
       setSubmitting(true);
       if (!getApps().length) initializeApp(firebaseConfig);
       const db = getFirestore();
-      await updateDoc(doc(db, "employeeMasterList", employee.id), {
+      const linkedUserId = await resolveLinkedUserId(db);
+      const normalizedRole = role || "employee";
+      const roleChanged = (employee.role || "employee") !== normalizedRole;
+
+      if (roleChanged && canChangeRole) {
+        if (!linkedUserId) {
+          throw new Error(
+            "No linked user account found. Link this employee to a portal login before changing the role."
+          );
+        }
+        const functions = getFunctions();
+        const setUserRole = httpsCallable(functions, "setUserRole");
+        await setUserRole({ targetUid: linkedUserId, role: normalizedRole });
+      }
+
+      const employeeUpdates: Record<string, any> = {
         fullName: name,
         phone: phone.trim() || null,
-        role: role || "employee",
         status,
-      });
+        role: normalizedRole,
+      };
+      if (linkedUserId && linkedUserId !== employee.userId) {
+        employeeUpdates.userId = linkedUserId;
+      }
 
-      const userDocId = employee.userId || employee.id;
-      try {
-        // Do NOT write role directly; that is handled via callable to prevent escalation.
-        await updateDoc(
-          doc(db, "users", userDocId),
-          {
+      await updateDoc(doc(db, "employeeMasterList", employee.id), employeeUpdates);
+
+      const userDocId = linkedUserId || employee.userId || null;
+      if (userDocId) {
+        try {
+          // Do NOT write role directly; that is handled via callable to prevent escalation.
+          await updateDoc(doc(db, "users", userDocId), {
             fullName: name,
             phone: phone.trim() || null,
             status,
+          });
+        } catch (err) {
+          if (!(err instanceof FirebaseError && err.code === "not-found")) {
+            throw err;
           }
-        );
-      } catch (err) {
-        if (!(err instanceof FirebaseError && err.code === "not-found")) {
-          throw err;
         }
       }
 
-      // Apply role change through secure callable if necessary and permitted
-      const roleChanged = (employee.role || "employee") !== (role || "employee");
-      if (roleChanged && canChangeRole) {
-        const functions = getFunctions();
-        const setUserRole = httpsCallable(functions, "setUserRole");
-        await setUserRole({ targetUid: userDocId, role });
-      }
       onUpdated?.({
         fullName: name,
         phone: phone.trim() || null,
-        role,
+        role: normalizedRole,
         status,
+        userId: linkedUserId || employee.userId || null,
       });
       show({ type: "success", message: "Employee updated" });
       onClose();
