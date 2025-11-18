@@ -15,6 +15,7 @@ type Location = {
     state?: string;
     zip?: string;
   } | null;
+  status?: boolean;
 };
 
 export default function LocationEditModal({
@@ -34,6 +35,7 @@ export default function LocationEditModal({
   const [city, setCity] = useState(location.address?.city || "");
   const [state, setState] = useState(location.address?.state || "");
   const [zip, setZip] = useState(location.address?.zip || "");
+  const [status, setStatus] = useState(location.status !== false);
 
   async function handleSave() {
     try {
@@ -44,6 +46,7 @@ export default function LocationEditModal({
       const payload: Partial<Location> = {
         locationName,
         address: { line1, line2, city, state, zip },
+        status,
       };
       onUpdated(payload);
       await updateDoc(ref, payload as any);
@@ -117,6 +120,17 @@ export default function LocationEditModal({
                 onChange={(e) => setZip(e.target.value)}
               />
             </div>
+          </div>
+          <div>
+            <label className="block text-sm mb-1">Status</label>
+            <select
+              className="w-full border rounded-md px-3 py-2 card-bg"
+              value={status ? "true" : "false"}
+              onChange={(e) => setStatus(e.target.value === "true")}
+            >
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
           </div>
         </div>
         <div className="mt-4 flex justify-end gap-2">

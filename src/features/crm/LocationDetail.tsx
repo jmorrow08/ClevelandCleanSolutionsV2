@@ -24,6 +24,7 @@ type Location = {
   clientName?: string;
   locationName?: string;
   address?: any;
+  status?: boolean;
 };
 
 export default function LocationDetail() {
@@ -159,6 +160,10 @@ export default function LocationDetail() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Field label="Location Name" value={location.locationName || "—"} />
           <Field label="Address" value={formatAddress(location.address)} />
+          <Field
+            label="Status"
+            value={location.status === false ? "Inactive" : "Active"}
+          />
         </div>
       </div>
 

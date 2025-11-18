@@ -137,6 +137,7 @@ function NewLocationModal({ onClose }: { onClose: () => void }) {
           state: state.trim() || null,
           zip: zip.trim() || null,
         },
+        status: true,
         createdAt: serverTimestamp(),
       });
       primeLocationName(ref.id, locName);
