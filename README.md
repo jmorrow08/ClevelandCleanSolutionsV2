@@ -110,3 +110,4 @@ Configured via `tailwind.config.js` and `src/styles/tailwind.css` (imported by `
 - Uses React 19, Vite 7, TypeScript 5, Tailwind 4.
 - Shares Firebase config with V1; keep `.env.local` in V2 in sync with V1.
 - All V2 features are designed to be non-disruptive to V1 operations.
+
