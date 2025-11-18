@@ -42,11 +42,25 @@ export type AgreementDoc = {
   serviceType?: string;
 };
 
-const SERVICE_FREQUENCY_OPTIONS = [
+type SelectOption = { value: string; label: string };
+
+const SERVICE_FREQUENCY_OPTIONS: SelectOption[] = [
   { value: "weekly", label: "Weekly" },
   { value: "bi-weekly", label: "Bi-Weekly" },
   { value: "monthly", label: "Monthly" },
   { value: "one-time", label: "One-Time" },
+];
+
+const PAYMENT_FREQUENCY_OPTIONS: SelectOption[] = [
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+];
+
+const RENEWAL_TERMS_OPTIONS: SelectOption[] = [
+  { value: "auto-renew", label: "Auto-Renew" },
+  { value: "fixed-term", label: "Fixed Term" },
+  { value: "manual-review", label: "Manual Review" },
+  { value: "no-renewal", label: "No Renewal" },
 ];
 
 export function ServiceAgreementModal({
@@ -91,6 +105,16 @@ export function ServiceAgreementModal({
   });
 
   const readOnly = mode === "view";
+
+  const paymentFrequencyOptions = withCustomOption(
+    PAYMENT_FREQUENCY_OPTIONS,
+    form.paymentFrequency
+  );
+
+  const renewalTermsOptions = withCustomOption(
+    RENEWAL_TERMS_OPTIONS,
+    form.renewalTerms
+  );
 
   useEffect(() => {
     (async () => {
@@ -519,10 +543,11 @@ export function ServiceAgreementModal({
                   type="date"
                   onChange={(v) => update("contractEndDate", fromDateInput(v))}
                 />
-                <LabeledInput
+                <LabeledSelect
                   label="Renewal Terms"
                   value={form.renewalTerms || ""}
                   readOnly={readOnly}
+                  options={renewalTermsOptions}
                   onChange={(v) => update("renewalTerms", v)}
                 />
               </div>
@@ -541,10 +566,11 @@ export function ServiceAgreementModal({
                   readOnly={readOnly}
                   onChange={(v) => update("paymentAmount", Number(v))}
                 />
-                <LabeledInput
+                <LabeledSelect
                   label="Payment Frequency"
                   value={form.paymentFrequency || ""}
                   readOnly={readOnly}
+                  options={paymentFrequencyOptions}
                   onChange={(v) => update("paymentFrequency", v)}
                 />
               </div>
@@ -923,6 +949,30 @@ function fromDateInput(s: string): any {
   return dt;
 }
 
+function withCustomOption(
+  options: SelectOption[],
+  rawValue?: string | null
+): SelectOption[] {
+  const value = rawValue ?? "";
+  if (!value) return options;
+  if (options.some((option) => option.value === value)) {
+    return options;
+  }
+  return [
+    ...options,
+    { value, label: formatOptionLabel(value) },
+  ];
+}
+
+function formatOptionLabel(value: string): string {
+  if (!value) return "";
+  return value
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function LabeledSelect({
   label,
   value,
@@ -934,7 +984,7 @@ function LabeledSelect({
   value: string;
   onChange: (v: string) => void;
   readOnly?: boolean;
-  options: Array<{ value: string; label: string }>;
+  options: SelectOption[];
 }) {
   return (
     <div>
