@@ -50,7 +50,6 @@ service cloud.firestore {
     // --- V2 Helper shims ---
     function isSuperAdmin() { return hasClaim('super_admin'); }
     function isAdmin() { return hasClaim('admin'); }
-    function isMarketing() { return hasClaim('marketing'); }
     function isEmployeeV2() {
       return hasClaim('employee') || (request.auth != null && hasRoleInFirestore(request.auth.uid, 'employee'));
     }
@@ -667,8 +666,8 @@ service cloud.firestore {
     // --- V2: leads (CRM) ---
     // Admin/Owner/Marketing can read and write; delete restricted to super_admin
     match /leads/{leadId} {
-      allow read: if hasClaim('admin') || isOwner() || hasClaim('marketing') || hasClaim('super_admin');
-      allow create, update: if hasClaim('admin') || isOwner() || hasClaim('marketing');
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
+      allow create, update: if hasClaim('admin') || isOwner();
       allow delete: if hasClaim('super_admin');
     }
 
@@ -711,18 +710,21 @@ service cloud.firestore {
     }
 
     // --- V2: payrollRuns ---
-    // Employees can read locked runs and their own summaries; admins can manage everything
+    // Parent documents are restricted to finance roles. Summaries expose paystubs per employeeProfileId.
     match /payrollRuns/{runId} {
-      function isLockedRun() {
-        return resource.data.status == 'locked';
-      }
-      
-      // Allow read: signed-in users; employees only need to read locked runs and their own per-employee summaries
-      allow read: if request.auth != null;
-      
-      // Allow write: admin roles only
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
       allow create, update: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
       allow delete: if hasClaim('super_admin');
+
+      match /summaries/{employeeProfileId} {
+        function isSummaryOwner() {
+          return currentProfileId() != null && currentProfileId() == employeeProfileId;
+        }
+
+        // Admins may read any summary; employees only their own. Writes are Cloud Function only.
+        allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') || isSummaryOwner();
+        allow write: if false;
+      }
     }
 
     // --- V2: payments (Finance hub summary) ---

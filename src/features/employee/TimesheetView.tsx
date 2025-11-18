@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   getFirestore,
   collection,
+  collectionGroup,
   query,
   where,
   orderBy,
@@ -13,6 +14,7 @@ import {
   serverTimestamp,
   Timestamp,
   getDocs,
+  documentId,
 } from "firebase/firestore";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -43,7 +45,7 @@ type PayrollHistoryItem = {
 };
 
 export default function TimesheetView() {
-  const { user, claims } = useAuth();
+  const { user, claims, profileId } = useAuth();
   const { settings } = useSettings();
   const { show } = useToast();
   const [rows, setRows] = useState<Timesheet[]>([]);
@@ -70,34 +72,6 @@ export default function TimesheetView() {
         });
     }
   }, [user, claims]);
-
-  // Load locked payroll run IDs
-  useEffect(() => {
-    async function loadLockedRuns() {
-      try {
-        const db = getFirestore();
-
-        // Query for locked payroll runs
-        const lockedRunsQuery = query(
-          collection(db, "payrollRuns"),
-          where("status", "==", "locked")
-        );
-
-        const lockedRunsSnapshot = await getDocs(lockedRunsQuery);
-        const lockedIds = new Set<string>();
-
-        lockedRunsSnapshot.forEach((doc) => {
-          lockedIds.add(doc.id);
-        });
-
-        setLockedRunIds(lockedIds);
-      } catch (error) {
-        // console.error("Error loading locked runs:", error);
-      }
-    }
-
-    loadLockedRuns();
-  }, []);
 
   // Calculate current pay period
   const currentPeriod = useMemo(() => {
@@ -191,65 +165,58 @@ export default function TimesheetView() {
 
   // Load payroll history
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!profileId) {
+      setPayrollHistory([]);
+      setLockedRunIds(new Set());
+      return;
+    }
 
     async function loadPayrollHistory() {
       try {
         setHistoryLoading(true);
         const db = getFirestore();
-
-        // Query locked payroll runs
-        const runsQuery = query(
-          collection(db, "payrollRuns"),
-          where("status", "==", "locked"),
-          orderBy("periodEnd", "desc"),
-          limit(12)
+        const summariesQuery = query(
+          collectionGroup(db, "summaries"),
+          where(documentId(), "==", profileId)
         );
 
-        const runsSnap = await getDocs(runsQuery);
+        const snap = await getDocs(summariesQuery);
         const history: PayrollHistoryItem[] = [];
+        const lockedSet = new Set<string>();
 
-        for (const runDoc of runsSnap.docs) {
-          const runData = runDoc.data() as any;
-
-          // Query timesheets for this employee in this run
-          const timesheetsQuery = query(
-            collection(db, "timesheets"),
-            where("employeeId", "==", user!.uid),
-            where("approvedInRunId", "==", runDoc.id)
-          );
-
-          const timesheetsSnap = await getDocs(timesheetsQuery);
-          let totalHours = 0;
-          let totalEarnings = 0;
-
-          timesheetsSnap.forEach((tsDoc) => {
-            const tsData = tsDoc.data() as any;
-            const hours = Number(tsData.hours || 0) || 0;
-
-            totalHours += hours;
-            totalEarnings += calculateTimesheetEarnings(tsData);
-          });
-
-          if (totalHours > 0 || totalEarnings > 0) {
-            history.push({
-              id: runDoc.id,
-              periodStart: runData.periodStart?.toDate
-                ? runData.periodStart.toDate()
-                : new Date(runData.periodStart),
-              periodEnd: runData.periodEnd?.toDate
-                ? runData.periodEnd.toDate()
-                : new Date(runData.periodEnd),
-              totalHours,
-              totalEarnings,
-              status: runData.status || "locked",
-            });
+        snap.forEach((summaryDoc) => {
+          const data = summaryDoc.data() as any;
+          const parentRunId = summaryDoc.ref.parent.parent?.id;
+          if (!parentRunId) return;
+          const status = String(data.status || "");
+          const isLocked = ["locked", "paid"].includes(status.toLowerCase());
+          if (isLocked) {
+            lockedSet.add(parentRunId);
           }
-        }
 
-        setPayrollHistory(history);
+          const startTs = data.periodStart;
+          const endTs = data.periodEnd;
+          const toDate = (value: any): Date => {
+            if (value?.toDate) return value.toDate();
+            if (value instanceof Date) return value;
+            if (value?.seconds) return new Date(value.seconds * 1000);
+            return new Date(value || Date.now());
+          };
+
+          history.push({
+            id: parentRunId,
+            periodStart: toDate(startTs),
+            periodEnd: toDate(endTs),
+            totalHours: Number(data.hoursTotal || 0) || 0,
+            totalEarnings: Number(data.grossPay || 0) || 0,
+            status: status || "draft",
+          });
+        });
+
+        history.sort((a, b) => b.periodEnd.getTime() - a.periodEnd.getTime());
+        setPayrollHistory(history.slice(0, 12));
+        setLockedRunIds(lockedSet);
       } catch (error: any) {
-        // console.error("Payroll history load error:", error);
         show({
           type: "error",
           message: `Failed to load payroll history: ${error.message}`,
@@ -260,7 +227,7 @@ export default function TimesheetView() {
     }
 
     loadPayrollHistory();
-  }, [user?.uid, show]);
+  }, [profileId, show]);
 
   const totalHours = useMemo(
     () => rows.reduce((sum, r) => sum + (Number(r.hours || 0) || 0), 0),

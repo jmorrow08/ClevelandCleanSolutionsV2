@@ -241,7 +241,7 @@ function ComposerTab() {
 
   return (
     <div className="space-y-4">
-      <RoleGuard allow={["owner", "super_admin", "admin", "marketing"]}>
+      <RoleGuard allow={["owner", "super_admin", "admin"]}>
         <div className="rounded-md p-3 card-bg shadow-elev-1 space-y-3">
           <div className="text-sm font-medium">Choose providers</div>
           <div>

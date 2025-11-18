@@ -343,7 +343,7 @@ export default function AssetDetail() {
                   {asset?.checksum && <div>Checksum: {asset.checksum}</div>}
                 </div>
               </div>
-              <RoleGuard allow={["owner", "super_admin", "admin", "marketing"]}>
+              <RoleGuard allow={["owner", "super_admin", "admin"]}>
                 <div className="flex items-center justify-end gap-2">
                   <button
                     className="px-3 py-1.5 rounded-md border card-bg"

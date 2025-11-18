@@ -4,7 +4,7 @@ import { filterEmployees } from "../EmployeesList";
 describe("EmployeesList filtering", () => {
   const list = [
     { id: "1", fullName: "Alice Smith", role: "employee" },
-    { id: "2", fullName: "Bob Johnson", role: "manager" },
+    { id: "2", fullName: "Bob Johnson", role: "owner" },
     { id: "3", fullName: "Charlie", role: "admin" },
   ];
 
@@ -14,12 +14,12 @@ describe("EmployeesList filtering", () => {
   });
 
   it("filters by role exact match", () => {
-    const out = filterEmployees(list as any, "", "manager");
+    const out = filterEmployees(list as any, "", "owner");
     expect(out.map((x) => x.id)).toEqual(["2"]);
   });
 
   it("combines name and role filters", () => {
-    const out = filterEmployees(list as any, "bo", "manager");
+    const out = filterEmployees(list as any, "bo", "owner");
     expect(out.map((x) => x.id)).toEqual(["2"]);
   });
 });

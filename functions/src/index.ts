@@ -6,6 +6,288 @@ admin.initializeApp();
 
 const db = admin.firestore();
 
+type RunTotals = {
+  byEmployee: Record<string, { hours: number; earnings: number; hourlyRate?: number }>;
+  totalHours: number;
+  totalEarnings: number;
+};
+
+type SummaryAggregate = {
+  hoursTotal: number;
+  grossPay: number;
+  rateAtTime: number | null;
+  timesheetRefs: string[];
+};
+
+function roundCurrency(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function normalizeTimestamp(value: any): admin.firestore.Timestamp | null {
+  if (!value) return null;
+  if (value instanceof admin.firestore.Timestamp) return value;
+  if (typeof value.toDate === "function" && value.toDate() instanceof Date)
+    return value as admin.firestore.Timestamp;
+  if (value.seconds != null && value.nanoseconds != null) {
+    return new admin.firestore.Timestamp(value.seconds, value.nanoseconds);
+  }
+  if (value instanceof Date) {
+    return admin.firestore.Timestamp.fromDate(value);
+  }
+  if (typeof value === "number") {
+    return admin.firestore.Timestamp.fromMillis(value);
+  }
+  return null;
+}
+
+async function resolveEmployeeProfileId(
+  timesheet: FirebaseFirestore.DocumentData,
+  cache: Map<string, string | null>
+): Promise<string | null> {
+  if (
+    typeof timesheet.employeeProfileId === "string" &&
+    timesheet.employeeProfileId.trim() !== ""
+  ) {
+    return timesheet.employeeProfileId;
+  }
+  const employeeId =
+    typeof timesheet.employeeId === "string" && timesheet.employeeId.trim() !== ""
+      ? timesheet.employeeId
+      : null;
+  if (!employeeId) return null;
+  if (cache.has(employeeId)) return cache.get(employeeId) || null;
+  const snap = await db.collection("users").doc(employeeId).get();
+  const data = snap.data() as { profileId?: string } | undefined;
+  const profileId =
+    typeof data?.profileId === "string" && data.profileId.trim() !== ""
+      ? data.profileId
+      : null;
+  cache.set(employeeId, profileId);
+  return profileId;
+}
+
+async function lookupEffectiveRate(
+  employeeId: string,
+  atTimestamp: admin.firestore.Timestamp,
+  cache: Map<string, number>
+): Promise<number> {
+  const cacheKey = `${employeeId}|${atTimestamp.seconds}`;
+  if (cache.has(cacheKey)) {
+    return cache.get(cacheKey) || 0;
+  }
+  let rate = 0;
+  const effectiveQuery = await db
+    .collection("employeeRates")
+    .where("employeeId", "==", employeeId)
+    .where("effectiveDate", "<=", atTimestamp)
+    .orderBy("effectiveDate", "desc")
+    .limit(1)
+    .get();
+  if (!effectiveQuery.empty) {
+    const rateDoc = effectiveQuery.docs[0].data() as Record<string, unknown>;
+    rate =
+      Number((rateDoc as any).hourlyRate || (rateDoc as any).amount || 0) || 0;
+  } else {
+    const legacyQuery = await db
+      .collection("employeeRates")
+      .where("employeeId", "==", employeeId)
+      .where("createdAt", "<=", atTimestamp)
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get();
+    if (!legacyQuery.empty) {
+      const legacyDoc = legacyQuery.docs[0].data() as Record<string, unknown>;
+      rate =
+        Number(
+          (legacyDoc as any).hourlyRate || (legacyDoc as any).amount || 0
+        ) || 0;
+    }
+  }
+  cache.set(cacheKey, rate);
+  return rate;
+}
+
+async function computeTimesheetCompensation(
+  timesheet: FirebaseFirestore.DocumentData,
+  rateCache: Map<string, number>
+): Promise<{ hours: number; earnings: number; appliedRate: number | null }>
+{
+  const hours = Number(timesheet?.hours || 0) || 0;
+  const units = Number(timesheet?.units || 1) || 1;
+  let appliedRate: number | null = null;
+  let earnings = 0;
+  const snapshot = timesheet?.rateSnapshot as
+    | { type?: string; amount?: number; hourlyRate?: number }
+    | undefined;
+
+  if (snapshot && typeof snapshot === "object") {
+    const amount = Number(snapshot.amount || snapshot.hourlyRate || 0) || 0;
+    if (snapshot.type === "per_visit") {
+      appliedRate = amount;
+      earnings = roundCurrency(amount * units);
+    } else if (snapshot.type === "monthly") {
+      appliedRate = amount;
+      earnings = roundCurrency(amount);
+    } else {
+      appliedRate = amount;
+      earnings = roundCurrency(hours * amount);
+    }
+  } else {
+    let rate = Number(timesheet?.hourlyRate || 0) || 0;
+    const employeeId =
+      typeof timesheet?.employeeId === "string"
+        ? timesheet.employeeId
+        : null;
+    const ts = normalizeTimestamp(timesheet?.start || timesheet?.clockInTime);
+    if (!rate && employeeId && ts) {
+      rate = await lookupEffectiveRate(employeeId, ts, rateCache);
+    }
+    appliedRate = rate || null;
+    earnings = roundCurrency(hours * rate);
+  }
+
+  return {
+    hours,
+    earnings,
+    appliedRate,
+  };
+}
+
+async function computeRunArtifacts(
+  runId: string,
+  existingRunData?: FirebaseFirestore.DocumentData | null
+): Promise<{
+  runRef: FirebaseFirestore.DocumentReference;
+  runData: FirebaseFirestore.DocumentData;
+  totals: RunTotals;
+  summaries: Map<string, SummaryAggregate>;
+}> {
+  const runRef = db.collection("payrollRuns").doc(runId);
+  let runData = existingRunData || null;
+  if (!runData) {
+    const snap = await runRef.get();
+    if (!snap.exists) {
+      throw new functions.https.HttpsError("not-found", "Payroll run not found");
+    }
+    runData = snap.data() || null;
+  }
+  if (!runData) {
+    throw new functions.https.HttpsError("not-found", "Payroll run missing data");
+  }
+
+  const timesheetsSnapshot = await db
+    .collection("timesheets")
+    .where("approvedInRunId", "==", runId)
+    .get();
+
+  const totals: RunTotals = {
+    byEmployee: {},
+    totalHours: 0,
+    totalEarnings: 0,
+  };
+
+  const summaries = new Map<string, SummaryAggregate>();
+  const profileCache = new Map<string, string | null>();
+  const rateCache = new Map<string, number>();
+
+  for (const doc of timesheetsSnapshot.docs) {
+    const data = doc.data();
+    const employeeId =
+      typeof data?.employeeId === "string" && data.employeeId.trim() !== ""
+        ? data.employeeId
+        : null;
+    const profileId = await resolveEmployeeProfileId(data, profileCache);
+    const { hours, earnings, appliedRate } = await computeTimesheetCompensation(
+      data,
+      rateCache
+    );
+
+    if (employeeId) {
+      const current = totals.byEmployee[employeeId] || {
+        hours: 0,
+        earnings: 0,
+        hourlyRate: appliedRate || undefined,
+      };
+      current.hours = roundCurrency(current.hours + hours);
+      current.earnings = roundCurrency(current.earnings + earnings);
+      if (!current.hourlyRate && appliedRate) current.hourlyRate = appliedRate;
+      totals.byEmployee[employeeId] = current;
+    }
+
+    if (profileId) {
+      const summary = summaries.get(profileId) || {
+        hoursTotal: 0,
+        grossPay: 0,
+        rateAtTime: appliedRate || null,
+        timesheetRefs: [] as string[],
+      };
+      summary.hoursTotal = roundCurrency(summary.hoursTotal + hours);
+      summary.grossPay = roundCurrency(summary.grossPay + earnings);
+      if (!summary.rateAtTime && appliedRate) summary.rateAtTime = appliedRate;
+      summary.timesheetRefs.push(doc.id);
+      summaries.set(profileId, summary);
+    }
+
+    totals.totalHours = roundCurrency(totals.totalHours + hours);
+    totals.totalEarnings = roundCurrency(totals.totalEarnings + earnings);
+  }
+
+  return { runRef, runData, totals, summaries };
+}
+
+async function persistSummaries(
+  runRef: FirebaseFirestore.DocumentReference,
+  runData: FirebaseFirestore.DocumentData,
+  summaries: Map<string, SummaryAggregate>
+): Promise<void> {
+  const periodStart = runData?.periodStart;
+  const periodEnd = runData?.periodEnd;
+  if (!periodStart || !periodEnd) {
+    return;
+  }
+  const status = typeof runData?.status === "string" ? runData.status : "draft";
+  const summariesRef = runRef.collection("summaries");
+  const existing = await summariesRef.get();
+  const keep = new Set<string>(summaries.keys());
+  const batch = db.batch();
+  let writes = 0;
+
+  existing.forEach((doc) => {
+    if (!keep.has(doc.id)) {
+      batch.delete(doc.ref);
+      writes += 1;
+    }
+  });
+
+  summaries.forEach((value, profileId) => {
+    batch.set(summariesRef.doc(profileId), {
+      periodStart,
+      periodEnd,
+      hoursTotal: roundCurrency(value.hoursTotal),
+      grossPay: roundCurrency(value.grossPay),
+      rateAtTime: value.rateAtTime ?? null,
+      status,
+      timesheetRefs: value.timesheetRefs,
+    });
+    writes += 1;
+  });
+
+  if (writes > 0) {
+    await batch.commit();
+  }
+}
+
+async function refreshSummariesForRun(
+  runId: string,
+  existingRunData?: FirebaseFirestore.DocumentData | null
+) {
+  const { runRef, runData, summaries } = await computeRunArtifacts(
+    runId,
+    existingRunData
+  );
+  await persistSummaries(runRef, runData, summaries);
+}
+
 // Payroll Functions
 
 // Helper to check whether the caller has finance/admin privileges.
@@ -90,6 +372,8 @@ export const createPayrollRun = functions
 
       const docRef = await db.collection("payrollRuns").add(payrollRunData);
 
+      await refreshSummariesForRun(docRef.id, payrollRunData);
+
       return {
         id: docRef.id,
         success: true,
@@ -144,103 +428,20 @@ export const recalcPayrollRun = functions
         );
       }
 
-      const runData = runDoc.data();
-      const periodStart = runData?.periodStart;
-      const periodEnd = runData?.periodEnd;
+      const { runRef, runData, totals, summaries } = await computeRunArtifacts(
+        runId,
+        runDoc.data()
+      );
 
-      if (!periodStart || !periodEnd) {
-        throw new functions.https.HttpsError(
-          "invalid-argument",
-          "Payroll run missing period dates"
-        );
-      }
+      await runRef.update({
+        totals,
+        totalHours: totals.totalHours,
+        totalEarnings: totals.totalEarnings,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedBy: context.auth.uid,
+      });
 
-      // Get timesheets approved for this run
-      const timesheetsSnapshot = await db
-        .collection("timesheets")
-        .where("approvedInRunId", "==", runId)
-        .orderBy("employeeId", "asc")
-        .orderBy("start", "asc")
-        .get();
-
-      const totals = {
-        byEmployee: {} as Record<
-          string,
-          { hours: number; earnings: number; hourlyRate?: number }
-        >,
-        totalHours: 0,
-        totalEarnings: 0,
-      };
-
-      const rateCache = new Map<string, number>();
-
-      // Calculate totals from timesheets
-      for (const doc of timesheetsSnapshot.docs) {
-        const timesheet = doc.data();
-        const employeeId = timesheet?.employeeId;
-        const hours = Number(timesheet?.hours || 0) || 0;
-
-        if (!employeeId || hours <= 0) continue;
-
-        // Get hourly rate
-        let rate = Number(timesheet?.rateSnapshot?.hourlyRate || 0) || 0;
-        if (!rate) {
-          const startTs = timesheet?.start;
-          const cacheKey = `${employeeId}|${startTs?.seconds || "0"}`;
-
-          if (rateCache.has(cacheKey)) {
-            rate = rateCache.get(cacheKey)!;
-          } else {
-            // Get effective rate for employee at time
-            const rateQuery = await db
-              .collection("employeeRates")
-              .where("employeeId", "==", employeeId)
-              .where("effectiveDate", "<=", startTs)
-              .orderBy("effectiveDate", "desc")
-              .limit(1)
-              .get();
-
-            if (!rateQuery.empty) {
-              const rateDoc = rateQuery.docs[0].data();
-              rate = Number(rateDoc?.hourlyRate || 0) || 0;
-            }
-            rateCache.set(cacheKey, rate);
-          }
-        }
-
-        const earnings =
-          Math.round((hours * rate + Number.EPSILON) * 100) / 100;
-
-        const current = totals.byEmployee[employeeId] || {
-          hours: 0,
-          earnings: 0,
-          hourlyRate: rate || undefined,
-        };
-
-        current.hours += hours;
-        current.earnings =
-          Math.round((current.earnings + earnings) * 100) / 100;
-        if (!current.hourlyRate && rate) current.hourlyRate = rate;
-
-        totals.byEmployee[employeeId] = current;
-        totals.totalHours += hours;
-        totals.totalEarnings =
-          Math.round((totals.totalEarnings + earnings) * 100) / 100;
-      }
-
-      // Round totals
-      totals.totalHours = Math.round(totals.totalHours * 100) / 100;
-      totals.totalEarnings = Math.round(totals.totalEarnings * 100) / 100;
-
-      // Update the payroll run with new totals
-      await db
-        .collection("payrollRuns")
-        .doc(runId)
-        .update({
-          ...totals,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedBy: context.auth.uid,
-        });
+      await persistSummaries(runRef, runData, summaries);
 
       return {
         success: true,
@@ -510,6 +711,8 @@ export const approveTimesheetsInRun = functions
       }
 
       await batch.commit();
+
+      await refreshSummariesForRun(runId, runDoc.data());
 
       return { count };
     } catch (error) {

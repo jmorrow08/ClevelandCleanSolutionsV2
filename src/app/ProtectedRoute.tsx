@@ -8,52 +8,34 @@ type Props = {
 };
 
 type Claims = Record<string, any> | null | undefined;
+type RoleName = "super_admin" | "owner" | "admin" | "employee" | "client";
+
+function hasRole(claims: Claims, role: RoleName): boolean {
+  if (!claims) return false;
+  if (typeof (claims as any).role === "string" && (claims as any).role === role)
+    return true;
+  return Boolean((claims as any)[role]);
+}
 
 function isAdminOrAbove(claims: Claims): boolean {
-  if (!claims) return false;
-  const role = (claims as any).role as string | undefined;
-  if (role === "super_admin" || role === "owner" || role === "admin")
-    return true;
-  return Boolean(
-    (claims as any).super_admin ||
-      (claims as any).owner ||
-      (claims as any).admin
+  return (
+    hasRole(claims, "super_admin") ||
+    hasRole(claims, "owner") ||
+    hasRole(claims, "admin")
   );
 }
 
 function isEmployeeOrAbove(claims: Claims): boolean {
-  if (!claims) return false;
-  const role = (claims as any).role as string | undefined;
-  if (
-    role === "super_admin" ||
-    role === "owner" ||
-    role === "admin" ||
-    role === "employee"
-  )
-    return true;
-  return Boolean(
-    (claims as any).super_admin ||
-      (claims as any).owner ||
-      (claims as any).admin ||
-      (claims as any).employee
+  return (
+    isAdminOrAbove(claims) ||
+    hasRole(claims, "employee")
   );
 }
 
 function isClientOrAbove(claims: Claims): boolean {
-  if (!claims) return false;
-  const role = (claims as any).role as string | undefined;
-  if (
-    role === "super_admin" ||
-    role === "owner" ||
-    role === "admin" ||
-    role === "client"
-  )
-    return true;
-  return Boolean(
-    (claims as any).super_admin ||
-      (claims as any).owner ||
-      (claims as any).admin ||
-      (claims as any).client
+  return (
+    isAdminOrAbove(claims) ||
+    hasRole(claims, "client")
   );
 }
 

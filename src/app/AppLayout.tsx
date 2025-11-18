@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useSettings } from "../context/SettingsContext";
@@ -65,6 +65,41 @@ function ThemeToggle() {
     >
       {enabled ? "Dark" : "Light"}
     </button>
+  );
+}
+
+function OwnerModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: "admin" | "employee";
+  onChange: (mode: "admin" | "employee") => void;
+}) {
+  const options: Array<{ label: string; value: "admin" | "employee" }> = [
+    { label: "Admin", value: "admin" },
+    { label: "Employee", value: "employee" },
+  ];
+  return (
+    <div className="flex text-xs border border-[var(--border)] rounded-md overflow-hidden">
+      {options.map((option) => {
+        const isActive = mode === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={isActive}
+            onClick={() => onChange(option.value)}
+            className={`px-2 py-1 transition-colors focus-ring min-w-[72px] ${
+              isActive
+                ? "bg-[var(--brand)] text-white"
+                : "bg-transparent text-[var(--text)]"
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -246,7 +281,17 @@ function ClientSidebar({
   );
 }
 
-function Topbar({ onToggleMobileMenu }: { onToggleMobileMenu?: () => void }) {
+function Topbar({
+  onToggleMobileMenu,
+  ownerMode,
+  onOwnerModeChange,
+  showOwnerToggle,
+}: {
+  onToggleMobileMenu?: () => void;
+  ownerMode?: "admin" | "employee";
+  onOwnerModeChange?: (mode: "admin" | "employee") => void;
+  showOwnerToggle?: boolean;
+}) {
   const { settings } = useSettings();
   const companyName =
     settings?.companyProfile?.name || "Cleveland Clean Solutions";
@@ -291,6 +336,9 @@ function Topbar({ onToggleMobileMenu }: { onToggleMobileMenu?: () => void }) {
         </div>
       </div>
       <div className="flex items-center gap-2">
+        {showOwnerToggle && ownerMode && onOwnerModeChange ? (
+          <OwnerModeToggle mode={ownerMode} onChange={onOwnerModeChange} />
+        ) : null}
         <ThemeToggle />
       </div>
     </header>
@@ -300,6 +348,15 @@ function Topbar({ onToggleMobileMenu }: { onToggleMobileMenu?: () => void }) {
 export default function AppLayout() {
   const { claims } = useAuth();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  type OwnerMode = "admin" | "employee";
+  const [ownerMode, setOwnerMode] = useState<OwnerMode>(() => {
+    if (typeof window === "undefined") return "admin" as OwnerMode;
+    const stored = window.localStorage.getItem("owner-mode");
+    return stored === "employee" ? "employee" : "admin";
+  });
 
   const role = (claims as any)?.role as string | undefined;
   const isSuperAdmin =
@@ -309,6 +366,36 @@ export default function AppLayout() {
   const isEmployee = Boolean((claims as any)?.employee) || role === "employee";
   const isClient = Boolean((claims as any)?.client) || role === "client";
   const isAdminOrAbove = isSuperAdmin || isOwner || isAdmin;
+  const canToggleOwnerMode = isOwner;
+  const ownerPrefersEmployeeView = canToggleOwnerMode && ownerMode === "employee";
+
+  useEffect(() => {
+    if (!canToggleOwnerMode && ownerMode !== "admin") {
+      setOwnerMode("admin");
+    }
+  }, [canToggleOwnerMode, ownerMode]);
+
+  useEffect(() => {
+    if (!canToggleOwnerMode) {
+      window.localStorage.removeItem("owner-mode");
+      return;
+    }
+    window.localStorage.setItem("owner-mode", ownerMode);
+  }, [ownerMode, canToggleOwnerMode]);
+
+  const handleOwnerModeChange = (mode: OwnerMode) => {
+    if (mode === ownerMode) return;
+    setOwnerMode(mode);
+    if (mode === "employee") {
+      if (!location.pathname.startsWith("/employee")) {
+        navigate("/employee");
+      }
+    } else {
+      if (location.pathname.startsWith("/employee")) {
+        navigate("/");
+      }
+    }
+  };
 
   const toggleMobileSidebar = () => {
     setIsMobileSidebarOpen(!isMobileSidebarOpen);
@@ -330,12 +417,12 @@ export default function AppLayout() {
         )}
 
         <div className="flex">
-          {isAdminOrAbove ? (
+          {isAdminOrAbove && !ownerPrefersEmployeeView ? (
             <AdminSidebar
               isMobileOpen={isMobileSidebarOpen}
               onClose={closeMobileSidebar}
             />
-          ) : isEmployee ? (
+          ) : isEmployee || ownerPrefersEmployeeView ? (
             <EmployeeSidebar
               isMobileOpen={isMobileSidebarOpen}
               onClose={closeMobileSidebar}
@@ -347,7 +434,12 @@ export default function AppLayout() {
             />
           ) : null}
           <main className="flex-1 min-w-0">
-            <Topbar onToggleMobileMenu={toggleMobileSidebar} />
+            <Topbar
+              onToggleMobileMenu={toggleMobileSidebar}
+              ownerMode={ownerMode}
+              onOwnerModeChange={handleOwnerModeChange}
+              showOwnerToggle={canToggleOwnerMode}
+            />
             <div className="p-3 md:p-4">
               <Outlet />
             </div>

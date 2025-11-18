@@ -103,9 +103,10 @@ export default function EmployeeEditModal({
               disabled={submitting}
             >
               <option value="employee">employee</option>
-              <option value="supervisor">supervisor</option>
-              <option value="manager">manager</option>
               <option value="admin">admin</option>
+              <option value="owner">owner</option>
+              <option value="client">client</option>
+              <option value="super_admin">super_admin</option>
             </select>
           </div>
         </div>

@@ -221,7 +221,7 @@ export default function MediaLibraryPage() {
             </button>
           ))}
         </div>
-        <RoleGuard allow={["admin", "owner", "marketing", "super_admin"]}>
+        <RoleGuard allow={["admin", "owner", "super_admin"]}>
           <button
             className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
             onClick={() => setShowUpload(true)}
@@ -321,7 +321,7 @@ export default function MediaLibraryPage() {
               presentation
             </p>
           </div>
-          <RoleGuard allow={["admin", "owner", "marketing", "super_admin"]}>
+          <RoleGuard allow={["admin", "owner", "super_admin"]}>
             <button
               className="px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 mx-auto"
               onClick={() => setShowUpload(true)}
@@ -351,7 +351,7 @@ export default function MediaLibraryPage() {
                 ? `${selectedIds.length} selected`
                 : `${visible.length} items`}
             </div>
-            <RoleGuard allow={["owner", "super_admin", "marketing", "admin"]}>
+            <RoleGuard allow={["owner", "super_admin", "admin"]}>
               <div className="flex items-center gap-2">
                 <button
                   className="px-2 py-1 text-xs rounded-md border"

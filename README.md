@@ -54,7 +54,7 @@ When `import.meta.env.DEV` and this flag is set, the app attempts to connect:
 
 - Router: `src/app/router.tsx`
 - Auth provider: `src/context/AuthContext.tsx` (loads custom claims and `profileId`)
-- Role checks: `src/context/RoleGuard.tsx` supports `super_admin`, `owner`, `admin`, `marketing`, `employee`, `client`
+- Role checks: `src/context/RoleGuard.tsx` supports `super_admin`, `owner`, `admin`, `employee`, `client`
 
 ### Status mapping (UI only)
 

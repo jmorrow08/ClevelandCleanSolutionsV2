@@ -35,10 +35,7 @@ export default function LeadsPage() {
 
   useEffect(() => {
     const canRead = !!(
-      claims?.admin ||
-      claims?.owner ||
-      claims?.marketing ||
-      claims?.super_admin
+      claims?.admin || claims?.owner || claims?.super_admin
     );
     if (!canRead) {
       setLoading(false);
@@ -117,10 +114,7 @@ export default function LeadsPage() {
     <div className="space-y-3">
       <h1 className="text-2xl font-semibold">CRM - Leads</h1>
       {!(
-        claims?.admin ||
-        claims?.owner ||
-        claims?.marketing ||
-        claims?.super_admin
+        claims?.admin || claims?.owner || claims?.super_admin
       ) && <div className="text-sm text-zinc-500">You do not have access.</div>}
       <div className="text-sm">
         <Link
@@ -130,7 +124,7 @@ export default function LeadsPage() {
           View Clients
         </Link>
       </div>
-      <RoleGuard allow={["admin", "owner", "marketing", "super_admin"]}>
+      <RoleGuard allow={["admin", "owner", "super_admin"]}>
         <div className="flex items-center gap-2">
           <button
             className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm"

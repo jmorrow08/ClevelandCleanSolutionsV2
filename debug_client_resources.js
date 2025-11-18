@@ -1,8 +1,8 @@
 // Debug script to check mediaAssets collection for Client Portal Tutorial.mp4
-import { initializeApp, cert } from "firebase-admin/app";
+// Requires GOOGLE_APPLICATION_CREDENTIALS (or other ADC source) to be configured before running locally.
+import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import * as fs from "fs";
 
 // Firebase config - copy from your environment
 const firebaseConfig = {
@@ -17,16 +17,9 @@ const firebaseConfig = {
 
 async function debugClientResources() {
   try {
-    console.log("Initializing Firebase Admin...");
-    const serviceAccount = JSON.parse(
-      fs.readFileSync(
-        "./cleveland-clean-portal-firebase-adminsdk-fbsvc-5fdf0c2694.json",
-        "utf8"
-      )
-    );
-
+    console.log("Initializing Firebase Admin using application default credentials...");
     const app = initializeApp({
-      credential: cert(serviceAccount),
+      credential: applicationDefault(),
       projectId: "cleveland-clean-portal",
     });
 
