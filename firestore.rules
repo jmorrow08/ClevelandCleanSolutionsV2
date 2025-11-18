@@ -344,20 +344,21 @@ service cloud.firestore {
       // - Scheduling-sensitive fields (assignedEmployees, serviceDate, statusV2)
       //   require an active scheduling session
       // - Archive operations (archived, archivedAt, archivedBy) are allowed for admins/owners
-      allow update: if hasClaim('admin') || isOwner() || hasClaim('super_admin') &&
+      allow update: if (
+        hasClaim('admin') || isOwner() || hasClaim('super_admin')
+      ) && (
+        // If touching scheduling fields, require active session
         (
-          // If touching scheduling fields, require active session
-          (
-            request.resource.data.diff(resource.data).affectedKeys().hasAny(['assignedEmployees','serviceDate','statusV2'])
-              ? isScheduleSessionActive()
-              : true
-          ) &&
-          // Archive fields can be updated by admins/owners without session restrictions
-          (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archived', 'archivedAt', 'archivedBy']) ||
-            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['archived', 'archivedAt', 'archivedBy'])
-          )
-        );
+          request.resource.data.diff(resource.data).affectedKeys().hasAny(['assignedEmployees','serviceDate','statusV2'])
+            ? isScheduleSessionActive()
+            : true
+        ) &&
+        // Archive fields can be updated by admins/owners without session restrictions
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archived', 'archivedAt', 'archivedBy']) ||
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['archived', 'archivedAt', 'archivedBy'])
+        )
+      );
       allow delete: if hasClaim('admin') || isOwner();
     }
 
@@ -696,7 +697,7 @@ service cloud.firestore {
       }
       
       // Allow read: employees can read their own timesheets, admins can read all
-      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') || isTimesheetOwner() || isEmployeeV2();
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') || isTimesheetOwner();
       
       // Allow create: employees can create their own timesheets, admins can create any
       allow create: if (request.auth != null && isTimesheetOwnerForCreate(request.resource.data) && isValidTimesheetData(request.resource.data)) ||
@@ -712,7 +713,24 @@ service cloud.firestore {
     // --- V2: payrollRuns ---
     // Parent documents are restricted to finance roles. Summaries expose paystubs per employeeProfileId.
     match /payrollRuns/{runId} {
-      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
+      function isLockedRun() {
+        return resource != null &&
+               resource.data != null &&
+               resource.data.status is string &&
+               resource.data.status == "locked";
+      }
+
+      function employeeCanReadRun() {
+        if (!(request.auth != null && isEmployeeV2())) {
+          return false;
+        }
+        let profileId = currentProfileId();
+        return isLockedRun() ||
+               (profileId != null &&
+                exists(/databases/$(database)/documents/payrollRuns/$(runId)/summaries/$(profileId)));
+      }
+
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') || employeeCanReadRun();
       allow create, update: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
       allow delete: if hasClaim('super_admin');
 
@@ -893,7 +911,7 @@ service cloud.firestore {
       }
       
       // Allow read: employees can read their own assignments, admins can read all
-      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') || isAssignmentOwner() || isEmployeeV2();
+      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') || isAssignmentOwner();
       
       // Allow create: admins can create any assignment, employees can create their own
       allow create: if (request.auth != null && isAssignmentOwnerForCreate(request.resource.data) && isValidAssignmentData(request.resource.data)) ||
@@ -920,7 +938,7 @@ service cloud.firestore {
       allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') || isEmployeeV2();
       
       // Allow create/update: admins only
-      allow create, update: if hasClaim('admin') || isOwner() || hasClaim('super_admin') && isValidModuleData(request.resource.data);
+      allow create, update: if (hasClaim('admin') || isOwner() || hasClaim('super_admin')) && isValidModuleData(request.resource.data);
       
       allow delete: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
     }

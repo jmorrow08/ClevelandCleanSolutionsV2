@@ -6,6 +6,223 @@ const admin = require("firebase-admin");
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
+function roundCurrency(value) {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+function normalizeTimestamp(value) {
+    if (!value)
+        return null;
+    if (value instanceof admin.firestore.Timestamp)
+        return value;
+    if (typeof value.toDate === "function" && value.toDate() instanceof Date)
+        return value;
+    if (value.seconds != null && value.nanoseconds != null) {
+        return new admin.firestore.Timestamp(value.seconds, value.nanoseconds);
+    }
+    if (value instanceof Date) {
+        return admin.firestore.Timestamp.fromDate(value);
+    }
+    if (typeof value === "number") {
+        return admin.firestore.Timestamp.fromMillis(value);
+    }
+    return null;
+}
+async function resolveEmployeeProfileId(timesheet, cache) {
+    if (typeof timesheet.employeeProfileId === "string" &&
+        timesheet.employeeProfileId.trim() !== "") {
+        return timesheet.employeeProfileId;
+    }
+    const employeeId = typeof timesheet.employeeId === "string" && timesheet.employeeId.trim() !== ""
+        ? timesheet.employeeId
+        : null;
+    if (!employeeId)
+        return null;
+    if (cache.has(employeeId))
+        return cache.get(employeeId) || null;
+    const snap = await db.collection("users").doc(employeeId).get();
+    const data = snap.data();
+    const profileId = typeof (data === null || data === void 0 ? void 0 : data.profileId) === "string" && data.profileId.trim() !== ""
+        ? data.profileId
+        : null;
+    cache.set(employeeId, profileId);
+    return profileId;
+}
+async function lookupEffectiveRate(employeeId, atTimestamp, cache) {
+    const cacheKey = `${employeeId}|${atTimestamp.seconds}`;
+    if (cache.has(cacheKey)) {
+        return cache.get(cacheKey) || 0;
+    }
+    let rate = 0;
+    const effectiveQuery = await db
+        .collection("employeeRates")
+        .where("employeeId", "==", employeeId)
+        .where("effectiveDate", "<=", atTimestamp)
+        .orderBy("effectiveDate", "desc")
+        .limit(1)
+        .get();
+    if (!effectiveQuery.empty) {
+        const rateDoc = effectiveQuery.docs[0].data();
+        rate =
+            Number(rateDoc.hourlyRate || rateDoc.amount || 0) || 0;
+    }
+    else {
+        const legacyQuery = await db
+            .collection("employeeRates")
+            .where("employeeId", "==", employeeId)
+            .where("createdAt", "<=", atTimestamp)
+            .orderBy("createdAt", "desc")
+            .limit(1)
+            .get();
+        if (!legacyQuery.empty) {
+            const legacyDoc = legacyQuery.docs[0].data();
+            rate =
+                Number(legacyDoc.hourlyRate || legacyDoc.amount || 0) || 0;
+        }
+    }
+    cache.set(cacheKey, rate);
+    return rate;
+}
+async function computeTimesheetCompensation(timesheet, rateCache) {
+    const hours = Number((timesheet === null || timesheet === void 0 ? void 0 : timesheet.hours) || 0) || 0;
+    const units = Number((timesheet === null || timesheet === void 0 ? void 0 : timesheet.units) || 1) || 1;
+    let appliedRate = null;
+    let earnings = 0;
+    const snapshot = timesheet === null || timesheet === void 0 ? void 0 : timesheet.rateSnapshot;
+    if (snapshot && typeof snapshot === "object") {
+        const amount = Number(snapshot.amount || snapshot.hourlyRate || 0) || 0;
+        if (snapshot.type === "per_visit") {
+            appliedRate = amount;
+            earnings = roundCurrency(amount * units);
+        }
+        else if (snapshot.type === "monthly") {
+            appliedRate = amount;
+            earnings = roundCurrency(amount);
+        }
+        else {
+            appliedRate = amount;
+            earnings = roundCurrency(hours * amount);
+        }
+    }
+    else {
+        let rate = Number((timesheet === null || timesheet === void 0 ? void 0 : timesheet.hourlyRate) || 0) || 0;
+        const employeeId = typeof (timesheet === null || timesheet === void 0 ? void 0 : timesheet.employeeId) === "string"
+            ? timesheet.employeeId
+            : null;
+        const ts = normalizeTimestamp((timesheet === null || timesheet === void 0 ? void 0 : timesheet.start) || (timesheet === null || timesheet === void 0 ? void 0 : timesheet.clockInTime));
+        if (!rate && employeeId && ts) {
+            rate = await lookupEffectiveRate(employeeId, ts, rateCache);
+        }
+        appliedRate = rate || null;
+        earnings = roundCurrency(hours * rate);
+    }
+    return {
+        hours,
+        earnings,
+        appliedRate,
+    };
+}
+async function computeRunArtifacts(runId, existingRunData) {
+    const runRef = db.collection("payrollRuns").doc(runId);
+    let runData = existingRunData || null;
+    if (!runData) {
+        const snap = await runRef.get();
+        if (!snap.exists) {
+            throw new functions.https.HttpsError("not-found", "Payroll run not found");
+        }
+        runData = snap.data() || null;
+    }
+    if (!runData) {
+        throw new functions.https.HttpsError("not-found", "Payroll run missing data");
+    }
+    const timesheetsSnapshot = await db
+        .collection("timesheets")
+        .where("approvedInRunId", "==", runId)
+        .get();
+    const totals = {
+        byEmployee: {},
+        totalHours: 0,
+        totalEarnings: 0,
+    };
+    const summaries = new Map();
+    const profileCache = new Map();
+    const rateCache = new Map();
+    for (const doc of timesheetsSnapshot.docs) {
+        const data = doc.data();
+        const employeeId = typeof (data === null || data === void 0 ? void 0 : data.employeeId) === "string" && data.employeeId.trim() !== ""
+            ? data.employeeId
+            : null;
+        const profileId = await resolveEmployeeProfileId(data, profileCache);
+        const { hours, earnings, appliedRate } = await computeTimesheetCompensation(data, rateCache);
+        if (employeeId) {
+            const current = totals.byEmployee[employeeId] || {
+                hours: 0,
+                earnings: 0,
+                hourlyRate: appliedRate || undefined,
+            };
+            current.hours = roundCurrency(current.hours + hours);
+            current.earnings = roundCurrency(current.earnings + earnings);
+            if (!current.hourlyRate && appliedRate)
+                current.hourlyRate = appliedRate;
+            totals.byEmployee[employeeId] = current;
+        }
+        if (profileId) {
+            const summary = summaries.get(profileId) || {
+                hoursTotal: 0,
+                grossPay: 0,
+                rateAtTime: appliedRate || null,
+                timesheetRefs: [],
+            };
+            summary.hoursTotal = roundCurrency(summary.hoursTotal + hours);
+            summary.grossPay = roundCurrency(summary.grossPay + earnings);
+            if (!summary.rateAtTime && appliedRate)
+                summary.rateAtTime = appliedRate;
+            summary.timesheetRefs.push(doc.id);
+            summaries.set(profileId, summary);
+        }
+        totals.totalHours = roundCurrency(totals.totalHours + hours);
+        totals.totalEarnings = roundCurrency(totals.totalEarnings + earnings);
+    }
+    return { runRef, runData, totals, summaries };
+}
+async function persistSummaries(runRef, runData, summaries) {
+    const periodStart = runData === null || runData === void 0 ? void 0 : runData.periodStart;
+    const periodEnd = runData === null || runData === void 0 ? void 0 : runData.periodEnd;
+    if (!periodStart || !periodEnd) {
+        return;
+    }
+    const status = typeof (runData === null || runData === void 0 ? void 0 : runData.status) === "string" ? runData.status : "draft";
+    const summariesRef = runRef.collection("summaries");
+    const existing = await summariesRef.get();
+    const keep = new Set(summaries.keys());
+    const batch = db.batch();
+    let writes = 0;
+    existing.forEach((doc) => {
+        if (!keep.has(doc.id)) {
+            batch.delete(doc.ref);
+            writes += 1;
+        }
+    });
+    summaries.forEach((value, profileId) => {
+        var _a;
+        batch.set(summariesRef.doc(profileId), {
+            periodStart,
+            periodEnd,
+            hoursTotal: roundCurrency(value.hoursTotal),
+            grossPay: roundCurrency(value.grossPay),
+            rateAtTime: (_a = value.rateAtTime) !== null && _a !== void 0 ? _a : null,
+            status,
+            timesheetRefs: value.timesheetRefs,
+        });
+        writes += 1;
+    });
+    if (writes > 0) {
+        await batch.commit();
+    }
+}
+async function refreshSummariesForRun(runId, existingRunData) {
+    const { runRef, runData, summaries } = await computeRunArtifacts(runId, existingRunData);
+    await persistSummaries(runRef, runData, summaries);
+}
 // Payroll Functions
 // Helper to check whether the caller has finance/admin privileges.
 async function userHasFinanceAdmin(context) {
@@ -68,6 +285,7 @@ exports.createPayrollRun = functions
             byEmployee: {},
         };
         const docRef = await db.collection("payrollRuns").add(payrollRunData);
+        await refreshSummariesForRun(docRef.id, payrollRunData);
         return {
             id: docRef.id,
             success: true,
@@ -84,7 +302,6 @@ exports.createPayrollRun = functions
 exports.recalcPayrollRun = functions
     .region("us-central1")
     .https.onCall(async (data, context) => {
-    var _a;
     try {
         // Validate input
         const { runId } = data;
@@ -104,80 +321,15 @@ exports.recalcPayrollRun = functions
         if (!runDoc.exists) {
             throw new functions.https.HttpsError("not-found", "Payroll run not found");
         }
-        const runData = runDoc.data();
-        const periodStart = runData === null || runData === void 0 ? void 0 : runData.periodStart;
-        const periodEnd = runData === null || runData === void 0 ? void 0 : runData.periodEnd;
-        if (!periodStart || !periodEnd) {
-            throw new functions.https.HttpsError("invalid-argument", "Payroll run missing period dates");
-        }
-        // Get timesheets approved for this run
-        const timesheetsSnapshot = await db
-            .collection("timesheets")
-            .where("approvedInRunId", "==", runId)
-            .orderBy("employeeId", "asc")
-            .orderBy("start", "asc")
-            .get();
-        const totals = {
-            byEmployee: {},
-            totalHours: 0,
-            totalEarnings: 0,
-        };
-        const rateCache = new Map();
-        // Calculate totals from timesheets
-        for (const doc of timesheetsSnapshot.docs) {
-            const timesheet = doc.data();
-            const employeeId = timesheet === null || timesheet === void 0 ? void 0 : timesheet.employeeId;
-            const hours = Number((timesheet === null || timesheet === void 0 ? void 0 : timesheet.hours) || 0) || 0;
-            if (!employeeId || hours <= 0)
-                continue;
-            // Get hourly rate
-            let rate = Number(((_a = timesheet === null || timesheet === void 0 ? void 0 : timesheet.rateSnapshot) === null || _a === void 0 ? void 0 : _a.hourlyRate) || 0) || 0;
-            if (!rate) {
-                const startTs = timesheet === null || timesheet === void 0 ? void 0 : timesheet.start;
-                const cacheKey = `${employeeId}|${(startTs === null || startTs === void 0 ? void 0 : startTs.seconds) || "0"}`;
-                if (rateCache.has(cacheKey)) {
-                    rate = rateCache.get(cacheKey);
-                }
-                else {
-                    // Get effective rate for employee at time
-                    const rateQuery = await db
-                        .collection("employeeRates")
-                        .where("employeeId", "==", employeeId)
-                        .where("effectiveDate", "<=", startTs)
-                        .orderBy("effectiveDate", "desc")
-                        .limit(1)
-                        .get();
-                    if (!rateQuery.empty) {
-                        const rateDoc = rateQuery.docs[0].data();
-                        rate = Number((rateDoc === null || rateDoc === void 0 ? void 0 : rateDoc.hourlyRate) || 0) || 0;
-                    }
-                    rateCache.set(cacheKey, rate);
-                }
-            }
-            const earnings = Math.round((hours * rate + Number.EPSILON) * 100) / 100;
-            const current = totals.byEmployee[employeeId] || {
-                hours: 0,
-                earnings: 0,
-                hourlyRate: rate || undefined,
-            };
-            current.hours += hours;
-            current.earnings =
-                Math.round((current.earnings + earnings) * 100) / 100;
-            if (!current.hourlyRate && rate)
-                current.hourlyRate = rate;
-            totals.byEmployee[employeeId] = current;
-            totals.totalHours += hours;
-            totals.totalEarnings =
-                Math.round((totals.totalEarnings + earnings) * 100) / 100;
-        }
-        // Round totals
-        totals.totalHours = Math.round(totals.totalHours * 100) / 100;
-        totals.totalEarnings = Math.round(totals.totalEarnings * 100) / 100;
-        // Update the payroll run with new totals
-        await db
-            .collection("payrollRuns")
-            .doc(runId)
-            .update(Object.assign(Object.assign({}, totals), { updatedAt: admin.firestore.FieldValue.serverTimestamp(), updatedBy: context.auth.uid }));
+        const { runRef, runData, totals, summaries } = await computeRunArtifacts(runId, runDoc.data());
+        await runRef.update({
+            totals,
+            totalHours: totals.totalHours,
+            totalEarnings: totals.totalEarnings,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedBy: context.auth.uid,
+        });
+        await persistSummaries(runRef, runData, summaries);
         return {
             success: true,
             totals,
@@ -368,6 +520,7 @@ exports.approveTimesheetsInRun = functions
             count += 1;
         }
         await batch.commit();
+        await refreshSummariesForRun(runId, runDoc.data());
         return { count };
     }
     catch (error) {
