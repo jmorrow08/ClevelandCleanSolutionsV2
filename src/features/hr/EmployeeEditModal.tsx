@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FirebaseError, getApps, initializeApp } from "firebase/app";
 import { doc, getFirestore, updateDoc } from "firebase/firestore";
 import { firebaseConfig } from "@/services/firebase";
 import { useToast } from "@/context/ToastContext";
+import { useAuth } from "@/context/AuthContext";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 export type Employee = {
   id: string;
@@ -26,11 +28,29 @@ export default function EmployeeEditModal({
   onUpdated?: (partial: Partial<Employee>) => void;
 }) {
   const { show } = useToast();
+  const { claims } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [fullName, setFullName] = useState(() => deriveDefaultName(employee));
   const [phone, setPhone] = useState(employee.phone || "");
   const [role, setRole] = useState(employee.role || "employee");
   const [status, setStatus] = useState(employee.status !== false);
+
+  const roleFromClaims = (claims as any)?.role as string | undefined;
+  const isSuperAdmin =
+    Boolean((claims as any)?.super_admin) || roleFromClaims === "super_admin";
+  const isOwner =
+    Boolean((claims as any)?.owner) || roleFromClaims === "owner";
+  const canChangeRole = isSuperAdmin || isOwner;
+  const roleOptions = useMemo(() => {
+    if (isSuperAdmin) {
+      return ["employee", "admin", "owner", "client", "super_admin"] as const;
+    }
+    if (isOwner) {
+      return ["employee", "admin"] as const;
+    }
+    // Non-privileged users cannot change role; show current value only
+    return [employee.role || "employee"] as const;
+  }, [isSuperAdmin, isOwner, employee.role]);
 
   useEffect(() => {
     setFullName(deriveDefaultName(employee));
@@ -58,16 +78,27 @@ export default function EmployeeEditModal({
 
       const userDocId = employee.userId || employee.id;
       try {
-        await updateDoc(doc(db, "users", userDocId), {
-          fullName: name,
-          phone: phone.trim() || null,
-          role: role || "employee",
-          status,
-        });
+        // Do NOT write role directly; that is handled via callable to prevent escalation.
+        await updateDoc(
+          doc(db, "users", userDocId),
+          {
+            fullName: name,
+            phone: phone.trim() || null,
+            status,
+          }
+        );
       } catch (err) {
         if (!(err instanceof FirebaseError && err.code === "not-found")) {
           throw err;
         }
+      }
+
+      // Apply role change through secure callable if necessary and permitted
+      const roleChanged = (employee.role || "employee") !== (role || "employee");
+      if (roleChanged && canChangeRole) {
+        const functions = getFunctions();
+        const setUserRole = httpsCallable(functions, "setUserRole");
+        await setUserRole({ targetUid: userDocId, role });
       }
       onUpdated?.({
         fullName: name,
@@ -126,13 +157,13 @@ export default function EmployeeEditModal({
               id="emp-role"
               value={role || "employee"}
               onChange={(e) => setRole(e.target.value)}
-              disabled={submitting}
+              disabled={submitting || !canChangeRole}
             >
-              <option value="employee">employee</option>
-              <option value="admin">admin</option>
-              <option value="owner">owner</option>
-              <option value="client">client</option>
-              <option value="super_admin">super_admin</option>
+              {roleOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
             </select>
           </div>
           <div>

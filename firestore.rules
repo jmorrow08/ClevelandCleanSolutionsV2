@@ -56,6 +56,13 @@ service cloud.firestore {
     function isClientV2() {
       return hasClaim('client') || (request.auth != null && hasRoleInFirestore(request.auth.uid, 'client'));
     }
+    function isAtLeastAdmin() {
+      return isSuperAdmin() || isOwner() || isAdmin();
+    }
+    // Missing in previous rules: marketing helpers referenced later
+    function isMarketing() {
+      return hasClaim('marketing') || (request.auth != null && hasRoleInFirestore(request.auth.uid, 'marketing'));
+    }
 
     function currentProfileId() {
       return request.auth != null && getUserData(request.auth.uid) != null ? getUserData(request.auth.uid).profileId : null;
@@ -81,16 +88,34 @@ service cloud.firestore {
                 // Allow serverTimestamp() sentinel values
                 request.resource.data.presence.lastActive == request.time);
       }
+      function selfCanUpdateProfile() {
+        return request.auth.uid == userId &&
+               request.resource.data.diff(resource.data).changedKeys().hasOnly(['fullName','phone','photoUrl','presence']);
+      }
+      function tryingToChangeRole() {
+        return request.resource.data.diff(resource.data).changedKeys().hasAny(['role']);
+      }
       
       // Allow users to read their own document without requiring custom claims (for login flow)
       // OR admin/owner to read any document
-      allow read: if isLoggedIn() && (request.auth.uid == userId || hasClaim('admin') || isOwner());
+      allow read: if isLoggedIn() && (request.auth.uid == userId || isAtLeastAdmin());
       // Allow users to create their own document if it doesn't exist (for self-registration)
       allow create: if isLoggedIn() && request.auth.uid == userId && !resource.exists;
-      // Allow users to update their own presence field, or admins/owners to update anything
-      allow update: if (request.auth.uid == userId && (userCanUpdatePresence() || !resource.exists)) || 
-                       hasClaim('admin') || hasClaim('super_admin') || isOwner();
-      allow delete: if false; // Deletion handled by Cloud Function
+      // Updates:
+      // - Self: presence OR limited profile fields
+      // - Admin/Owner: any non-privileged fields (no direct role changes)
+      // - Super Admin: full access (including role changes)
+      allow update: if
+          // Self updates
+          ((request.auth.uid == userId) && (userCanUpdatePresence() || selfCanUpdateProfile() || !resource.exists))
+          ||
+          // Super admin unrestricted
+          isSuperAdmin()
+          ||
+          // Admin/Owner cannot change role directly (must use callable)
+          ((hasClaim('admin') || isOwner()) && !tryingToChangeRole());
+      // Only super_admin may delete user docs
+      allow delete: if isSuperAdmin();
     }
 
     // --- clientMasterList Rules ---
@@ -721,13 +746,12 @@ service cloud.firestore {
       }
 
       function employeeCanReadRun() {
-        if (!(request.auth != null && isEmployeeV2())) {
-          return false;
-        }
-        let profileId = currentProfileId();
-        return isLockedRun() ||
-               (profileId != null &&
-                exists(/databases/$(database)/documents/payrollRuns/$(runId)/summaries/$(profileId)));
+        return (request.auth != null && isEmployeeV2()) &&
+               (
+                 isLockedRun() ||
+                 (currentProfileId() != null &&
+                  exists(/databases/$(database)/documents/payrollRuns/$(runId)/summaries/$(currentProfileId())))
+               );
       }
 
       allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') || employeeCanReadRun();
@@ -888,7 +912,8 @@ service cloud.firestore {
     // UI: Owner and super_admin can modify settings; others read-only as needed by apps.
     match /settings/{docId} {
       allow read: if request.auth != null; // any authenticated user may read
-      allow create, update: if isOwner() || isSuperAdmin();
+      // Hardened: writes restricted to super_admin only
+      allow create, update: if isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
 
