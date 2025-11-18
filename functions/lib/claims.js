@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onUserRoleMirror = exports.setUserRole = void 0;
+exports.onUserRoleMirror = exports.setUserRoleByEmail = exports.setUserRole = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const db = admin.firestore();
@@ -63,6 +63,27 @@ exports.setUserRole = functions
     await db.doc(`users/${targetUid}`).set({ role }, { merge: true });
     // Tell the client to refresh ID token
     return { ok: true, role };
+});
+// Convenience for super_admin: assign role by email (avoids needing uid lookup client-side)
+exports.setUserRoleByEmail = functions
+    .region("us-central1")
+    .https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "Login required");
+    }
+    const caller = callerRole(context);
+    if (caller !== "super_admin") {
+        throw new functions.https.HttpsError("permission-denied", "Only super_admin can assign roles by email");
+    }
+    const email = String((data === null || data === void 0 ? void 0 : data.email) || "").trim().toLowerCase();
+    const role = normalizeRole(data === null || data === void 0 ? void 0 : data.role);
+    if (!email) {
+        throw new functions.https.HttpsError("invalid-argument", "email is required");
+    }
+    const user = await admin.auth().getUserByEmail(email);
+    await admin.auth().setCustomUserClaims(user.uid, { role });
+    await db.doc(`users/${user.uid}`).set({ role, email }, { merge: true });
+    return { ok: true, uid: user.uid, role };
 });
 // Optional mirror: if a super_admin updates the users/{uid}.role directly,
 // keep Auth custom claims in sync.

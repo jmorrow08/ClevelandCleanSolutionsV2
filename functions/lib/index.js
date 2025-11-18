@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.grantSuperAdminByEmail = exports.onUserRoleMirror = exports.setUserRole = exports.backfillRateSnapshots = exports.approveTimesheetsInRun = exports.payrollGenerate = exports.payrollScan = exports.recalcPayrollRun = exports.createPayrollRun = void 0;
+exports.grantSuperAdminByEmail = exports.onUserRoleMirror = exports.setUserRoleByEmail = exports.setUserRole = exports.backfillRateSnapshots = exports.approveTimesheetsInRun = exports.payrollGenerate = exports.payrollScan = exports.recalcPayrollRun = exports.createPayrollRun = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 // Initialize Firebase Admin
@@ -656,6 +656,7 @@ exports.backfillRateSnapshots = functions
 // RBAC: role management callable and mirror trigger
 var claims_1 = require("./claims");
 Object.defineProperty(exports, "setUserRole", { enumerable: true, get: function () { return claims_1.setUserRole; } });
+Object.defineProperty(exports, "setUserRoleByEmail", { enumerable: true, get: function () { return claims_1.setUserRoleByEmail; } });
 Object.defineProperty(exports, "onUserRoleMirror", { enumerable: true, get: function () { return claims_1.onUserRoleMirror; } });
 var bootstrap_1 = require("./bootstrap");
 Object.defineProperty(exports, "grantSuperAdminByEmail", { enumerable: true, get: function () { return bootstrap_1.grantSuperAdminByEmail; } });

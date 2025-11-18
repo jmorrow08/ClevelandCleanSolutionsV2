@@ -50,6 +50,7 @@ import EmployeeKnowledge from "../features/training/EmployeeKnowledge";
 import ClientResources from "../features/training/ClientResources";
 import NotificationsCenter from "../features/notifications/NotificationsCenter";
 import Validator from "../features/tools/Validator";
+import RoleManager from "../features/tools/RoleManager";
 
 const router = createBrowserRouter([
   {
@@ -111,6 +112,14 @@ const router = createBrowserRouter([
           { path: "/inventory/:id", element: <InventoryDetail /> },
           { path: "/notifications", element: <NotificationsCenter /> },
           { path: "/tools/validator", element: <Validator /> },
+          {
+            path: "/tools/role-manager",
+            element: (
+              <RoleGuard allow={["super_admin"]}>
+                <RoleManager />
+              </RoleGuard>
+            ),
+          },
         ],
       },
 

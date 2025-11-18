@@ -82,6 +82,37 @@ export const setUserRole = functions
     return { ok: true, role };
   });
 
+// Convenience for super_admin: assign role by email (avoids needing uid lookup client-side)
+export const setUserRoleByEmail = functions
+  .region("us-central1")
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Login required"
+      );
+    }
+    const caller = callerRole(context);
+    if (caller !== "super_admin") {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Only super_admin can assign roles by email"
+      );
+    }
+    const email = String(data?.email || "").trim().toLowerCase();
+    const role = normalizeRole(data?.role);
+    if (!email) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "email is required"
+      );
+    }
+    const user = await admin.auth().getUserByEmail(email);
+    await admin.auth().setCustomUserClaims(user.uid, { role });
+    await db.doc(`users/${user.uid}`).set({ role, email }, { merge: true });
+    return { ok: true, uid: user.uid, role };
+  });
+
 // Optional mirror: if a super_admin updates the users/{uid}.role directly,
 // keep Auth custom claims in sync.
 export const onUserRoleMirror = functions

@@ -701,11 +701,13 @@ service cloud.firestore {
     // Employees can read/write their own timesheets; admins can manage everything
     match /timesheets/{tsId} {
       function isTimesheetOwner() {
-        return request.auth != null && resource.data.employeeId == request.auth.uid;
+        // employeeId stores the employee profileId; compare against currentProfileId()
+        return request.auth != null && currentProfileId() != null && resource.data.employeeId == currentProfileId();
       }
       
       function isTimesheetOwnerForCreate(data) {
-        return request.auth != null && data.employeeId == request.auth.uid;
+        // employeeId stores the employee profileId; compare against currentProfileId()
+        return request.auth != null && currentProfileId() != null && data.employeeId == currentProfileId();
       }
       
       function employeeCanUpdateFields(data) {
@@ -718,7 +720,9 @@ service cloud.firestore {
         return data.employeeId is string && data.employeeId != '' &&
                data.start is timestamp &&
                (data.end == null || data.end is timestamp) &&
-               data.hours is number && data.hours >= 0;
+               data.hours is number && data.hours >= 0 &&
+               // units is required for per-visit calculations; allow 0 or positive numbers
+               (data.units == null || (data.units is number && data.units >= 0));
       }
       
       // Allow read: employees can read their own timesheets, admins can read all
