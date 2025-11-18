@@ -821,12 +821,49 @@ service cloud.firestore {
 
     // --- mediaAssets Collection Rules ---
     match /mediaAssets/{assetId} {
-      // Allow reading for admins/owners OR if the asset is public OR if user is a client and asset is for clients
-      allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') ||
-                     (isLoggedIn() && (
-                       resource.data.audience == 'public' ||
-                       (hasClaim('client') || hasRoleInFirestore(request.auth.uid, 'client')) ||
-                       (hasClaim('employee') || hasRoleInFirestore(request.auth.uid, 'employee'))
+      function mediaAudience() {
+        return resource != null && resource.data.audience is string
+          ? resource.data.audience
+          : null;
+      }
+
+      function mediaIsPublic() {
+        return (resource != null && resource.data.public == true) ||
+               mediaAudience() == 'public';
+      }
+
+      function mediaAllowsRole(role) {
+        return resource != null &&
+               resource.data.allowedRoles is list &&
+               role in resource.data.allowedRoles;
+      }
+
+      function mediaAllowsUserId(uid) {
+        return resource != null &&
+               resource.data.allowedUserIds is list &&
+               uid in resource.data.allowedUserIds;
+      }
+
+      function mediaAllowsClients() {
+        return mediaIsPublic() ||
+               mediaAudience() == 'clients' ||
+               mediaAllowsRole('client');
+      }
+
+      function mediaAllowsEmployees() {
+        return mediaIsPublic() ||
+               mediaAudience() == 'employees' ||
+               mediaAllowsRole('employee');
+      }
+
+      // Allow reading for admins/owners/marketing OR if asset explicitly opts-in for the requester
+      allow read: if mediaIsPublic() ||
+                     hasClaim('admin') || isOwner() || hasClaim('super_admin') || isMarketing() ||
+                     (request.auth != null && (
+                       mediaAllowsUserId(request.auth.uid) ||
+                       (isClientV2() && mediaAllowsClients()) ||
+                       (isEmployeeV2() && mediaAllowsEmployees()) ||
+                       mediaAllowsRole('marketing')
                      ));
       
       // Allow creating for admins/owners only
