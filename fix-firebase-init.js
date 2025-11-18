@@ -22,6 +22,27 @@ console.log("Files to fix:", files);
 
 let totalFixed = 0;
 
+const projectRoot = path.resolve(__dirname);
+const firebaseServicePath = path.join(projectRoot, "src/services/firebase");
+
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function resolveFirebaseImportPath(filePath) {
+  const relative = path
+    .relative(path.dirname(filePath), firebaseServicePath)
+    .replace(/\\/g, "/");
+  if (!relative) return "./services/firebase";
+  return relative.startsWith(".") ? relative : `./${relative}`;
+}
+
+function hasGetFirestoreInstanceImport(content) {
+  const importRegex =
+    /import\s*{[^}]*\bgetFirestoreInstance\b[^}]*}\s*from\s*['"][^'"]+['"];?/;
+  return importRegex.test(content);
+}
+
 files.forEach((file) => {
   const filePath = path.join(__dirname, file);
   let content = fs.readFileSync(filePath, "utf8");
@@ -82,7 +103,7 @@ files.forEach((file) => {
   }
 
   // Add the centralized Firebase import if needed
-  if (modified && !content.includes("getFirestoreInstance")) {
+  if (modified && !hasGetFirestoreInstanceImport(content)) {
     // Find the first import line and add our import after it
     const lines = content.split("\n");
     let firstImportIndex = -1;
@@ -93,16 +114,26 @@ files.forEach((file) => {
       }
     }
 
-    if (firstImportIndex !== -1) {
-      const firebaseImport =
-        "import { getFirestoreInstance } from '../services/firebase';";
-      lines.splice(firstImportIndex + 1, 0, firebaseImport);
+    const importPath = resolveFirebaseImportPath(filePath);
+    const firebaseImport = `import { getFirestoreInstance } from '${importPath}';`;
+    const existingImportRegex = new RegExp(
+      `import\\s*{[^}]*\\bgetFirestoreInstance\\b[^}]*}\\s*from\\s*['"]${escapeRegExp(
+        importPath
+      )}['"];?`
+    );
+
+    if (!existingImportRegex.test(content)) {
+      if (firstImportIndex !== -1) {
+        lines.splice(firstImportIndex + 1, 0, firebaseImport);
+      } else {
+        lines.unshift(firebaseImport);
+      }
       content = lines.join("\n");
     }
   }
 
-  // Clean up extra blank lines
-  content = content.replace(/\n\n\n+/g, "\n\n");
+  // Clean up extra blank lines produced by removals
+  content = content.replace(/\n{3,}/g, "\n\n");
 
   if (modified) {
     fs.writeFileSync(filePath, content);
@@ -116,3 +147,4 @@ console.log("\nNext steps:");
 console.log("1. Run: npm run build");
 console.log("2. If successful, run: npm run dev");
 console.log("3. Test the application to ensure Firebase works correctly");
+
