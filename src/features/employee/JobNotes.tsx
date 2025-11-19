@@ -31,7 +31,7 @@ type NoteItem = {
 };
 
 export default function JobNotes() {
-  const { user } = useAuth();
+  const { user, claims } = useAuth();
   const [locations, setLocations] = useState<LocationItem[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string>("");
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -46,6 +46,9 @@ export default function JobNotes() {
   const [submitting, setSubmitting] = useState(false);
   const [notesLoading, setNotesLoading] = useState(false);
   const [rows, setRows] = useState<NoteItem[]>([]);
+  const hasLinkedProfile = Boolean(profileId);
+  const isOwnerActingAsEmployee = Boolean(claims?.owner && !claims?.employee);
+  const noteActionsDisabled = submitting || !hasLinkedProfile;
 
   useEffect(() => {
     (async () => {
@@ -217,6 +220,28 @@ export default function JobNotes() {
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-xl font-semibold">Job Notes (Today)</h1>
+      {!hasLinkedProfile ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50">
+          <p className="font-semibold">Link required</p>
+          <p className="mt-1">
+            Notes are tied to an employee profile. We couldn&apos;t find one for
+            this account, so creating notes is disabled until HR links your
+            user to an employee record.
+          </p>
+          {isOwnerActingAsEmployee && (
+            <p className="mt-2 text-xs opacity-80">
+              You&apos;re signed in as an owner. Ask HR to attach this user to your
+              employee profile so you can leave notes from the employee portal.
+            </p>
+          )}
+        </div>
+      ) : null}
+      {hasLinkedProfile && isOwnerActingAsEmployee ? (
+        <div className="rounded-md border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-sky-900 dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-100">
+          Notes submitted here will appear under your employee profile while in
+          owner mode.
+        </div>
+      ) : null}
 
       <div className="rounded-lg p-4 card-bg shadow-elev-1 space-y-3">
         {isClockedIn ? (
@@ -264,6 +289,7 @@ export default function JobNotes() {
                 ? "Add notes about your current work..."
                 : "Add notes about this location..."
             }
+            disabled={!hasLinkedProfile}
           />
           <div className="text-xs text-zinc-400 mt-1">
             Only today's notes are shown and will clear daily.
@@ -272,8 +298,10 @@ export default function JobNotes() {
 
         <div className="flex items-center gap-2">
           <button
-            className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm disabled:bg-zinc-400"
-            disabled={!selectedLocationId || !notes.trim() || submitting}
+            className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm disabled:bg-zinc-400 disabled:cursor-not-allowed"
+            disabled={
+              !selectedLocationId || !notes.trim() || noteActionsDisabled
+            }
             onClick={submitNote}
           >
             {submitting ? "Saving…" : "Save Job Notes"}

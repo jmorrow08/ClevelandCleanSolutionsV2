@@ -101,4 +101,144 @@ describe("Storage basics", () => {
   });
 });
 
+describe("Owner dual-mode permissions", () => {
+  it("allows owner with linked profile to upload photos and notes", async () => {
+    const ownerUid = "owner-profiled";
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await db.collection("users").doc(ownerUid).set({
+        profileId: "emp123",
+        role: "owner",
+      });
+    });
 
+    const ownerDb = testEnv
+      .authenticatedContext(ownerUid, authedContext(ownerUid, "owner").token)
+      .firestore();
+
+    await assertSucceeds(
+      ownerDb.collection("servicePhotos").doc("photo-1").set({
+        employeeProfileId: "emp123",
+        employeeName: "Owner User",
+        photoUrl:
+          "https://firebasestorage.googleapis.com/v0/b/demo/o/photo.jpg",
+        locationId: "loc-1",
+        locationName: "HQ",
+        uploadedAt: new Date(),
+        timeEntryId: null,
+        notes: "Owner upload",
+        serviceHistoryId: null,
+      })
+    );
+
+    await assertSucceeds(
+      ownerDb.collection("generalJobNotes").doc("note-1").set({
+        employeeProfileId: "emp123",
+        employeeName: "Owner User",
+        locationId: "loc-1",
+        locationName: "HQ",
+        notes: "Owner working this shift",
+        createdAt: new Date(),
+        timeEntryId: null,
+      })
+    );
+  });
+
+  it("rejects owner uploads when no employee profile is linked", async () => {
+    const ownerUid = "owner-missing-profile";
+    const ownerDb = testEnv
+      .authenticatedContext(ownerUid, authedContext(ownerUid, "owner").token)
+      .firestore();
+
+    await assertFails(
+      ownerDb.collection("servicePhotos").doc("invalid-photo").set({
+        employeeProfileId: "emp123",
+        employeeName: "Owner User",
+        photoUrl:
+          "https://firebasestorage.googleapis.com/v0/b/demo/o/missing.jpg",
+        locationId: "loc-1",
+        locationName: "HQ",
+        uploadedAt: new Date(),
+        timeEntryId: null,
+        notes: "Should fail without profile link",
+      })
+    );
+
+    await assertFails(
+      ownerDb.collection("generalJobNotes").doc("invalid-note").set({
+        employeeProfileId: "emp123",
+        employeeName: "Owner User",
+        locationId: "loc-1",
+        locationName: "HQ",
+        notes: "Cannot write without linked profile",
+        createdAt: new Date(),
+        timeEntryId: null,
+      })
+    );
+  });
+});
+
+describe("Admin field access with employee profile", () => {
+  it("allows admin with linked profile to create service photos and notes", async () => {
+    const adminUid = "admin-profiled";
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await db.collection("users").doc(adminUid).set({
+        profileId: "adm123",
+        role: "admin",
+      });
+    });
+
+    const adminDb = testEnv
+      .authenticatedContext(adminUid, authedContext(adminUid, "admin").token)
+      .firestore();
+
+    await assertSucceeds(
+      adminDb.collection("servicePhotos").doc("admin-photo").set({
+        employeeProfileId: "adm123",
+        employeeName: "Admin User",
+        photoUrl:
+          "https://firebasestorage.googleapis.com/v0/b/demo/o/admin-photo.jpg",
+        locationId: "loc-2",
+        locationName: "HQ",
+        uploadedAt: new Date(),
+        timeEntryId: null,
+        notes: "Admin upload",
+        serviceHistoryId: null,
+      })
+    );
+
+    await assertSucceeds(
+      adminDb.collection("generalJobNotes").doc("admin-note").set({
+        employeeProfileId: "adm123",
+        employeeName: "Admin User",
+        locationId: "loc-2",
+        locationName: "HQ",
+        notes: "Admin covering this shift",
+        createdAt: new Date(),
+        timeEntryId: null,
+      })
+    );
+  });
+
+  it("still rejects admin uploads without a linked profile", async () => {
+    const adminUid = "admin-missing-profile";
+    const adminDb = testEnv
+      .authenticatedContext(adminUid, authedContext(adminUid, "admin").token)
+      .firestore();
+
+    await assertFails(
+      adminDb.collection("servicePhotos").doc("bad-photo").set({
+        employeeProfileId: "adm123",
+        employeeName: "Admin User",
+        photoUrl:
+          "https://firebasestorage.googleapis.com/v0/b/demo/o/bad-photo.jpg",
+        locationId: "loc-2",
+        locationName: "HQ",
+        uploadedAt: new Date(),
+        timeEntryId: null,
+        notes: "Missing profile link",
+      })
+    );
+  });
+});

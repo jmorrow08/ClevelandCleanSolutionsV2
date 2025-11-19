@@ -51,7 +51,7 @@ service cloud.firestore {
     function isSuperAdmin() { return hasClaim('super_admin'); }
     function isAdmin() { return hasClaim('admin'); }
     function isEmployeeV2() {
-      return hasClaim('employee') || (request.auth != null && hasRoleInFirestore(request.auth.uid, 'employee'));
+      return hasClaim('employee') || hasClaim('admin') || isOwner();
     }
     function isClientV2() {
       return hasClaim('client') || (request.auth != null && hasRoleInFirestore(request.auth.uid, 'client'));
@@ -191,7 +191,7 @@ service cloud.firestore {
         let userDocData = getUserData(request.auth.uid);
         return isLoggedIn() && 
                userDocData != null &&
-               (hasClaim('employee') || hasRoleInFirestore(request.auth.uid, 'employee')) &&
+               isEmployeeV2() &&
                photoData.employeeProfileId == userDocData.profileId &&
                photoData.locationId is string && photoData.locationId != '' &&
                photoData.photoUrl is string && (
@@ -222,8 +222,7 @@ service cloud.firestore {
 
       allow read: if hasClaim('admin') || isOwner() || hasClaim('super_admin') ||
                      (resource.data.flagged == true && hasClaim('admin')) ||
-                     (hasClaim('employee')) ||
-                     (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee')) ||
+                     isEmployeeV2() ||
                      isPhotoClientByEmail() || isClientV2();
       function clientCanFlagPhoto() {
         return isLoggedIn() && 
@@ -235,12 +234,10 @@ service cloud.firestore {
       }
 
       allow update: if hasClaim('admin') || isOwner() || hasClaim('super_admin') ||
-                       (hasClaim('employee') && isPhotoOwner() && employeeCanUpdatePhotoNotes()) ||
-                       (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee') && isPhotoOwner() && employeeCanUpdatePhotoNotes()) ||
+                       (isEmployeeV2() && isPhotoOwner() && employeeCanUpdatePhotoNotes()) ||
                        clientCanFlagPhoto();
       allow delete: if hasClaim('admin') || isOwner() ||
-                       (hasClaim('employee') && isPhotoOwner()) ||
-                       (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee') && isPhotoOwner());
+                       (isEmployeeV2() && isPhotoOwner());
     }
 
     // --- photoFlags Collection Rules ---
@@ -273,7 +270,7 @@ service cloud.firestore {
       function isValidTimeEntryDataForCreate(entryData) {
         let userDocData = getUserData(request.auth.uid);
         return isLoggedIn() &&
-               (hasClaim('employee') || hasRoleInFirestore(request.auth.uid, 'employee')) && // Accept claim or stored role
+               isEmployeeV2() &&
                userDocData != null &&
                entryData.employeeProfileId == userDocData.profileId && // Creating for themselves
                entryData.locationId is string && entryData.locationId != '' &&
@@ -291,7 +288,7 @@ service cloud.firestore {
         // Check that they are only modifying specific fields for clock-out
         let allowedUpdateKeys = ['clockOutTime', 'status', 'clockOutCoordinates', 'updatedAt'];
         return isLoggedIn() &&
-               (hasClaim('employee') || hasRoleInFirestore(request.auth.uid, 'employee')) &&
+               isEmployeeV2() &&
                userDocData != null &&
                resource.data.employeeProfileId == userDocData.profileId && // Must own the record
                updatedEntryData.status == "Clocked Out" &&
@@ -302,7 +299,7 @@ service cloud.firestore {
       }
 
       allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner() ||
-                    (isLoggedIn() && (hasClaim('employee') || hasRoleInFirestore(request.auth.uid, 'employee')) && isTimeEntryOwner());
+                    (isLoggedIn() && isEmployeeV2() && isTimeEntryOwner());
 
       allow create: if hasClaim('admin') || hasClaim('super_admin') || isOwner() || isValidTimeEntryDataForCreate(request.resource.data);
 
@@ -319,7 +316,7 @@ service cloud.firestore {
          let userDocData = getUserData(request.auth.uid);
          return isLoggedIn() &&
                 userDocData != null &&
-                (hasClaim('employee') || hasRoleInFirestore(request.auth.uid, 'employee')) &&
+                isEmployeeV2() &&
                 (
                   // Check new assignedEmployees field (array of UIDs)
                   (resource.data.assignedEmployees is list && 
@@ -351,8 +348,7 @@ service cloud.firestore {
 
       // Allow employees to read serviceHistory documents (UI filters client-side to their own jobs).
       // Accept either the employee custom claim OR role stored in /users, plus specific allowances.
-      allow read: if hasClaim('admin') || isOwner() || hasClaim('employee') ||
-                    (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee')) ||
+      allow read: if hasClaim('admin') || isOwner() || isEmployeeV2() ||
                     isJobClient() || isAssignedEmployee();
       // Creates allowed directly by admin/owner/super_admin (Quick Add)
       allow create: if request.auth != null && (
@@ -425,7 +421,7 @@ service cloud.firestore {
         let userDocData = getUserData(request.auth.uid);
         return isLoggedIn() && 
                userDocData != null &&
-               (hasClaim('employee') || hasRoleInFirestore(request.auth.uid, 'employee')) &&
+               isEmployeeV2() &&
                noteData.employeeProfileId == userDocData.profileId &&
                noteData.locationId is string && noteData.locationId != '' &&
                noteData.notes is string && noteData.notes != '' &&
@@ -438,15 +434,11 @@ service cloud.firestore {
       }
 
       allow create: if isValidJobNoteData(request.resource.data);
-      allow read: if hasClaim('admin') || isOwner() ||
-                     (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee')) ||
-                     (hasClaim('employee'));
+      allow read: if hasClaim('admin') || isOwner() || isEmployeeV2();
       allow update: if hasClaim('admin') || isOwner() ||
-                       (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee') && isNoteOwner()) ||
-                       (hasClaim('employee') && isNoteOwner());
+                       (isEmployeeV2() && isNoteOwner());
       allow delete: if hasClaim('admin') || isOwner() ||
-                       (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee') && isNoteOwner()) ||
-                       (hasClaim('employee') && isNoteOwner());
+                       (isEmployeeV2() && isNoteOwner());
     }
 
     // --- jobNotes Collection Rules (V2-compatible minimal) ---

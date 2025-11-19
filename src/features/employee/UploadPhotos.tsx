@@ -128,7 +128,7 @@ async function uploadWithRetry(
 }
 
 export default function UploadPhotos() {
-  const { user } = useAuth();
+  const { user, claims } = useAuth();
   const [locations, setLocations] = useState<LocationItem[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string>("");
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -153,6 +153,10 @@ export default function UploadPhotos() {
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
+
+  const hasLinkedProfile = Boolean(profileId);
+  const isOwnerActingAsEmployee = Boolean(claims?.owner && !claims?.employee);
+  const fileInputsDisabled = isUploading || !hasLinkedProfile;
 
   useEffect(() => {
     (async () => {
@@ -242,6 +246,11 @@ export default function UploadPhotos() {
       locations.find((l) => l.id === selectedLocationId)?.locationName || null,
     [locations, selectedLocationId]
   );
+  const uploadDisabled =
+    !hasLinkedProfile ||
+    !selectedLocationId ||
+    files.length === 0 ||
+    isUploading;
 
   function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(e.target.files || []);
@@ -281,8 +290,14 @@ export default function UploadPhotos() {
   }
 
   async function handleUpload() {
-    if (!user?.uid || !profileId) {
+    if (!user?.uid) {
       setMessage("Auth error. Please log in again.");
+      return;
+    }
+    if (!profileId) {
+      setMessage(
+        "This account is missing a linked employee profile. Ask an admin to attach your user before uploading."
+      );
       return;
     }
     if (!selectedLocationId) {
@@ -433,6 +448,28 @@ export default function UploadPhotos() {
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-xl font-semibold">Upload Photos</h1>
+      {!loading && !hasLinkedProfile ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50">
+          <p className="font-semibold">Link required</p>
+          <p className="mt-1">
+            We couldn&apos;t find a linked employee profile for this account. Photo
+            uploads are disabled until HR links your user record to an
+            employee profile.
+          </p>
+          {isOwnerActingAsEmployee && (
+            <p className="mt-2 text-xs opacity-80">
+              You&apos;re signed in as an owner. Ask HR to attach this user to your
+              employee profile so owner mode can access the employee portal.
+            </p>
+          )}
+        </div>
+      ) : null}
+      {hasLinkedProfile && isOwnerActingAsEmployee ? (
+        <div className="rounded-md border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-sky-900 dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-100">
+          Owner mode is active. Photos uploaded here will be recorded under
+          your employee profile.
+        </div>
+      ) : null}
       <div className="rounded-lg p-4 card-bg shadow-elev-1 space-y-3">
         {isClockedIn ? (
           <div className="text-sm">
@@ -452,7 +489,7 @@ export default function UploadPhotos() {
               className="w-full px-3 py-2 rounded-md border card-bg"
               value={selectedLocationId}
               onChange={(e) => setSelectedLocationId(e.target.value)}
-              disabled={isUploading}
+              disabled={isUploading || !hasLinkedProfile}
             >
               <option value="">
                 {locations.length
@@ -471,7 +508,7 @@ export default function UploadPhotos() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <label
             className={`px-3 py-2 rounded-md text-center cursor-pointer text-sm ${
-              isUploading
+              fileInputsDisabled
                 ? "bg-zinc-400 text-zinc-600 cursor-not-allowed"
                 : "bg-blue-600 hover:bg-blue-700 text-white"
             }`}
@@ -485,12 +522,12 @@ export default function UploadPhotos() {
               capture="environment"
               className="hidden"
               onChange={onPick}
-              disabled={isUploading}
+              disabled={fileInputsDisabled}
             />
           </label>
           <label
             className={`px-3 py-2 rounded-md text-center cursor-pointer text-sm ${
-              isUploading
+              fileInputsDisabled
                 ? "bg-zinc-400 text-zinc-600 cursor-not-allowed"
                 : "bg-green-600 hover:bg-green-700 text-white"
             }`}
@@ -504,7 +541,7 @@ export default function UploadPhotos() {
               multiple
               className="hidden"
               onChange={onPick}
-              disabled={isUploading}
+              disabled={fileInputsDisabled}
             />
           </label>
         </div>
@@ -515,7 +552,7 @@ export default function UploadPhotos() {
                 <span>Selected ({files.length})</span>
                 <button
                   onClick={() => setFiles([])}
-                  disabled={isUploading}
+                  disabled={isUploading || !hasLinkedProfile}
                   className="text-xs text-red-600 hover:text-red-700 disabled:text-zinc-400"
                 >
                   Clear All
@@ -535,11 +572,11 @@ export default function UploadPhotos() {
                     <span className="text-zinc-500 ml-2">
                       ({(file.size / (1024 * 1024)).toFixed(1)}MB)
                     </span>
-                    <button
+                   <button
                       onClick={() =>
                         setFiles(files.filter((_, i) => i !== index))
                       }
-                      disabled={isUploading}
+                      disabled={isUploading || !hasLinkedProfile}
                       className="text-red-500 hover:text-red-600 disabled:text-zinc-400 ml-2"
                     >
                       ×
@@ -594,14 +631,14 @@ export default function UploadPhotos() {
             className="w-full px-3 py-2 rounded-md border card-bg"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            disabled={isUploading}
+            disabled={isUploading || !hasLinkedProfile}
           />
         </div>
 
         <div className="flex items-center gap-2">
           <button
             className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm disabled:bg-zinc-400 disabled:cursor-not-allowed"
-            disabled={!selectedLocationId || files.length === 0 || isUploading}
+            disabled={uploadDisabled}
             onClick={handleUpload}
           >
             {isUploading ? (

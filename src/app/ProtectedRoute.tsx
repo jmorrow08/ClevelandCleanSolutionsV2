@@ -8,7 +8,8 @@ type Props = {
     | "admin-or-above"
     | "employee-or-above"
     | "client-or-above"
-    | "owner-or-employee";
+    | "owner-or-employee"
+    | "employee-portal";
 };
 
 type Claims = Record<string, any> | null | undefined;
@@ -48,6 +49,14 @@ function isOwnerOrEmployee(claims: Claims): boolean {
   return hasRole(claims, "owner") || hasRole(claims, "employee");
 }
 
+function canEnterEmployeePortal(claims: Claims): boolean {
+  return (
+    hasRole(claims, "owner") ||
+    hasRole(claims, "admin") ||
+    hasRole(claims, "employee")
+  );
+}
+
 export default function ProtectedRoute({ requireRole }: Props) {
   const { user, loading, claims } = useAuth();
   const { show } = useToast();
@@ -63,6 +72,8 @@ export default function ProtectedRoute({ requireRole }: Props) {
     if (requireRole === "client-or-above") authorized = isClientOrAbove(claims);
     if (requireRole === "owner-or-employee")
       authorized = isOwnerOrEmployee(claims);
+    if (requireRole === "employee-portal")
+      authorized = canEnterEmployeePortal(claims);
   }
 
   // Side-effects (toasts) must not run during render

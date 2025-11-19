@@ -125,7 +125,7 @@ const router = createBrowserRouter([
 
       // Employee portal (employee | owner) — explicitly exclude admin/super_admin
       {
-        element: <ProtectedRoute requireRole="owner-or-employee" />,
+        element: <ProtectedRoute requireRole="employee-portal" />,
         children: [
           { path: "/employee", element: <EmployeeHome /> },
           { path: "/employee/jobs", element: <MyJobs /> },

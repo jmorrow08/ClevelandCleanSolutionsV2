@@ -68,7 +68,7 @@ function ThemeToggle() {
   );
 }
 
-function OwnerModeToggle({
+function PortalModeToggle({
   mode,
   onChange,
 }: {
@@ -109,6 +109,33 @@ function OwnerModeToggle({
         }`}
       >
         Employee
+      </span>
+    </div>
+  );
+}
+
+function RoleBadge({
+  role,
+  hasProfile,
+}: {
+  role?: string;
+  hasProfile: boolean;
+}) {
+  const normalized = role
+    ? role.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    : "Unknown";
+  return (
+    <div
+      className="px-2 py-1 rounded-md border border-[var(--border)] text-[11px] uppercase tracking-wide text-[var(--text)]/80 bg-[var(--muted)]"
+      title={
+        hasProfile
+          ? "User has a linked employee profile"
+          : "No employee profile linked"
+      }
+    >
+      {normalized}
+      <span className="ml-1 text-[var(--text)]/60">
+        {hasProfile ? "• profile linked" : "• profile missing"}
       </span>
     </div>
   );
@@ -294,14 +321,18 @@ function ClientSidebar({
 
 function Topbar({
   onToggleMobileMenu,
-  ownerMode,
-  onOwnerModeChange,
-  showOwnerToggle,
+  portalMode,
+  onPortalModeChange,
+  showPortalToggle,
+  roleLabel,
+  hasLinkedProfile,
 }: {
   onToggleMobileMenu?: () => void;
-  ownerMode?: "admin" | "employee";
-  onOwnerModeChange?: (mode: "admin" | "employee") => void;
-  showOwnerToggle?: boolean;
+  portalMode?: "admin" | "employee";
+  onPortalModeChange?: (mode: "admin" | "employee") => void;
+  showPortalToggle?: boolean;
+  roleLabel?: string;
+  hasLinkedProfile: boolean;
 }) {
   const { settings } = useSettings();
   const companyName =
@@ -348,9 +379,15 @@ function Topbar({
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        {showOwnerToggle && ownerMode && onOwnerModeChange ? (
-          <OwnerModeToggle mode={ownerMode} onChange={onOwnerModeChange} />
+      <div className="flex items-center gap-2 flex-wrap justify-end">
+        <RoleBadge role={roleLabel} hasProfile={hasLinkedProfile} />
+        {showPortalToggle && portalMode && onPortalModeChange ? (
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] uppercase tracking-wide text-[var(--text)]/70">
+              Portal Mode
+            </span>
+            <PortalModeToggle mode={portalMode} onChange={onPortalModeChange} />
+          </div>
         ) : null}
         <ThemeToggle />
       </div>
@@ -359,15 +396,19 @@ function Topbar({
 }
 
 export default function AppLayout() {
-  const { claims } = useAuth();
+  const { claims, profileId } = useAuth();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
-  type OwnerMode = "admin" | "employee";
-  const [ownerMode, setOwnerMode] = useState<OwnerMode>(() => {
-    if (typeof window === "undefined") return "admin" as OwnerMode;
-    const stored = window.localStorage.getItem("owner-mode");
+  type PortalMode = "admin" | "employee";
+  const PORTAL_MODE_KEY = "portal-mode";
+  const LEGACY_PORTAL_MODE_KEY = "owner-mode";
+  const [portalMode, setPortalMode] = useState<PortalMode>(() => {
+    if (typeof window === "undefined") return "admin" as PortalMode;
+    const stored =
+      window.localStorage.getItem(PORTAL_MODE_KEY) ||
+      window.localStorage.getItem(LEGACY_PORTAL_MODE_KEY);
     return stored === "employee" ? "employee" : "admin";
   });
 
@@ -379,28 +420,32 @@ export default function AppLayout() {
   const isEmployee = Boolean((claims as any)?.employee) || role === "employee";
   const isClient = Boolean((claims as any)?.client) || role === "client";
   const isAdminOrAbove = isSuperAdmin || isOwner || isAdmin;
-  // Show toggle for any user who can access BOTH Admin and Employee portals,
-  // but never for super_admin.
-  const canToggleOwnerMode = !isSuperAdmin && (isOwner || (isAdminOrAbove && isEmployee));
-  const ownerPrefersEmployeeView = canToggleOwnerMode && ownerMode === "employee";
+  const hasEmployeeProfile = Boolean(profileId);
+  const canUseEmployeeView =
+    !isSuperAdmin && hasEmployeeProfile && (isOwner || isAdmin);
+  const employeeViewPreferred =
+    canUseEmployeeView && portalMode === "employee";
+  const showPortalToggle = canUseEmployeeView;
 
   useEffect(() => {
-    if (!canToggleOwnerMode && ownerMode !== "admin") {
-      setOwnerMode("admin");
+    if (!canUseEmployeeView && portalMode !== "admin") {
+      setPortalMode("admin");
     }
-  }, [canToggleOwnerMode, ownerMode]);
+  }, [canUseEmployeeView, portalMode]);
 
   useEffect(() => {
-    if (!canToggleOwnerMode) {
-      window.localStorage.removeItem("owner-mode");
+    if (!canUseEmployeeView) {
+      window.localStorage.removeItem(PORTAL_MODE_KEY);
+      window.localStorage.removeItem(LEGACY_PORTAL_MODE_KEY);
       return;
     }
-    window.localStorage.setItem("owner-mode", ownerMode);
-  }, [ownerMode, canToggleOwnerMode]);
+    window.localStorage.setItem(PORTAL_MODE_KEY, portalMode);
+    window.localStorage.removeItem(LEGACY_PORTAL_MODE_KEY);
+  }, [portalMode, canUseEmployeeView]);
 
-  const handleOwnerModeChange = (mode: OwnerMode) => {
-    if (mode === ownerMode) return;
-    setOwnerMode(mode);
+  const handlePortalModeChange = (mode: PortalMode) => {
+    if (mode === portalMode) return;
+    setPortalMode(mode);
     if (mode === "employee") {
       if (!location.pathname.startsWith("/employee")) {
         navigate("/employee");
@@ -432,12 +477,12 @@ export default function AppLayout() {
         )}
 
         <div className="flex">
-          {isAdminOrAbove && !ownerPrefersEmployeeView ? (
+          {isAdminOrAbove && !employeeViewPreferred ? (
             <AdminSidebar
               isMobileOpen={isMobileSidebarOpen}
               onClose={closeMobileSidebar}
             />
-          ) : isEmployee || ownerPrefersEmployeeView ? (
+          ) : (isEmployee && !isAdminOrAbove) || employeeViewPreferred ? (
             <EmployeeSidebar
               isMobileOpen={isMobileSidebarOpen}
               onClose={closeMobileSidebar}
@@ -451,9 +496,11 @@ export default function AppLayout() {
           <main className="flex-1 min-w-0">
             <Topbar
               onToggleMobileMenu={toggleMobileSidebar}
-              ownerMode={ownerMode}
-              onOwnerModeChange={handleOwnerModeChange}
-              showOwnerToggle={canToggleOwnerMode}
+              portalMode={portalMode}
+              onPortalModeChange={handlePortalModeChange}
+              showPortalToggle={showPortalToggle}
+              roleLabel={role}
+              hasLinkedProfile={hasEmployeeProfile}
             />
             <div className="p-3 md:p-4">
               <Outlet />

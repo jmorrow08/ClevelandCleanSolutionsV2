@@ -51,6 +51,7 @@ export default function JobDetailsModal({
   const [activeEntryId, setActiveEntryId] = useState<string | null>(null);
   const [clockInAt, setClockInAt] = useState<Date | null>(null);
   const [clockInLocName, setClockInLocName] = useState<string>("");
+  const [activeEntryJobId, setActiveEntryJobId] = useState<string | null>(null);
 
   // Helper function to determine if job is completed
   const isJobCompleted = (jobData: JobData | null): boolean => {
@@ -175,10 +176,13 @@ export default function JobDetailsModal({
             : null;
           setClockInAt(t);
           setClockInLocName(data?.locationName || "");
+          // Store the jobId from the time entry for correct clock-out handling
+          setActiveEntryJobId(data?.jobId || null);
         } else {
           setActiveEntryId(null);
           setClockInAt(null);
           setClockInLocName("");
+          setActiveEntryJobId(null);
         }
       } catch (e) {
         console.error("Error checking active time entry:", e);
@@ -204,18 +208,27 @@ export default function JobDetailsModal({
       return;
     }
 
-    // Check if job is completed
-    if (isJobCompleted(jobData)) {
-      setMessage("Cannot clock in for completed jobs.");
-      return;
-    }
-
     try {
       setSaving(true);
       setMessage("Getting location & clocking in…");
       if (!getApps().length) initializeApp(firebaseConfig);
       const db = getFirestore();
       const coords = await getCoords();
+
+      // Check current job status
+      const jobDoc = await getDoc(doc(db, "serviceHistory", jobId));
+      if (!jobDoc.exists()) {
+        setMessage("Job not found.");
+        return;
+      }
+
+      const currentStatus = (jobDoc.data() as any)?.status || "";
+
+      // Don't allow clock in if job is completed/approved
+      if (currentStatus === "Completed") {
+        setMessage("Cannot clock in - this job has been completed and approved by admin.");
+        return;
+      }
 
       // Create time tracking entry with jobId
       const ref = await addDoc(collection(db, "employeeTimeTracking"), {
@@ -231,7 +244,8 @@ export default function JobDetailsModal({
         updatedAt: serverTimestamp(),
       });
 
-      // Update job status to "In Progress"
+      // Update job status to "In Progress" (even if it was "Pending Approval" from a previous clock-out)
+      // This handles the case where employees clock in again after accidentally clocking out
       await updateDoc(doc(db, "serviceHistory", jobId), {
         status: "In Progress",
         updatedAt: serverTimestamp(),
@@ -240,6 +254,7 @@ export default function JobDetailsModal({
       setActiveEntryId(ref.id);
       setClockInAt(new Date());
       setClockInLocName(jobData.locationName || "");
+      setActiveEntryJobId(jobId); // Store the jobId for this time entry
       setMessage("Clocked In!");
     } catch (e: any) {
       setMessage(e?.message || "Error clocking in.");
@@ -249,14 +264,15 @@ export default function JobDetailsModal({
   }
 
   async function clockOut() {
-    if (!activeEntryId || !jobId) {
+    if (!activeEntryId) {
       setMessage("No active clock-in session.");
       return;
     }
 
-    // Check if job is completed
-    if (isJobCompleted(jobData)) {
-      setMessage("Cannot clock out for completed jobs.");
+    // Use the jobId from the time entry (activeEntryJobId), not the modal's jobId
+    const targetJobId = activeEntryJobId;
+    if (!targetJobId) {
+      setMessage("Cannot determine which job to update. Please contact support.");
       return;
     }
 
@@ -267,6 +283,21 @@ export default function JobDetailsModal({
       const db = getFirestore();
       const coords = await getCoords();
 
+      // Check the current status of the job before updating
+      const jobDoc = await getDoc(doc(db, "serviceHistory", targetJobId));
+      if (!jobDoc.exists()) {
+        setMessage("Job not found.");
+        return;
+      }
+
+      const currentStatus = (jobDoc.data() as any)?.status || "";
+      
+      // Don't allow clock out if job is already completed/approved
+      if (currentStatus === "Completed") {
+        setMessage("Cannot clock out - this job has been completed and approved by admin.");
+        return;
+      }
+
       // Update time tracking entry
       await updateDoc(doc(db, "employeeTimeTracking", activeEntryId), {
         clockOutTime: serverTimestamp(),
@@ -275,16 +306,17 @@ export default function JobDetailsModal({
         updatedAt: serverTimestamp(),
       });
 
-      // Update job status to "Completed"
-      await updateDoc(doc(db, "serviceHistory", jobId), {
-        status: "Completed",
+      // Update job status to "Pending Approval" (not Completed - admin must approve)
+      await updateDoc(doc(db, "serviceHistory", targetJobId), {
+        status: "Pending Approval",
         updatedAt: serverTimestamp(),
       });
 
       setActiveEntryId(null);
       setClockInAt(null);
       setClockInLocName("");
-      setMessage("Clocked Out!");
+      setActiveEntryJobId(null);
+      setMessage("Clocked Out! Job is now pending admin approval.");
     } catch (e: any) {
       setMessage(e?.message || "Error clocking out.");
     } finally {
