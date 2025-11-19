@@ -250,7 +250,7 @@ export default function TodaysJobs() {
       return;
     }
 
-    // Check if job is completed
+    // Check if job is completed based on date
     if (isJobCompleted(job.serviceDate)) {
       setMessage("Cannot clock in for completed jobs.");
       return;
@@ -263,15 +263,36 @@ export default function TodaysJobs() {
       const db = getFirestore();
       const coords = await getCoords();
 
+      // Verify current job status to avoid reopening completed jobs
+      const jobRef = doc(db, "serviceHistory", job.id);
+      const jobSnap = await getDoc(jobRef);
+      const currentStatus = jobSnap.exists()
+        ? ((jobSnap.data() as any)?.status as string) || ""
+        : "";
+      if (currentStatus === "Completed") {
+        setMessage(
+          "Cannot clock in - this job has already been completed by admin."
+        );
+        return;
+      }
+
+      // Create time tracking entry and link to this job
       const ref = await addDoc(collection(db, "employeeTimeTracking"), {
         employeeProfileId: profileId,
         locationId: job.locationId,
         locationName: job.locationName,
+        jobId: job.id,
         clockInTime: serverTimestamp(),
         clockOutTime: null,
         status: "Clocked In",
         clockInCoordinates: coords,
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      // Move job into "In Progress" for both admin and client views
+      await updateDoc(jobRef, {
+        status: "In Progress",
         updatedAt: serverTimestamp(),
       });
 
@@ -300,12 +321,34 @@ export default function TodaysJobs() {
       const db = getFirestore();
       const coords = await getCoords();
 
-      await updateDoc(doc(db, "employeeTimeTracking", activeEntryId), {
+      const timeRef = doc(db, "employeeTimeTracking", activeEntryId);
+      const timeSnap = await getDoc(timeRef);
+      const timeData = timeSnap.exists() ? (timeSnap.data() as any) : null;
+      const jobId: string | undefined = timeData?.jobId;
+
+      await updateDoc(timeRef, {
         clockOutTime: serverTimestamp(),
         status: "Clocked Out",
         clockOutCoordinates: coords,
         updatedAt: serverTimestamp(),
       });
+
+      // If we can determine the related job, move it into "Pending Approval"
+      // so it stays In Progress for clients but is clearly awaiting admin review.
+      if (jobId) {
+        const jobRef = doc(db, "serviceHistory", jobId);
+        const jobSnap = await getDoc(jobRef);
+        if (jobSnap.exists()) {
+          const currentStatus = ((jobSnap.data() as any)?.status ||
+            "") as string;
+          if (currentStatus !== "Completed") {
+            await updateDoc(jobRef, {
+              status: "Pending Approval",
+              updatedAt: serverTimestamp(),
+            });
+          }
+        }
+      }
 
       setActiveEntryId(null);
       setClockInAt(null);

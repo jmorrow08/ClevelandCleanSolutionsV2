@@ -95,20 +95,28 @@ export function deriveAdminStatus(
 // Client view collapses states to Upcoming, In Progress, Completed irrespective of payroll.
 export type ClientStatus = "upcoming" | "in_progress" | "completed";
 
-export function deriveClientStatus(
-  job: LegacyJobLike,
-  now: Date = new Date()
-): ClientStatus {
+function isPastCalendarDay(date: Date | null, now: Date): boolean {
+  if (!date) return false;
+  const d = new Date(date);
+  const n = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  n.setHours(0, 0, 0, 0);
+  return d.getTime() < n.getTime();
+}
+
+export function deriveClientStatus(job: LegacyJobLike): ClientStatus {
   const legacy = (job?.status || "").trim();
 
-  // Rely strictly on stored status without time-based guessing
-  // CRITICAL: Only show "Completed" jobs to clients - pending approval is hidden
+  // Client-facing rules:
+  // - Scheduled: show as upcoming (regardless of date)
+  // - In Progress or Pending Approval: show as in_progress
+  // - Completed: show as completed
   if (legacy === "Completed") return "completed";
-  if (legacy === "In Progress") return "in_progress";
-  if (legacy === "Pending Approval") return "in_progress"; // Show as in progress to client until approved
+  if (legacy === "In Progress" || legacy === "Pending Approval")
+    return "in_progress";
   if (legacy === "Scheduled") return "upcoming";
-  
-  // Fallbacks
+
+  // Fallbacks based on canonical mapping
   const mapped = mapLegacyStatus(legacy);
   if (mapped === "completed") return "completed";
   if (mapped === "in_progress") return "in_progress";

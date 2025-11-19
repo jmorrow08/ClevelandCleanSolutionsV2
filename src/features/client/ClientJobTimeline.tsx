@@ -11,10 +11,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { firebaseConfig } from "../../services/firebase";
-import {
-  makeDayBounds as makeDayBoundsUtil,
-  formatJobWindow,
-} from "../../utils/time";
+import { formatJobWindow } from "../../utils/time";
 import { useAuth } from "../../context/AuthContext";
 import { getLocationName } from "../../services/queries/resolvers";
 import { deriveClientStatus } from "../../services/statusMap";
@@ -195,7 +192,6 @@ function TimelineColumn({
   accent: string;
   onSelect: (j: Job, photos: Photo[]) => void;
 }) {
-  const [windows, setWindows] = useState<Record<string, string>>({});
   const [locationNames, setLocationNames] = useState<Record<string, string>>(
     {}
   );
@@ -206,52 +202,6 @@ function TimelineColumn({
       try {
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
-        const map: Record<string, string> = {};
-        for (const j of jobs) {
-          const dt: Date | null = j.serviceDate?.toDate
-            ? j.serviceDate.toDate()
-            : j.serviceDate?.seconds
-            ? new Date(j.serviceDate.seconds * 1000)
-            : null;
-          if (!dt || !j.locationId) {
-            map[j.id] = formatJobWindow(j.serviceDate);
-            continue;
-          }
-          const { start, end } = makeDayBoundsUtil(dt, "America/New_York");
-          try {
-            const qref = query(
-              collection(db, "employeeTimeTracking"),
-              where("locationId", "==", j.locationId),
-              where("clockInTime", ">=", Timestamp.fromDate(start)),
-              where("clockInTime", "<=", Timestamp.fromDate(end)),
-              orderBy("clockInTime", "asc"),
-              limit(10)
-            );
-            const snap = await getDocs(qref);
-            const rows: any[] = [];
-            snap.forEach((d) => rows.push({ id: d.id, ...(d.data() as any) }));
-            const assigned = Array.isArray((j as any).assignedEmployees)
-              ? ((j as any).assignedEmployees as string[])
-              : [];
-            let rec = rows.find((r) =>
-              assigned.includes((r as any).employeeProfileId || "")
-            );
-            if (!rec) rec = rows[0];
-            if (rec?.clockInTime?.toDate && rec?.clockOutTime?.toDate) {
-              map[j.id] = formatJobWindow(j.serviceDate, {
-                start: rec.clockInTime,
-                end: rec.clockOutTime,
-              });
-            } else if (rec?.clockInTime?.toDate && !rec?.clockOutTime) {
-              map[j.id] = formatJobWindow(j.serviceDate);
-            } else {
-              map[j.id] = formatJobWindow(j.serviceDate);
-            }
-          } catch {
-            map[j.id] = formatJobWindow(j.serviceDate);
-          }
-        }
-        setWindows(map);
       } catch {}
 
       // Resolve location names
@@ -368,7 +318,7 @@ function TimelineColumn({
                         })
                       : "—") + " "}
                     <span className="text-xs text-zinc-500">
-                      {windows[j.id] || formatJobWindow(j.serviceDate)}
+                      {formatJobWindow(j.serviceDate)}
                     </span>
                   </div>
                   <div className="text-xs text-zinc-500 truncate mt-0.5">
