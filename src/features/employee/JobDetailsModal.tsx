@@ -199,7 +199,7 @@ export default function JobDetailsModal({
   }
 
   async function clockIn() {
-    if (!user?.uid || !profileId || !jobData?.locationId) {
+    if (!user?.uid || !profileId || !jobData?.locationId || !jobId) {
       setMessage("System error or missing job data.");
       return;
     }
@@ -217,15 +217,23 @@ export default function JobDetailsModal({
       const db = getFirestore();
       const coords = await getCoords();
 
+      // Create time tracking entry with jobId
       const ref = await addDoc(collection(db, "employeeTimeTracking"), {
         employeeProfileId: profileId,
         locationId: jobData.locationId,
         locationName: jobData.locationName,
+        jobId: jobId, // Link to specific job
         clockInTime: serverTimestamp(),
         clockOutTime: null,
         status: "Clocked In",
         clockInCoordinates: coords,
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      // Update job status to "In Progress"
+      await updateDoc(doc(db, "serviceHistory", jobId), {
+        status: "In Progress",
         updatedAt: serverTimestamp(),
       });
 
@@ -241,7 +249,7 @@ export default function JobDetailsModal({
   }
 
   async function clockOut() {
-    if (!activeEntryId) {
+    if (!activeEntryId || !jobId) {
       setMessage("No active clock-in session.");
       return;
     }
@@ -259,10 +267,17 @@ export default function JobDetailsModal({
       const db = getFirestore();
       const coords = await getCoords();
 
+      // Update time tracking entry
       await updateDoc(doc(db, "employeeTimeTracking", activeEntryId), {
         clockOutTime: serverTimestamp(),
         status: "Clocked Out",
         clockOutCoordinates: coords,
+        updatedAt: serverTimestamp(),
+      });
+
+      // Update job status to "Completed"
+      await updateDoc(doc(db, "serviceHistory", jobId), {
+        status: "Completed",
         updatedAt: serverTimestamp(),
       });
 

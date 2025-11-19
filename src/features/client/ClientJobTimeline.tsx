@@ -297,6 +297,27 @@ function TimelineColumn({
     try {
       if (!getApps().length) initializeApp(firebaseConfig);
       const db = getFirestore();
+      
+      // Primary: Query by serviceHistoryId (job-specific)
+      const primaryQuery = query(
+        collection(db, "servicePhotos"),
+        where("serviceHistoryId", "==", job.id),
+        where("isClientVisible", "==", true),
+        orderBy("uploadedAt", "desc")
+      );
+      
+      try {
+        const primarySnap = await getDocs(primaryQuery);
+        if (!primarySnap.empty) {
+          const list: Photo[] = [];
+          primarySnap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
+          return list;
+        }
+      } catch (primaryError) {
+        console.warn("Primary photo query failed, falling back to location+date:", primaryError);
+      }
+      
+      // Fallback: Query by location + date (for older photos without serviceHistoryId)
       const svcDate: Date | null = job.serviceDate?.toDate
         ? job.serviceDate.toDate()
         : null;
@@ -304,7 +325,7 @@ function TimelineColumn({
         svcDate || new Date(),
         "America/New_York"
       );
-      const qref = query(
+      const fallbackQuery = query(
         collection(db, "servicePhotos"),
         where("locationId", "==", job.locationId || ""),
         where("uploadedAt", ">=", Timestamp.fromDate(start)),
@@ -312,9 +333,9 @@ function TimelineColumn({
         where("isClientVisible", "==", true),
         orderBy("uploadedAt", "desc")
       );
-      const snap = await getDocs(qref);
+      const fallbackSnap = await getDocs(fallbackQuery);
       const list: Photo[] = [];
-      snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
+      fallbackSnap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
       return list;
     } catch (e: any) {
       console.warn("Client photos query may require index", e?.message);

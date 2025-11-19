@@ -138,6 +138,7 @@ export default function UploadPhotos() {
   );
   const [isClockedIn, setIsClockedIn] = useState<boolean>(false);
   const [activeLocationName, setActiveLocationName] = useState<string>("");
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   const [files, setFiles] = useState<File[]>([]);
@@ -208,10 +209,13 @@ export default function UploadPhotos() {
 
             if (!timeEntrySnap.empty) {
               const timeEntry = timeEntrySnap.docs[0];
-              const timeEntryData = timeEntry.data() as TimeEntry;
+              const timeEntryData = timeEntry.data() as any;
               setActiveTimeEntryId(timeEntry.id);
               setIsClockedIn(true);
               setSelectedLocationId(timeEntryData.locationId);
+              
+              // Extract jobId from time entry
+              setActiveJobId(timeEntryData.jobId || null);
 
               // Get location name for display - now using the loaded locationsList
               const locationName =
@@ -222,6 +226,7 @@ export default function UploadPhotos() {
               setActiveLocationName(locationName);
             } else {
               setIsClockedIn(false);
+              setActiveJobId(null);
             }
           }
         }
@@ -392,6 +397,7 @@ export default function UploadPhotos() {
           employeeName,
           uploadedAt: serverTimestamp(),
           timeEntryId: activeTimeEntryId || null,
+          serviceHistoryId: activeJobId || null, // Link to specific job
           notes: notes ? notes : null,
         })
       );

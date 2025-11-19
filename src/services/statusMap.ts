@@ -63,25 +63,15 @@ export function deriveAdminStatus(
   tz: string = "America/New_York"
 ): AdminUiStatus {
   const legacy = (job?.status || "").trim();
-  const planned = toDateSafe(job?.serviceDate);
 
-  // Primary derivation
+  // Primary derivation - rely strictly on stored status
   let primary: CanonicalStatus = "scheduled";
   if (legacy === "Cancelled") primary = "canceled";
   else if (legacy === "Completed") primary = "completed";
   else if (legacy === "In Progress") primary = "in_progress";
   else if (legacy === "Pending Approval") primary = "in_progress";
-  else if (legacy === "Scheduled") {
-    // Auto-display in_progress when start time has arrived, without mutating data
-    if (planned) {
-      // NOTE: we do not convert timezone here; Firestore Timestamp is UTC and UI formats handle tz.
-      // Using local comparison is acceptable for display-only transitions.
-      if (now.getTime() >= planned.getTime()) primary = "in_progress";
-      else primary = "scheduled";
-    } else {
-      primary = "scheduled";
-    }
-  } else {
+  else if (legacy === "Scheduled") primary = "scheduled";
+  else {
     // Fallback to mapped canonical when unknown
     primary = mapLegacyStatus(legacy) || "scheduled";
   }
@@ -110,15 +100,13 @@ export function deriveClientStatus(
   now: Date = new Date()
 ): ClientStatus {
   const legacy = (job?.status || "").trim();
-  const planned = toDateSafe(job?.serviceDate);
 
+  // Rely strictly on stored status without time-based guessing
   if (legacy === "Completed") return "completed";
   if (legacy === "In Progress" || legacy === "Pending Approval")
     return "in_progress";
-  if (legacy === "Scheduled") {
-    if (planned && now.getTime() >= planned.getTime()) return "in_progress";
-    return "upcoming";
-  }
+  if (legacy === "Scheduled") return "upcoming";
+  
   // Fallbacks
   const mapped = mapLegacyStatus(legacy);
   if (mapped === "completed") return "completed";
