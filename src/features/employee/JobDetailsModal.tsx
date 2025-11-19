@@ -246,6 +246,8 @@ export default function JobDetailsModal({
 
       // Update job status to "In Progress" (even if it was "Pending Approval" from a previous clock-out)
       // This handles the case where employees clock in again after accidentally clocking out
+      // IMPORTANT: This update will fail if admin has already approved the job (status = "Completed")
+      // due to the check above, preventing race conditions
       await updateDoc(doc(db, "serviceHistory", jobId), {
         status: "In Progress",
         updatedAt: serverTimestamp(),
@@ -307,6 +309,8 @@ export default function JobDetailsModal({
       });
 
       // Update job status to "Pending Approval" (not Completed - admin must approve)
+      // IMPORTANT: This update will fail if admin has already approved the job (status = "Completed")
+      // due to the check above, preventing race conditions
       await updateDoc(doc(db, "serviceHistory", targetJobId), {
         status: "Pending Approval",
         updatedAt: serverTimestamp(),

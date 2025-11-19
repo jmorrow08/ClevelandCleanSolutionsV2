@@ -102,9 +102,10 @@ export function deriveClientStatus(
   const legacy = (job?.status || "").trim();
 
   // Rely strictly on stored status without time-based guessing
+  // CRITICAL: Only show "Completed" jobs to clients - pending approval is hidden
   if (legacy === "Completed") return "completed";
-  if (legacy === "In Progress" || legacy === "Pending Approval")
-    return "in_progress";
+  if (legacy === "In Progress") return "in_progress";
+  if (legacy === "Pending Approval") return "in_progress"; // Show as in progress to client until approved
   if (legacy === "Scheduled") return "upcoming";
   
   // Fallbacks
