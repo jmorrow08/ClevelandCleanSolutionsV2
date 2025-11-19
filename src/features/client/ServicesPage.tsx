@@ -230,7 +230,7 @@ export default function ServicesPage() {
   // Create a single sorted list of all jobs by date
   const sortedJobs = useMemo(() => {
     const allJobsWithStatus = allJobs.map((job) => {
-      const clientStatus = deriveClientStatus(job, new Date());
+      const clientStatus = deriveClientStatus(job);
       return { ...job, clientStatus };
     });
 

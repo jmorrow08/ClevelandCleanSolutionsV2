@@ -11,7 +11,10 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { firebaseConfig } from "../../services/firebase";
-import { formatJobWindow } from "../../utils/time";
+import {
+  formatJobWindow,
+  makeDayBounds as makeDayBoundsUtil,
+} from "../../utils/time";
 import { useAuth } from "../../context/AuthContext";
 import { getLocationName } from "../../services/queries/resolvers";
 import { deriveClientStatus } from "../../services/statusMap";
@@ -87,7 +90,6 @@ export default function ClientJobTimeline() {
 
   // Categorize jobs using deriveClientStatus
   const { completed, inProgress, upcoming } = useMemo(() => {
-    const now = new Date();
     const categorized = {
       completed: [] as Job[],
       inProgress: [] as Job[],
@@ -95,7 +97,7 @@ export default function ClientJobTimeline() {
     };
 
     allJobs.forEach((job) => {
-      const clientStatus = deriveClientStatus(job, now);
+      const clientStatus = deriveClientStatus(job);
       if (clientStatus === "completed") {
         categorized.completed.push(job);
       } else if (clientStatus === "in_progress") {
