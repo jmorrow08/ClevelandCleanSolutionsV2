@@ -324,15 +324,11 @@ function Topbar({
   portalMode,
   onPortalModeChange,
   showPortalToggle,
-  roleLabel,
-  hasLinkedProfile,
 }: {
   onToggleMobileMenu?: () => void;
   portalMode?: "admin" | "employee";
   onPortalModeChange?: (mode: "admin" | "employee") => void;
   showPortalToggle?: boolean;
-  roleLabel?: string;
-  hasLinkedProfile: boolean;
 }) {
   const { settings } = useSettings();
   const companyName =
@@ -380,7 +376,6 @@ function Topbar({
         </div>
       </div>
       <div className="flex items-center gap-2 flex-wrap justify-end">
-        <RoleBadge role={roleLabel} hasProfile={hasLinkedProfile} />
         {showPortalToggle && portalMode && onPortalModeChange ? (
           <div className="flex items-center gap-2">
             <span className="text-[11px] uppercase tracking-wide text-[var(--text)]/70">
@@ -499,8 +494,6 @@ export default function AppLayout() {
               portalMode={portalMode}
               onPortalModeChange={handlePortalModeChange}
               showPortalToggle={showPortalToggle}
-              roleLabel={role}
-              hasLinkedProfile={hasEmployeeProfile}
             />
             <div className="p-3 md:p-4">
               <Outlet />
