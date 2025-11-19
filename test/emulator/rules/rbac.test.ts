@@ -83,20 +83,15 @@ describe("RBAC basics", () => {
 
 describe("Storage basics", () => {
   it("employee can write own users path but not others", async () => {
-    const e1 = testEnv.storage().bucket().file("users/e1/photo.png");
-    const e2 = testEnv.storage().bucket().file("users/e2/photo.png");
-    const ctxE1 = testEnv.storage().bucket().file("users/e1/photo2.png");
-
-    const e1Ctx = testEnv.authenticatedContext(
-      "e1",
-      authedContext("e1", "employee").token
-    ).storage().bucket();
+    const e1Ctx = testEnv
+      .authenticatedContext("e1", authedContext("e1", "employee").token)
+      .storage();
 
     await assertSucceeds(
-      e1Ctx.file("users/e1/photo.png").save(Buffer.from("123"))
+      e1Ctx.ref("users/e1/photo.png").put(Buffer.from("123"))
     );
     await assertFails(
-      e1Ctx.file("users/e2/photo.png").save(Buffer.from("123"))
+      e1Ctx.ref("users/e2/photo.png").put(Buffer.from("123"))
     );
   });
 });

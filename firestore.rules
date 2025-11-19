@@ -942,12 +942,11 @@ service cloud.firestore {
     }
 
     // --- V2: settings (singleton: settings/org) ---
-    // UI: Owner and super_admin can modify settings; others read-only as needed by apps.
+    // UI: Only super_admin can modify settings; others read-only as needed by apps.
     match /settings/{docId} {
       allow read: if request.auth != null; // any authenticated user may read
-      // Hardened: writes restricted to owner or super_admin
-      allow create, update: if isOwner() || isSuperAdmin();
-      allow delete: if isSuperAdmin();
+      // Hardened: writes restricted to super_admin only
+      allow create, update, delete: if isSuperAdmin();
     }
 
     // --- V2: trainingAssignments ---

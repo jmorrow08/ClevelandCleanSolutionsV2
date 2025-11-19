@@ -42,8 +42,8 @@ await fn({ email: "info@clevelandcleansolutions.com" });
 ## Role quick-reference and dual-mode behavior
 
 - **Super admin (dev impersonation user)** – Full Firebase + Cloud Functions access. Only role that can: deploy rules, assign any role (including super_admin/owner), delete sensitive documents, or use `/tools/role-manager`.
-- **Owner** – Full admin portal access + HR/Finance controls. Owners can also switch into the employee portal; when they do, they now inherit the same Firestore/Storage permissions as employees *provided their `users/{uid}` document stores a valid `profileId`.*
-- **Admin** – Admin portal only. No access to owner-only finance pages, cannot switch into employee mode, and cannot mutate privileged settings.
+- **Owner** – Full admin portal access + HR/Finance controls. Owners can also switch into the employee portal; when they do, they inherit the same Firestore/Storage permissions as employees *provided their `users/{uid}` document stores a valid `profileId`.*
+- **Admin** – Admin portal access. No access to owner-only finance pages. Admins can also switch into the employee portal and access employee features (time tracking, photo uploads, job notes) *provided their `users/{uid}` document stores a valid `profileId`.*
 - **Employee** – Employee portal (jobs/photos/notes/time tracking). No access to admin portal routes.
 - **Client** – Client portal routes and client-visible media only.
 
