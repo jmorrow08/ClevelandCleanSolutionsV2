@@ -75,30 +75,41 @@ function OwnerModeToggle({
   mode: "admin" | "employee";
   onChange: (mode: "admin" | "employee") => void;
 }) {
-  const options: Array<{ label: string; value: "admin" | "employee" }> = [
-    { label: "Admin", value: "admin" },
-    { label: "Employee", value: "employee" },
-  ];
+  const isEmployee = mode === "employee";
+  const toggleMode = () => onChange(isEmployee ? "admin" : "employee");
+
   return (
-    <div className="flex text-xs border border-[var(--border)] rounded-md overflow-hidden">
-      {options.map((option) => {
-        const isActive = mode === option.value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={isActive}
-            onClick={() => onChange(option.value)}
-            className={`px-2 py-1 transition-colors focus-ring min-w-[72px] ${
-              isActive
-                ? "bg-[var(--brand)] text-white"
-                : "bg-transparent text-[var(--text)]"
-            }`}
-          >
-            {option.label}
-          </button>
-        );
-      })}
+    <div className="flex items-center gap-2">
+      <span
+        className={`text-[11px] font-semibold uppercase tracking-wide text-[var(--text)] ${
+          isEmployee ? "opacity-60" : ""
+        }`}
+      >
+        Admin
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={isEmployee}
+        aria-label={`Switch to ${isEmployee ? "admin" : "employee"} view`}
+        onClick={toggleMode}
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-[var(--border)] transition-colors focus-ring ${
+          isEmployee ? "bg-[var(--brand)]" : "bg-[var(--muted)]"
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ease-in-out ${
+            isEmployee ? "translate-x-5" : "translate-x-1"
+          }`}
+        />
+      </button>
+      <span
+        className={`text-[11px] font-semibold uppercase tracking-wide text-[var(--text)] ${
+          isEmployee ? "" : "opacity-60"
+        }`}
+      >
+        Employee
+      </span>
     </div>
   );
 }
@@ -298,8 +309,8 @@ function Topbar({
   const logoUrl = settings?.companyProfile?.logoDataUrl;
 
   return (
-    <header className="h-14 flex items-center justify-between px-4 border-b border-[var(--border)] card-bg backdrop-blur supports-[backdrop-filter]:card-bg">
-      <div className="flex items-center gap-4">
+    <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 border-b border-[var(--border)] card-bg backdrop-blur supports-[backdrop-filter]:card-bg">
+      <div className="flex min-w-0 items-center gap-3">
         {/* Hamburger menu button for mobile */}
         <button
           onClick={onToggleMobileMenu}
@@ -320,7 +331,7 @@ function Topbar({
             />
           </svg>
         </button>
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           {logoUrl && (
             <img
               src={logoUrl}
@@ -332,7 +343,9 @@ function Topbar({
               }}
             />
           )}
-          <div className="font-medium text-[var(--text)]">{companyName}</div>
+          <div className="font-medium text-[var(--text)] truncate max-w-[160px] sm:max-w-none">
+            {companyName}
+          </div>
         </div>
       </div>
       <div className="flex items-center gap-2">

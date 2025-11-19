@@ -1,16 +1,13 @@
-const admin = require("firebase-admin");
-const { initializeApp } = require("firebase-admin/app");
-const { getFirestore, Timestamp } = require("firebase-admin/firestore");
+import { admin, initializeAdminApp } from "./scripts/firebaseAdmin.js";
+import { pathToFileURL } from "node:url";
 
-// Initialize Firebase Admin (you'll need to set up service account)
-// initializeApp({
-//   credential: admin.credential.applicationDefault(),
-//   projectId: 'your-project-id'
-// });
+initializeAdminApp();
 
-const db = getFirestore();
+const db = admin.firestore();
+const { Timestamp } = admin.firestore;
 
 // Test data constants
+
 const TEST_DATA = {
   employees: {
     employeeA: "employee-a-001",
@@ -551,14 +548,12 @@ async function runFullPayrollLoopTest() {
 }
 
 // Export for use in other scripts
-module.exports = {
-  runFullPayrollLoopTest,
-  cleanupTestData,
-  TEST_DATA,
-};
+export { runFullPayrollLoopTest, cleanupTestData, TEST_DATA };
 
 // Run test if called directly
-if (require.main === module) {
+const isDirectRun =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isDirectRun) {
   runFullPayrollLoopTest()
     .then((success) => {
       console.log(`Test completed with ${success ? "SUCCESS" : "FAILURE"}`);
