@@ -378,9 +378,6 @@ function Topbar({
       <div className="flex items-center gap-2 flex-wrap justify-end">
         {showPortalToggle && portalMode && onPortalModeChange ? (
           <div className="flex items-center gap-2">
-            <span className="text-[11px] uppercase tracking-wide text-[var(--text)]/70">
-              Portal Mode
-            </span>
             <PortalModeToggle mode={portalMode} onChange={onPortalModeChange} />
           </div>
         ) : null}
