@@ -539,13 +539,15 @@ export default function JobModal({
             ...prev,
             status: statusLegacy || prev.status,
           } as JobRecord & Record<string, unknown>;
-          if (shouldSetApprovalTimestamp) {
-            next.approvedAt = Timestamp.now();
-          } else if (prevApprovedAt !== undefined) {
+          // Note: We don't set approvedAt locally because the server uses serverTimestamp()
+          // which may differ from Timestamp.now() due to clock skew. The correct value
+          // will be available on next fetch. We preserve existing values if not changing.
+          if (prevApprovedAt !== undefined) {
             next.approvedAt = prevApprovedAt;
-          } else {
+          } else if (!shouldSetApprovalTimestamp) {
             delete next.approvedAt;
           }
+          // approvedBy can be set locally since it's a simple UID, not a timestamp
           if (shouldSetApprovalActor) {
             next.approvedBy = auth.currentUser?.uid || null;
           } else if (prevApprovedBy !== undefined) {
