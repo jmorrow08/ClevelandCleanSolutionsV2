@@ -408,11 +408,20 @@ service cloud.firestore {
       allow create: if false; // Only Cloud Function creates
     }
 
-    // --- payrollPeriods (closed state banner) ---
-    // Cloud Functions write this collection; client needs read-only for admin/owner
+    // --- payrollPeriods (semi-monthly periods, managed from Finance hub) ---
     match /payrollPeriods/{payPeriodId} {
-      allow read: if hasClaim('admin') || isOwner();
-      allow write: if false; // writes are performed via Admin SDK in Cloud Functions
+      // Admin/owner can create and update periods; delete restricted to super_admin
+      allow read: if isAtLeastAdmin();
+      allow create, update: if isAtLeastAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- payrollEntries (per-employee earnings & deductions within a period) ---
+    match /payrollEntries/{entryId} {
+      // Raw payroll ledger; only finance roles should manage directly
+      allow read: if isAtLeastAdmin();
+      allow create, update: if isAtLeastAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     // --- generalJobNotes Collection Rules ---

@@ -79,9 +79,43 @@ const ZERO_TOTALS: PayrollPeriodTotals = {
   net: 0,
 };
 
+const PAYROLL_RELEVANT_STATUSES = new Set([
+  'completed',
+  'pending approval',
+  'in progress',
+  'started',
+]);
+
 type FirestorePayrollPeriod = Omit<PayrollPeriod, 'id'>;
 type FirestorePayrollEntry = Omit<PayrollEntry, 'id'>;
 type JobData = Record<string, any> & { id: string };
+
+function storedPeriodToSemi(period: PayrollPeriod): SemiMonthlyPeriod {
+  const toDate = (value: Timestamp | Date | string) =>
+    value instanceof Timestamp ? value.toDate() : value instanceof Date ? value : new Date(value);
+  return {
+    periodId: period.id,
+    workPeriodStart: toDate(period.periodStart as Timestamp),
+    workPeriodEnd: toDate(period.periodEnd as Timestamp),
+    payDate: toDate(period.payDate as Timestamp),
+  };
+}
+
+async function fetchJobsForPeriod(period: SemiMonthlyPeriod): Promise<JobData[]> {
+  const db = getFirestoreInstance();
+  const jobsSnap = await getDocs(
+    query(
+      collection(db, 'serviceHistory'),
+      where('serviceDate', '>=', Timestamp.fromDate(period.workPeriodStart)),
+      where('serviceDate', '<=', Timestamp.fromDate(period.workPeriodEnd)),
+    ),
+  );
+
+  return jobsSnap.docs.map((docSnap) => ({
+    ...(docSnap.data() as Record<string, any>),
+    id: docSnap.id,
+  }));
+}
 
 function normalizeAmount(type: PayrollEntryType, amount: number) {
   const abs = Math.abs(amount);
@@ -315,6 +349,16 @@ function extractAssignedEmployees(jobData: Record<string, any>): JobAssignment[]
   return assignedEmployees;
 }
 
+function resolveJobStatus(jobData: Record<string, any>): string {
+  if (typeof jobData.status === 'string' && jobData.status.length) {
+    return jobData.status;
+  }
+  if (typeof jobData.statusLegacy === 'string' && jobData.statusLegacy.length) {
+    return jobData.statusLegacy;
+  }
+  return '';
+}
+
 async function getEffectiveRateSnapshot(
   employeeId: string,
   effectiveAt: Timestamp,
@@ -438,6 +482,45 @@ function calculateEarningForAssignment(
   };
 }
 
+async function findMissingRateEmployeeIdsForJob(job: JobData): Promise<string[]> {
+  const assignments = extractAssignedEmployees(job);
+  if (!assignments.length) return [];
+
+  const missing = new Set<string>();
+  const rateCache = new Map<string, boolean>();
+
+  for (const assignment of assignments) {
+    const cacheKey = [
+      assignment.employeeId,
+      assignment.serviceDate.getTime(),
+      assignment.locationId ?? '',
+      assignment.clientProfileId ?? '',
+    ].join('|');
+
+    if (rateCache.has(cacheKey)) {
+      if (!rateCache.get(cacheKey)) {
+        missing.add(assignment.employeeId);
+      }
+      continue;
+    }
+
+    const rateSnapshot = await getEffectiveRateSnapshot(
+      assignment.employeeId,
+      Timestamp.fromDate(assignment.serviceDate),
+      assignment.locationId ?? undefined,
+      assignment.clientProfileId ?? undefined,
+    );
+
+    const hasRate = !!rateSnapshot;
+    rateCache.set(cacheKey, hasRate);
+    if (!hasRate) {
+      missing.add(assignment.employeeId);
+    }
+  }
+
+  return Array.from(missing);
+}
+
 export async function createPayrollEntriesForJob(jobId: string) {
   const db = getFirestoreInstance();
   const jobRef = doc(db, 'serviceHistory', jobId);
@@ -533,6 +616,98 @@ export async function createPayrollEntriesForJob(jobId: string) {
   }
 
   return { created, periodId: period.periodId };
+}
+
+export async function validateJobPayrollReadiness(jobId: string): Promise<string[]> {
+  const db = getFirestoreInstance();
+  const jobRef = doc(db, 'serviceHistory', jobId);
+  const jobSnap = await getDoc(jobRef);
+  if (!jobSnap.exists()) {
+    throw new Error(`Job ${jobId} not found`);
+  }
+  const jobData: JobData = {
+    ...(jobSnap.data() as Record<string, any>),
+    id: jobId,
+  };
+  return findMissingRateEmployeeIdsForJob(jobData);
+}
+
+export async function syncPayrollEntriesForPeriod(periodId: string): Promise<{
+  processedJobs: number;
+  createdEntries: number;
+  skippedJobs: number;
+  missingRateEmployeeIds: string[];
+  errors: string[];
+}> {
+  const period = await getPayrollPeriodById(periodId);
+  let workingPeriod: SemiMonthlyPeriod;
+
+  if (period) {
+    workingPeriod = storedPeriodToSemi(period);
+  } else {
+    const payDate = new Date(`${periodId}T00:00:00Z`);
+    if (Number.isNaN(payDate.getTime())) {
+      throw new Error(`Payroll period ${periodId} not found`);
+    }
+    workingPeriod = getSemiMonthlyPeriodForPayDate(payDate);
+    await ensurePayrollPeriod(workingPeriod);
+  }
+
+  const jobs = await fetchJobsForPeriod(workingPeriod);
+  let processedJobs = 0;
+  let createdEntries = 0;
+  let skippedJobs = 0;
+  const missingRateEmployeeIds = new Set<string>();
+  const errors: string[] = [];
+
+  for (const job of jobs) {
+    const status = resolveJobStatus(job).toLowerCase();
+    if (status !== 'completed') continue;
+
+    processedJobs += 1;
+    const missingForJob = await findMissingRateEmployeeIdsForJob(job);
+    if (missingForJob.length) {
+      missingForJob.forEach((id) => missingRateEmployeeIds.add(id));
+      skippedJobs += 1;
+      continue;
+    }
+
+    try {
+      const result = await createPayrollEntriesForJob(job.id);
+      createdEntries += result.created;
+    } catch (error) {
+      console.error('Failed to backfill payroll for job', job.id, error);
+      errors.push(job.id);
+    }
+  }
+
+  if (createdEntries > 0) {
+    await recalcPayrollPeriodTotals(workingPeriod.periodId);
+  }
+
+  return {
+    processedJobs,
+    createdEntries,
+    skippedJobs,
+    missingRateEmployeeIds: Array.from(missingRateEmployeeIds),
+    errors,
+  };
+}
+
+export async function findMissingRateEmployeeIdsForPeriod(
+  period: SemiMonthlyPeriod,
+): Promise<string[]> {
+  const jobs = await fetchJobsForPeriod(period);
+  const missing = new Set<string>();
+
+  for (const job of jobs) {
+    const status = resolveJobStatus(job).toLowerCase();
+    if (!PAYROLL_RELEVANT_STATUSES.has(status)) continue;
+    const missingForJob = await findMissingRateEmployeeIdsForJob(job);
+    missingForJob.forEach((id) => missing.add(id));
+  }
+
+  return Array.from(missing);
 }
 
 export async function syncMonthlyMissedWorkDeductions(

@@ -16,6 +16,8 @@ import {
   recalcPayrollPeriodTotals,
   syncMonthlyMissedWorkDeductions,
   finalizePayrollPeriod,
+  syncPayrollEntriesForPeriod,
+  findMissingRateEmployeeIdsForPeriod,
 } from '@/services/payroll/payrollService';
 import {
   getCurrentSemiMonthlyPeriod,
@@ -118,6 +120,8 @@ export default function PayrollDashboard() {
     saving: false,
   });
   const [finalizing, setFinalizing] = useState(false);
+  const [missingRateEmployeeIds, setMissingRateEmployeeIds] = useState<string[]>([]);
+  const [syncingPeriod, setSyncingPeriod] = useState(false);
 
   const canEdit = !!(claims?.admin || claims?.owner || claims?.super_admin) && !loading;
   const canFinalize = !!(claims?.owner || claims?.super_admin);
@@ -153,18 +157,23 @@ export default function PayrollDashboard() {
     let cancelled = false;
     (async () => {
       try {
+        setMissingRateEmployeeIds([]);
         const periodDoc = await getPayrollPeriodById(selectedPeriodId);
         if (!periodDoc || cancelled) return;
-        const result = await syncMonthlyMissedWorkDeductions({
+        const semiPeriod: SemiMonthlyPeriod = {
           periodId: periodDoc.id,
           workPeriodStart: toDate(periodDoc.periodStart),
           workPeriodEnd: toDate(periodDoc.periodEnd),
           payDate: toDate(periodDoc.payDate),
-        });
+        };
+        const result = await syncMonthlyMissedWorkDeductions(semiPeriod);
         if (cancelled) return;
         if (result.created > 0 || result.removed > 0) {
           await recalcPayrollPeriodTotals(periodDoc.id);
         }
+        const missingIds = await findMissingRateEmployeeIdsForPeriod(semiPeriod);
+        if (cancelled) return;
+        setMissingRateEmployeeIds(missingIds);
       } catch (error) {
         console.error('Failed to sync missed-day deductions:', error);
       }
@@ -194,7 +203,9 @@ export default function PayrollDashboard() {
   }, [selectedPeriodId]);
 
   useEffect(() => {
-    const employeeIds = Array.from(new Set(entries.map((entry) => entry.employeeId)));
+    const employeeIds = Array.from(
+      new Set([...entries.map((entry) => entry.employeeId), ...missingRateEmployeeIds]),
+    );
     if (!employeeIds.length) {
       setEmployeeNames({});
       return;
@@ -216,7 +227,7 @@ export default function PayrollDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [entries]);
+  }, [entries, missingRateEmployeeIds]);
 
   const computedTotals = useMemo(() => {
     let gross = 0;
@@ -268,6 +279,11 @@ export default function PayrollDashboard() {
     return Array.from(byEmployee.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [entries, employeeNames]);
 
+  const missingRateNames = useMemo(
+    () => missingRateEmployeeIds.map((id) => employeeNames[id] || id),
+    [missingRateEmployeeIds, employeeNames],
+  );
+
   async function refreshPeriodOptions(focusId?: string) {
     try {
       const results = await listPayrollPeriods(24);
@@ -294,6 +310,58 @@ export default function PayrollDashboard() {
       ...prev,
       [employeeId]: !prev[employeeId],
     }));
+  }
+
+  async function refreshMissingRatesForPeriodId(periodId: string) {
+    const periodDoc = await getPayrollPeriodById(periodId);
+    if (!periodDoc) return;
+    const semiPeriod: SemiMonthlyPeriod = {
+      periodId: periodDoc.id,
+      workPeriodStart: toDate(periodDoc.periodStart),
+      workPeriodEnd: toDate(periodDoc.periodEnd),
+      payDate: toDate(periodDoc.payDate),
+    };
+    const missing = await findMissingRateEmployeeIdsForPeriod(semiPeriod);
+    setMissingRateEmployeeIds(missing);
+  }
+
+  async function handleSyncCompletedJobs() {
+    if (!selectedPeriodId || syncingPeriod) return;
+    try {
+      setSyncingPeriod(true);
+      const result = await syncPayrollEntriesForPeriod(selectedPeriodId);
+      await refreshPeriodOptions(selectedPeriodId);
+      await refreshMissingRatesForPeriodId(selectedPeriodId);
+
+      const summaryParts = [
+        `${result.createdEntries} entries created`,
+        `${result.skippedJobs} jobs skipped`,
+      ];
+      if (result.missingRateEmployeeIds.length) {
+        summaryParts.push(`${result.missingRateEmployeeIds.length} employees missing rates`);
+      }
+      if (result.errors.length) {
+        summaryParts.push(`${result.errors.length} jobs failed`);
+      }
+
+      show({
+        type: result.errors.length ? 'warning' : 'success',
+        message: `Payroll sync processed ${result.processedJobs} jobs (${summaryParts.join(
+          ', ',
+        )}).`,
+      });
+    } catch (error) {
+      console.error('Failed to sync payroll entries:', error);
+      show({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to sync payroll entries for this period.',
+      });
+    } finally {
+      setSyncingPeriod(false);
+    }
   }
 
   async function handleAddDeductionSubmit() {
@@ -363,6 +431,13 @@ export default function PayrollDashboard() {
 
   async function handleFinalizePeriod() {
     if (!selectedPeriodId || !canFinalize || finalizing) return;
+    if (missingRateEmployeeIds.length > 0) {
+      show({
+        type: 'error',
+        message: 'Add missing pay rates before finalizing this payroll period.',
+      });
+      return;
+    }
     const periodLabel = activePeriod
       ? `${formatDateRange(activePeriod.periodStart, activePeriod.periodEnd)}`
       : 'this pay period';
@@ -454,6 +529,13 @@ export default function PayrollDashboard() {
           >
             Refresh Periods
           </button>
+          <button
+            className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={handleSyncCompletedJobs}
+            disabled={syncingPeriod || !selectedPeriodId}
+          >
+            {syncingPeriod ? 'Syncing…' : 'Sync Completed Jobs'}
+          </button>
           {canFinalize && (
             <button
               className={`rounded-md px-3 py-2 text-sm font-medium text-white ${
@@ -464,13 +546,25 @@ export default function PayrollDashboard() {
                   : 'bg-purple-600 hover:bg-purple-700'
               }`}
               onClick={handleFinalizePeriod}
-              disabled={finalizing || isFinalized}
+              disabled={finalizing || isFinalized || missingRateEmployeeIds.length > 0}
+              title={
+                missingRateEmployeeIds.length > 0
+                  ? 'Add missing pay rates before finalizing this payroll period.'
+                  : undefined
+              }
             >
               {isFinalized ? 'Finalized' : finalizing ? 'Finalizing…' : 'Finalize Period'}
             </button>
           )}
         </div>
       </div>
+
+      {missingRateEmployeeIds.length > 0 && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          <span className="font-medium">Action required:</span>{' '}
+          {`Add pay rates for ${missingRateNames.join(', ')} before payroll can be finalized.`}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="card-bg rounded-lg border border-zinc-200 p-4 shadow-sm dark:border-zinc-700">
@@ -492,6 +586,10 @@ export default function PayrollDashboard() {
           </div>
           {isFinalized ? (
             <div className="mt-2 text-xs font-medium text-emerald-600">Finalized</div>
+          ) : missingRateEmployeeIds.length > 0 ? (
+            <div className="mt-2 text-xs text-amber-600">
+              Fix missing pay rates to enable finalization.
+            </div>
           ) : (
             <div className="mt-2 text-xs text-zinc-500">
               Period open. Adjustments are still allowed.
