@@ -32,12 +32,15 @@ import { ChevronLeft, ChevronRight, X, ArrowRight } from 'lucide-react';
 
 type JobRecord = {
   id: string;
-  serviceDate?: any;
-  clientProfileId?: string;
-  locationId?: string;
+  serviceDate?: Timestamp | Date | null;
+  clientProfileId?: string | null;
+  locationId?: string | null;
   assignedEmployees?: string[];
-  status?: string;
-  statusV2?: CanonicalStatus;
+  status?: string | null;
+  statusV2?: CanonicalStatus | null;
+  approvedAt?: Timestamp | Date | null;
+  approvedBy?: string | null;
+  [key: string]: unknown;
 };
 
 type Note = {
@@ -341,14 +344,18 @@ export default function JobModal({
     if (!job || !job.id) return;
     if (!getApps().length) initializeApp(firebaseConfig);
     const db = getFirestore();
-    const payload: any = {};
-    if (Array.isArray(updated.assignedEmployees))
-      payload.assignedEmployees = updated.assignedEmployees;
-    if (updated.serviceDate instanceof Date)
+    const payload: Partial<JobRecord> & Record<string, unknown> = {};
+    if (Array.isArray(updated.assignedEmployees)) {
+      payload.assignedEmployees = [...updated.assignedEmployees];
+    }
+    if (updated.serviceDate instanceof Date) {
       payload.serviceDate = Timestamp.fromDate(updated.serviceDate);
-    if ((updated as any).statusV2) payload.statusV2 = (updated as any).statusV2;
+    }
+    if ('statusV2' in updated) {
+      payload.statusV2 = updated.statusV2 ?? null;
+    }
     await updateDoc(doc(db, 'serviceHistory', job.id), payload);
-    setJob((prev) => (prev ? { ...prev, ...payload } : prev));
+    setJob((prev) => (prev ? ({ ...prev, ...payload } as JobRecord) : prev));
   }
 
   async function saveAdminNotes() {
@@ -489,7 +496,7 @@ export default function JobModal({
             return;
           }
         }
-        const payload: any = {};
+        const payload: Record<string, unknown> = {};
         if (statusChanged) payload.status = statusLegacy || null;
         if (shouldSetApprovalTimestamp) {
           payload.approvedAt = serverTimestamp();
@@ -518,10 +525,10 @@ export default function JobModal({
       if (statusChanged || anyBecameVisible) {
         setJob((prev) =>
           prev
-            ? {
+            ? ({
                 ...prev,
                 status: statusLegacy || prev.status,
-              }
+              } as JobRecord)
             : prev,
         );
 
@@ -572,7 +579,7 @@ export default function JobModal({
             }
           } catch (error) {
             console.error('Failed to run post-completion payroll updates:', error);
-            const rollbackPayload: Record<string, any> = {
+            const rollbackPayload: Record<string, unknown> = {
               status: prevStatus || null,
             };
             if (prevApprovedAt !== undefined) {
@@ -610,10 +617,10 @@ export default function JobModal({
             setStatusLegacy(prevStatus);
             setJob((prevJob) => {
               if (!prevJob) return prevJob;
-              const next: Record<string, any> = {
+              const next: JobRecord & Record<string, unknown> = {
                 ...prevJob,
                 status: prevStatus || prevJob.status,
-              };
+              } as JobRecord & Record<string, unknown>;
               if (prevApprovedAt !== undefined) {
                 next.approvedAt = prevApprovedAt;
               } else {
@@ -660,7 +667,7 @@ export default function JobModal({
         serviceHistoryId: job.id,
       });
       setPhotos((prev) =>
-        prev.map((p) => (p.id === job.id ? { ...p, serviceHistoryId: job.id } : p)),
+        prev.map((p) => (p.id === photoId ? { ...p, serviceHistoryId: job.id } : p)),
       );
       show({ type: 'success', message: 'Photo attached to this job.' });
     } catch (e: any) {

@@ -372,7 +372,7 @@ export default function PayrollDashboard() {
       }
 
       show({
-        type: result.errors.length ? 'warning' : 'success',
+        type: result.errors.length ? 'error' : 'success',
         message: `Payroll sync processed ${result.processedJobs} jobs (${summaryParts.join(
           ', ',
         )}).`,
