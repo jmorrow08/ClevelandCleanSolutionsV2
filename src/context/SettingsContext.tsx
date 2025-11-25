@@ -1,13 +1,6 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { getFirestoreInstance } from "../services/firebase";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { getFirestoreInstance } from '../services/firebase';
 
 export type OrgSettings = {
   arTermsDays?: number;
@@ -28,7 +21,7 @@ export type OrgSettings = {
     faviconDataUrl?: string;
   };
   payrollCycle?: {
-    frequency?: "weekly" | "biweekly" | "monthly";
+    frequency?: 'weekly' | 'biweekly' | 'monthly';
     // Historic compatibility field; prefer the explicit anchors below
     anchor?: any;
     // Weekly: 0=Sun .. 6=Sat
@@ -37,6 +30,10 @@ export type OrgSettings = {
     anchorDayOfMonth?: number;
     // Biweekly: a known period start date to align 14-day windows
     anchorDate?: any;
+  };
+  payroll?: {
+    payDates?: number[];
+    arrearsPeriods?: number;
   };
   socialLinks?: {
     facebook?: string;
@@ -71,10 +68,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   async function refresh() {
     const db = getFirestoreInstance();
     // Prefer appSettings (public read). Fall back to settings/org if present.
-    let snap = await getDoc(doc(db, "appSettings", "org"));
+    let snap = await getDoc(doc(db, 'appSettings', 'org'));
     if (!snap.exists()) {
       try {
-        snap = await getDoc(doc(db, "settings", "org"));
+        snap = await getDoc(doc(db, 'settings', 'org'));
       } catch (_) {
         // ignore; keep empty settings
       }
@@ -82,20 +79,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     // Optional: separate company profile doc for invoice header/branding
     let companySnap: any = null;
     try {
-      companySnap = await getDoc(doc(db, "appSettings", "company"));
+      companySnap = await getDoc(doc(db, 'appSettings', 'company'));
     } catch (_) {
       companySnap = null;
     }
     const raw = (snap.data() as any) ?? {};
-    const company =
-      (companySnap && companySnap.exists()
-        ? (companySnap.data() as any)
-        : {}) || {};
+    const company = (companySnap && companySnap.exists() ? (companySnap.data() as any) : {}) || {};
     const ar =
-      (typeof raw.arTermsDays === "number" ? raw.arTermsDays : undefined) ??
-      (typeof raw.billingTermsDays === "number"
-        ? raw.billingTermsDays
-        : undefined);
+      (typeof raw.arTermsDays === 'number' ? raw.arTermsDays : undefined) ??
+      (typeof raw.billingTermsDays === 'number' ? raw.billingTermsDays : undefined);
     const normalized: OrgSettings = {
       ...raw,
       arTermsDays: ar,
@@ -109,9 +101,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         faviconDataUrl: company.faviconDataUrl || undefined,
       },
       payrollCycle:
-        typeof raw.payrollCycle === "string"
+        typeof raw.payrollCycle === 'string'
           ? { frequency: raw.payrollCycle }
           : raw.payrollCycle ?? {},
+      payroll: {
+        payDates:
+          Array.isArray(raw.payroll?.payDates) && raw.payroll.payDates.length
+            ? raw.payroll.payDates
+            : [1, 15],
+        arrearsPeriods:
+          typeof raw.payroll?.arrearsPeriods === 'number' ? raw.payroll.arrearsPeriods : 1,
+      },
       socialLinks: raw.socialLinks ?? {},
     };
     setSettings(normalized);
@@ -129,20 +129,32 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       };
       // Keep alias fields in sync in state for consumers (e.g., ARAgingTab)
       const ar =
-        typeof partial.arTermsDays === "number"
+        typeof partial.arTermsDays === 'number'
           ? partial.arTermsDays
-          : typeof partial.billingTermsDays === "number"
+          : typeof partial.billingTermsDays === 'number'
           ? partial.billingTermsDays
           : next.arTermsDays ?? next.billingTermsDays;
-      if (typeof ar === "number") {
+      if (typeof ar === 'number') {
         next.arTermsDays = ar;
         next.billingTermsDays = ar;
       }
       // Normalize payrollCycle: allow string or object
       if (partial.payrollCycle) {
         const pc = partial.payrollCycle as any;
-        next.payrollCycle =
-          typeof pc === "string" ? { frequency: pc } : { ...pc };
+        next.payrollCycle = typeof pc === 'string' ? { frequency: pc } : { ...pc };
+      }
+      if (partial.payroll) {
+        const payrollPartial = partial.payroll;
+        next.payroll = {
+          payDates:
+            Array.isArray(payrollPartial?.payDates) && payrollPartial?.payDates?.length
+              ? payrollPartial.payDates
+              : next.payroll?.payDates ?? [1, 15],
+          arrearsPeriods:
+            typeof payrollPartial?.arrearsPeriods === 'number'
+              ? payrollPartial.arrearsPeriods
+              : next.payroll?.arrearsPeriods ?? 1,
+        };
       }
       return next;
     });
@@ -150,38 +162,46 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     // Prepare payload to persist; keep both aliases for back-compat
     const payload: any = { ...partial };
     const arPersist =
-      typeof partial.arTermsDays === "number"
+      typeof partial.arTermsDays === 'number'
         ? partial.arTermsDays
-        : typeof partial.billingTermsDays === "number"
+        : typeof partial.billingTermsDays === 'number'
         ? partial.billingTermsDays
         : undefined;
-    if (typeof arPersist === "number") {
+    if (typeof arPersist === 'number') {
       payload.arTermsDays = arPersist;
       payload.billingTermsDays = arPersist;
     }
     if (partial.payrollCycle) {
       const pc = partial.payrollCycle as any;
-      payload.payrollCycle =
-        typeof pc === "string" ? { frequency: pc } : { ...pc };
+      payload.payrollCycle = typeof pc === 'string' ? { frequency: pc } : { ...pc };
+    }
+    if (partial.payroll) {
+      const payrollPartial = partial.payroll;
+      const payrollPayload: Record<string, unknown> = {};
+      if (Array.isArray(payrollPartial?.payDates) && payrollPartial.payDates.length) {
+        payrollPayload.payDates = payrollPartial.payDates;
+      }
+      if (typeof payrollPartial?.arrearsPeriods === 'number') {
+        payrollPayload.arrearsPeriods = payrollPartial.arrearsPeriods;
+      }
+      if (Object.keys(payrollPayload).length > 0) {
+        payload.payroll = payrollPayload;
+      }
     }
 
     // Save to appSettings/org for org settings
-    const orgRef = doc(db, "appSettings", "org");
+    const orgRef = doc(db, 'appSettings', 'org');
     await setDoc(orgRef, payload, { merge: true });
 
     // If company settings are being updated, also save to appSettings/company for compatibility
     if (partial.companyProfile) {
-      const companyRef = doc(db, "appSettings", "company");
+      const companyRef = doc(db, 'appSettings', 'company');
       await setDoc(companyRef, partial.companyProfile, { merge: true });
     }
   }
 
   const value = useMemo(() => ({ settings, refresh, save }), [settings]);
-  return (
-    <SettingsContext.Provider value={value}>
-      {children}
-    </SettingsContext.Provider>
-  );
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 
 export function useSettings() {

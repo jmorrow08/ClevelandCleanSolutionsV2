@@ -438,12 +438,15 @@ export default function JobDetail() {
         // Auto-update timesheet earnings when job is completed
         if (statusLegacy === 'Completed') {
           try {
-            const { updateTimesheetEarningsOnJobCompletion } = await import(
-              '../../services/automation/timesheetAutomation'
-            );
+            const [{ updateTimesheetEarningsOnJobCompletion }, { createPayrollEntriesForJob }] =
+              await Promise.all([
+                import('../../services/automation/timesheetAutomation'),
+                import('../../services/payroll/payrollService'),
+              ]);
             await updateTimesheetEarningsOnJobCompletion(jobId!);
+            await createPayrollEntriesForJob(jobId!);
           } catch (error) {
-            console.error('Failed to update timesheet earnings:', error);
+            console.error('Failed to run post-completion payroll updates:', error);
           }
         }
       }
