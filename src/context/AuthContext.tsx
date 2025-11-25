@@ -27,6 +27,42 @@ import { getRole } from "@/auth/claims";
 
 type Claims = Record<string, any>;
 
+type ProfileCache = { uid: string; profileId: string };
+const PROFILE_CACHE_KEY = "auth-profile-cache";
+
+function readCachedProfileId(uid?: string | null): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(PROFILE_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ProfileCache>;
+    if (
+      !parsed ||
+      typeof parsed.uid !== "string" ||
+      typeof parsed.profileId !== "string"
+    ) {
+      return null;
+    }
+    if (uid && parsed.uid !== uid) return null;
+    return parsed.profileId;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedProfileId(cache: ProfileCache | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (cache?.uid && cache?.profileId) {
+      window.localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(cache));
+    } else {
+      window.localStorage.removeItem(PROFILE_CACHE_KEY);
+    }
+  } catch {
+    // Ignore storage errors (incognito or disabled cookies)
+  }
+}
+
 function normalizeClaims(
   rawClaims: Claims | null,
   fallbackRole?: string | null
@@ -59,7 +95,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [claims, setClaims] = useState<Claims | null>(null);
-  const [profileId, setProfileId] = useState<string | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(() =>
+    readCachedProfileId()
+  );
 
   useEffect(() => {
     // Ensure Firebase app is initialized once
@@ -90,17 +128,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const token = await getIdTokenResult(u, true);
         const db = getFirestore();
         let userDocData: Record<string, unknown> | null = null;
+        let profileFromDoc: string | null = null;
+        let docReadError = false;
         try {
           const snap = await getDoc(doc(db, "users", u.uid));
-          userDocData = (snap.data() as any) || null;
+          if (snap.exists()) {
+            userDocData = (snap.data() as any) || null;
+            const rawProfileId = (userDocData as any)?.profileId;
+            profileFromDoc =
+              typeof rawProfileId === "string" && rawProfileId.trim()
+                ? rawProfileId.trim()
+                : null;
+          } else {
+            userDocData = null;
+          }
         } catch {
+          docReadError = true;
           userDocData = null;
         }
-        const profileFromDoc =
-          typeof userDocData?.profileId === "string"
-            ? (userDocData.profileId as string)
+        const profileFromClaims =
+          typeof (token.claims as any)?.profileId === "string" &&
+          (token.claims as any)?.profileId?.trim()
+            ? ((token.claims as any).profileId as string).trim()
             : null;
-        setProfileId(profileFromDoc);
+        const cachedProfileId = readCachedProfileId(u.uid);
+        const resolvedProfileId =
+          profileFromDoc ??
+          profileFromClaims ??
+          (docReadError ? cachedProfileId : null);
+        setProfileId(resolvedProfileId);
+        if (resolvedProfileId) {
+          writeCachedProfileId({ uid: u.uid, profileId: resolvedProfileId });
+        } else if (!docReadError) {
+          writeCachedProfileId(null);
+        }
         const normalized = normalizeClaims(
           token.claims as Claims,
           (userDocData?.role as string) || null
@@ -109,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setClaims(null);
         setProfileId(null);
+        writeCachedProfileId(null);
       }
       setLoading(false);
     });

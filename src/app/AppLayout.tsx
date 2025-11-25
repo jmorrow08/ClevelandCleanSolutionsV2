@@ -388,7 +388,7 @@ function Topbar({
 }
 
 export default function AppLayout() {
-  const { claims, profileId } = useAuth();
+  const { claims, profileId, loading } = useAuth();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -414,18 +414,20 @@ export default function AppLayout() {
   const isAdminOrAbove = isSuperAdmin || isOwner || isAdmin;
   const hasEmployeeProfile = Boolean(profileId);
   const canUseEmployeeView =
-    !isSuperAdmin && hasEmployeeProfile && (isOwner || isAdmin);
+    !loading && !isSuperAdmin && hasEmployeeProfile && (isOwner || isAdmin);
   const employeeViewPreferred =
     canUseEmployeeView && portalMode === "employee";
   const showPortalToggle = canUseEmployeeView;
 
   useEffect(() => {
+    if (loading) return;
     if (!canUseEmployeeView && portalMode !== "admin") {
       setPortalMode("admin");
     }
-  }, [canUseEmployeeView, portalMode]);
+  }, [loading, canUseEmployeeView, portalMode]);
 
   useEffect(() => {
+    if (loading) return;
     if (!canUseEmployeeView) {
       window.localStorage.removeItem(PORTAL_MODE_KEY);
       window.localStorage.removeItem(LEGACY_PORTAL_MODE_KEY);
@@ -433,7 +435,7 @@ export default function AppLayout() {
     }
     window.localStorage.setItem(PORTAL_MODE_KEY, portalMode);
     window.localStorage.removeItem(LEGACY_PORTAL_MODE_KEY);
-  }, [portalMode, canUseEmployeeView]);
+  }, [loading, portalMode, canUseEmployeeView]);
 
   const handlePortalModeChange = (mode: PortalMode) => {
     if (mode === portalMode) return;
