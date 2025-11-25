@@ -523,14 +523,28 @@ export default function JobModal({
         }),
       );
       if (statusChanged || anyBecameVisible) {
-        setJob((prev) =>
-          prev
-            ? ({
-                ...prev,
-                status: statusLegacy || prev.status,
-              } as JobRecord)
-            : prev,
-        );
+        setJob((prev) => {
+          if (!prev) return prev;
+          const next: JobRecord & Record<string, unknown> = {
+            ...prev,
+            status: statusLegacy || prev.status,
+          } as JobRecord & Record<string, unknown>;
+          if (shouldSetApprovalTimestamp) {
+            next.approvedAt = Timestamp.now();
+          } else if (prevApprovedAt !== undefined) {
+            next.approvedAt = prevApprovedAt;
+          } else {
+            delete next.approvedAt;
+          }
+          if (shouldSetApprovalActor) {
+            next.approvedBy = auth.currentUser?.uid || null;
+          } else if (prevApprovedBy !== undefined) {
+            next.approvedBy = prevApprovedBy;
+          } else {
+            delete next.approvedBy;
+          }
+          return next;
+        });
 
         // Auto-update timesheet earnings and payroll entries when job transitions to completed
         if (isTransitionToCompleted) {
