@@ -205,13 +205,22 @@ export default function PayrollDashboard() {
     if (!selectedPeriodId) return;
 
     setLoading(true);
+    let periodLoaded = false;
+    let entriesLoaded = false;
+    const maybeFinishLoading = () => {
+      if (periodLoaded && entriesLoaded) {
+        setLoading(false);
+      }
+    };
     const unsubscribePeriod = listenToPayrollPeriod(selectedPeriodId, (period) => {
       setActivePeriod(period);
-      setLoading(false);
+      periodLoaded = true;
+      maybeFinishLoading();
     });
     const unsubscribeEntries = listenToPayrollEntries(selectedPeriodId, (nextEntries) => {
       setEntries(nextEntries);
-      setLoading(false);
+      entriesLoaded = true;
+      maybeFinishLoading();
     });
 
     return () => {

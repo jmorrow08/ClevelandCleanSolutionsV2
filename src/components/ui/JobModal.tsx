@@ -16,6 +16,7 @@ import {
   Timestamp,
   writeBatch,
   limit,
+  deleteField,
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { firebaseConfig } from '../../services/firebase';
@@ -405,6 +406,11 @@ export default function JobModal({
     if (!job?.id || !job) return;
     const prevState = photoState;
     const prevStatus = job.status || '';
+    const hadApprovedAt = job ? Object.prototype.hasOwnProperty.call(job, 'approvedAt') : false;
+    const hadApprovedBy = job ? Object.prototype.hasOwnProperty.call(job, 'approvedBy') : false;
+    const prevApprovedAt = hadApprovedAt ? (job as any).approvedAt ?? null : undefined;
+    const prevApprovedBy = hadApprovedBy ? (job as any).approvedBy ?? null : undefined;
+
     try {
       setSavingApproval(true);
       if (!getApps().length) initializeApp(firebaseConfig);
@@ -514,6 +520,43 @@ export default function JobModal({
             await createPayrollEntriesForJob(job.id!);
           } catch (error) {
             console.error('Failed to run post-completion payroll updates:', error);
+            const rollbackPayload: Record<string, any> = {
+              status: prevStatus || null,
+            };
+            if (prevApprovedAt !== undefined) {
+              rollbackPayload.approvedAt = prevApprovedAt;
+            } else {
+              rollbackPayload.approvedAt = deleteField();
+            }
+            if (prevApprovedBy !== undefined) {
+              rollbackPayload.approvedBy = prevApprovedBy;
+            } else {
+              rollbackPayload.approvedBy = deleteField();
+            }
+            try {
+              await updateDoc(doc(db, 'serviceHistory', job.id), rollbackPayload);
+            } catch (rollbackError) {
+              console.error('Failed to rollback job completion state:', rollbackError);
+            }
+            setStatusLegacy(prevStatus);
+            setJob((prevJob) => {
+              if (!prevJob) return prevJob;
+              const next: Record<string, any> = {
+                ...prevJob,
+                status: prevStatus || prevJob.status,
+              };
+              if (prevApprovedAt !== undefined) {
+                next.approvedAt = prevApprovedAt;
+              } else {
+                delete next.approvedAt;
+              }
+              if (prevApprovedBy !== undefined) {
+                next.approvedBy = prevApprovedBy;
+              } else {
+                delete next.approvedBy;
+              }
+              return next;
+            });
             show({
               type: 'error',
               message:
