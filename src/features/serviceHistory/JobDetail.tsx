@@ -370,6 +370,7 @@ export default function JobDetail() {
   async function saveApproval() {
     if (!jobId || !job) return;
     const prevState = photoState;
+    const prevPhotos = photos.map((p) => ({ ...p }));
     const prevStatus = job.status || '';
     const hadApprovedAt = job ? Object.prototype.hasOwnProperty.call(job, 'approvedAt') : false;
     const hadApprovedBy = job ? Object.prototype.hasOwnProperty.call(job, 'approvedBy') : false;
@@ -385,6 +386,7 @@ export default function JobDetail() {
       const batch = writeBatch(db);
 
       let anyBecameVisible = false;
+      const photoRollbackPayloads: Array<{ id: string; payload: Record<string, any> }> = [];
       // Prepare photo updates
       for (const p of photos) {
         const originalVisible = !!(p as any).isClientVisible;
@@ -402,6 +404,13 @@ export default function JobDetail() {
           if (visChanged) payload.isClientVisible = nextVisible;
           if (notesChanged) payload.notes = current.notes ?? null;
           batch.update(doc(db, 'servicePhotos', p.id), payload);
+
+          const rollbackPayload: Record<string, any> = {};
+          if (visChanged) rollbackPayload.isClientVisible = originalVisible;
+          if (notesChanged) {
+            rollbackPayload.notes = notesFieldExists[p.id] ? p.notes ?? null : deleteField();
+          }
+          photoRollbackPayloads.push({ id: p.id, payload: rollbackPayload });
         }
         if (!originalVisible && nextVisible) anyBecameVisible = true;
       }
@@ -487,6 +496,25 @@ export default function JobDetail() {
             try {
               await createPayrollEntriesForJob(jobId!);
             } catch (payrollError) {
+              if (photoRollbackPayloads.length) {
+                try {
+                  const photoRollbackBatch = writeBatch(db);
+                  for (const rollback of photoRollbackPayloads) {
+                    photoRollbackBatch.update(
+                      doc(db, 'servicePhotos', rollback.id),
+                      rollback.payload,
+                    );
+                  }
+                  await photoRollbackBatch.commit();
+                } catch (photoRollbackError) {
+                  console.error(
+                    'Failed to rollback photo approvals after payroll entry failure:',
+                    photoRollbackError,
+                  );
+                }
+              }
+              setPhotoState(prevState);
+              setPhotos(prevPhotos);
               if (timesheetResult.timesheetIds?.length) {
                 try {
                   await rollbackTimesheetEarningsOnJobCompletion(timesheetResult.timesheetIds);
@@ -519,6 +547,23 @@ export default function JobDetail() {
             } catch (rollbackError) {
               console.error('Failed to rollback job completion state:', rollbackError);
             }
+            if (photoRollbackPayloads.length) {
+              try {
+                const photoRollbackBatch = writeBatch(db);
+                for (const rollback of photoRollbackPayloads) {
+                  photoRollbackBatch.update(
+                    doc(db, 'servicePhotos', rollback.id),
+                    rollback.payload,
+                  );
+                }
+                await photoRollbackBatch.commit();
+              } catch (photoRollbackError) {
+                console.error(
+                  'Failed to rollback photo approvals after job state rollback:',
+                  photoRollbackError,
+                );
+              }
+            }
             setStatusLegacy(prevStatus);
             setJob((prevJob) => {
               if (!prevJob) return prevJob;
@@ -538,6 +583,8 @@ export default function JobDetail() {
               }
               return next;
             });
+            setPhotos(prevPhotos);
+            setPhotoState(prevState);
             show({
               type: 'error',
               message:
@@ -553,6 +600,7 @@ export default function JobDetail() {
     } catch (e: any) {
       // Rollback UI
       setPhotoState(prevState);
+      setPhotos(prevPhotos);
       setStatusLegacy(prevStatus);
       show({ type: 'error', message: e?.message || 'Failed to save changes.' });
     } finally {
