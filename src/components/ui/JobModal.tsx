@@ -451,7 +451,7 @@ export default function JobModal({
                 type: 'error',
                 message: `Cannot complete job. Missing pay rates for: ${readableNames.join(', ')}.`,
               });
-              setStatusLegacy(prevStatus || statusLegacy || '');
+              setStatusLegacy(prevStatus);
               setSavingApproval(false);
               return;
             }
@@ -464,6 +464,7 @@ export default function JobModal({
                   ? error.message
                   : 'Unable to verify pay rates for this job. Try again later.',
             });
+            setStatusLegacy(prevStatus);
             setSavingApproval(false);
             return;
           }
