@@ -63,8 +63,8 @@ const router = createBrowserRouter([
         children: [
           { path: '/', element: <AdminDashboard /> },
           { path: '/finance', element: <FinanceHub /> },
-          { path: '/finance/payroll/:id', element: <PayrollRunDetail /> },
           { path: '/finance/payroll-prep', element: <FinanceHub /> },
+          { path: '/finance/payroll/:id', element: <PayrollRunDetail /> },
           { path: '/scheduling', element: <SchedulingPage /> },
           { path: '/scheduling/dispatch', element: <DispatchPage /> },
           { path: '/service-history', element: <ServiceHistoryPage /> },
