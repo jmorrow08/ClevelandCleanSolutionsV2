@@ -17,6 +17,7 @@ import {
   writeBatch,
   limit,
   deleteField,
+  FieldValue,
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { firebaseConfig } from '../../services/firebase';
@@ -28,6 +29,20 @@ import EmployeeAssignmentForm from './EmployeeAssignmentForm';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { makeDayBounds, mergePhotoResults } from '../../services/firebase';
+
+// Helper to safely convert Timestamp | Date | null to Date
+function toDate(value: Timestamp | Date | null | undefined): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof (value as Timestamp).toDate === 'function') {
+    return (value as Timestamp).toDate();
+  }
+  // Fallback for plain objects with seconds (e.g., from JSON)
+  if ((value as any)?.seconds) {
+    return new Date((value as any).seconds * 1000);
+  }
+  return null;
+}
 
 type JobRecord = {
   id: string;
@@ -136,11 +151,7 @@ export default function JobDetail() {
               serviceDateType: typeof j.serviceDate,
             });
 
-            const dt: Date = j.serviceDate?.toDate
-              ? j.serviceDate.toDate()
-              : (j.serviceDate as any)?.seconds
-              ? new Date((j.serviceDate as any).seconds * 1000)
-              : new Date();
+            const dt: Date = toDate(j.serviceDate) || new Date();
 
             console.log('🔍 DEBUG: Parsed service date:', dt);
 
@@ -234,11 +245,7 @@ export default function JobDetail() {
         }
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
-        const dt: Date = job.serviceDate?.toDate
-          ? job.serviceDate.toDate()
-          : (job.serviceDate as any)?.seconds
-          ? new Date((job.serviceDate as any).seconds * 1000)
-          : new Date();
+        const dt: Date = toDate(job.serviceDate) || new Date();
         const { start, end } = makeDayBoundsUtil(dt, 'America/New_York');
         const qref = query(
           collection(db, 'employeeTimeTracking'),
@@ -470,7 +477,10 @@ export default function JobDetail() {
           payload.approvedBy = auth.currentUser?.uid || null;
         }
         if (Object.keys(payload).length > 0) {
-          batch.update(doc(db, 'serviceHistory', jobId), payload);
+          batch.update(
+            doc(db, 'serviceHistory', jobId),
+            payload as { [x: string]: FieldValue | Partial<unknown> | undefined },
+          );
         }
       }
 
@@ -572,7 +582,10 @@ export default function JobDetail() {
               rollbackPayload.approvedBy = deleteField();
             }
             try {
-              await updateDoc(doc(db, 'serviceHistory', jobId), rollbackPayload);
+              await updateDoc(
+                doc(db, 'serviceHistory', jobId),
+                rollbackPayload as { [x: string]: FieldValue | Partial<unknown> | undefined },
+              );
             } catch (rollbackError) {
               console.error('Failed to rollback job completion state:', rollbackError);
             }
@@ -738,7 +751,7 @@ export default function JobDetail() {
               <div className="min-w-0">
                 <div className="font-medium truncate">{locationName || clientName || job.id}</div>
                 <div className="text-xs text-zinc-500 mt-0.5 truncate">
-                  {job.serviceDate?.toDate ? job.serviceDate.toDate().toLocaleDateString() : '—'}{' '}
+                  {toDate(job.serviceDate)?.toLocaleDateString() ?? '—'}{' '}
                   <span className="text-xs text-zinc-500">
                     {timeWindow || (job.serviceDate ? formatJobWindow(job.serviceDate) : '')}
                   </span>
@@ -803,9 +816,7 @@ export default function JobDetail() {
                         </div>
                         <div>
                           <span className="text-zinc-500">Service Date:</span>{' '}
-                          {job.serviceDate?.toDate
-                            ? job.serviceDate.toDate().toLocaleString()
-                            : '—'}
+                          {toDate(job.serviceDate)?.toLocaleString() ?? '—'}
                         </div>
                         <div>
                           <span className="text-zinc-500">Status:</span>{' '}
