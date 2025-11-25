@@ -64,6 +64,7 @@ export function getSemiMonthlyPeriodForPayDate(payDateInput: Date): SemiMonthlyP
   const day = payDate.getDate();
 
   if (day === 15) {
+    // Pay date of 15th => work period is 1st - 15th of same month
     const workPeriodStart = startOfDay(new Date(year, month, 1));
     const workPeriodEnd = endOfDay(new Date(year, month, 15));
     return {
@@ -74,19 +75,26 @@ export function getSemiMonthlyPeriodForPayDate(payDateInput: Date): SemiMonthlyP
     };
   }
 
-  // Pay date of 1 => work period is 16th - end of previous month
-  const prevMonth = new Date(year, month - 1, 1);
-  const prevYear = prevMonth.getFullYear();
-  const prevMonthIndex = prevMonth.getMonth();
-  const workPeriodStart = startOfDay(new Date(prevYear, prevMonthIndex, 16));
-  const workPeriodEnd = endOfDay(lastDayOfMonth(prevYear, prevMonthIndex));
+  if (day === 1) {
+    // Pay date of 1st => work period is 16th - end of previous month
+    const prevMonth = new Date(year, month - 1, 1);
+    const prevYear = prevMonth.getFullYear();
+    const prevMonthIndex = prevMonth.getMonth();
+    const workPeriodStart = startOfDay(new Date(prevYear, prevMonthIndex, 16));
+    const workPeriodEnd = endOfDay(lastDayOfMonth(prevYear, prevMonthIndex));
 
-  return {
-    periodId: toDateKey(payDate),
-    workPeriodStart,
-    workPeriodEnd,
-    payDate,
-  };
+    return {
+      periodId: toDateKey(payDate),
+      workPeriodStart,
+      workPeriodEnd,
+      payDate,
+    };
+  }
+
+  // Invalid pay date - semi-monthly periods only support 1st and 15th as pay dates
+  throw new Error(
+    `Invalid pay date: ${payDateInput.toISOString()}. Semi-monthly pay dates must be the 1st or 15th of the month.`,
+  );
 }
 
 export function getCurrentSemiMonthlyPeriod(referenceDate: Date = new Date()): SemiMonthlyPeriod {
