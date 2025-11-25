@@ -90,6 +90,22 @@ type FirestorePayrollPeriod = Omit<PayrollPeriod, 'id'>;
 type FirestorePayrollEntry = Omit<PayrollEntry, 'id'>;
 type JobData = Record<string, any> & { id: string };
 
+// Cache for owner lookups to avoid repeated reads per session
+const OWNER_ROLE_CACHE = new Map<string, boolean>();
+
+async function isOwnerEmployeeId(employeeId: string): Promise<boolean> {
+  if (!employeeId) return false;
+  if (OWNER_ROLE_CACHE.has(employeeId)) {
+    return OWNER_ROLE_CACHE.get(employeeId) as boolean;
+  }
+  const db = getFirestoreInstance();
+  const userRef = doc(db, 'users', employeeId);
+  const snap = await getDoc(userRef);
+  const isOwnerRole = snap.exists() && (snap.data() as any)?.role === 'owner';
+  OWNER_ROLE_CACHE.set(employeeId, isOwnerRole);
+  return isOwnerRole;
+}
+
 function storedPeriodToSemi(period: PayrollPeriod): SemiMonthlyPeriod {
   const toDate = (value: Timestamp | Date | string) =>
     value instanceof Timestamp ? value.toDate() : value instanceof Date ? value : new Date(value);
@@ -490,6 +506,11 @@ async function findMissingRateEmployeeIdsForJob(job: JobData): Promise<string[]>
   const rateCache = new Map<string, boolean>();
 
   for (const assignment of assignments) {
+    // Skip owner from payroll rate validation; owner may be assigned for compliance only.
+    if (await isOwnerEmployeeId(assignment.employeeId)) {
+      continue;
+    }
+
     const cacheKey = [
       assignment.employeeId,
       assignment.serviceDate.getTime(),
@@ -555,6 +576,11 @@ export async function createPayrollEntriesForJob(jobId: string) {
   let created = 0;
   let monthlyAssignmentsDetected = false;
   for (const assignment of assignments) {
+    // Skip owner from auto payroll entries; owner pay is handled manually.
+    if (await isOwnerEmployeeId(assignment.employeeId)) {
+      continue;
+    }
+
     const rateSnapshot = await getEffectiveRateSnapshot(
       assignment.employeeId,
       Timestamp.fromDate(assignment.serviceDate),
@@ -784,6 +810,11 @@ export async function syncMonthlyMissedWorkDeductions(
         : '';
 
     for (const assignment of assignments) {
+      // Skip owner from monthly salary and missed-day deductions; owner is off automated payroll.
+      if (await isOwnerEmployeeId(assignment.employeeId)) {
+        continue;
+      }
+
       const rateSnapshot = await getEffectiveRateSnapshot(
         assignment.employeeId,
         Timestamp.fromDate(assignment.serviceDate),

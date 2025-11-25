@@ -402,10 +402,11 @@ export default function JobDetail() {
 
       // Prepare job status update
       const statusChanged = (statusLegacy || '') !== prevStatus;
+      const isTransitionToCompleted = statusChanged && statusLegacy === 'Completed';
       if (statusChanged || anyBecameVisible) {
         const payload: any = {};
         if (statusChanged) payload.status = statusLegacy || null;
-        if (anyBecameVisible || statusLegacy === 'Completed') {
+        if (anyBecameVisible || isTransitionToCompleted) {
           payload.approvedAt = serverTimestamp();
           payload.approvedBy = auth.currentUser?.uid || null;
         }
@@ -435,8 +436,8 @@ export default function JobDetail() {
             : prev,
         );
 
-        // Auto-update timesheet earnings when job is completed
-        if (statusLegacy === 'Completed') {
+        // Auto-update timesheet earnings and payroll entries when job transitions to completed
+        if (isTransitionToCompleted) {
           try {
             const [{ updateTimesheetEarningsOnJobCompletion }, { createPayrollEntriesForJob }] =
               await Promise.all([
@@ -447,6 +448,14 @@ export default function JobDetail() {
             await createPayrollEntriesForJob(jobId!);
           } catch (error) {
             console.error('Failed to run post-completion payroll updates:', error);
+            show({
+              type: 'error',
+              message:
+                error instanceof Error
+                  ? error.message
+                  : 'Job marked completed, but payroll updates failed. Please review payroll.',
+            });
+            return;
           }
         }
       }

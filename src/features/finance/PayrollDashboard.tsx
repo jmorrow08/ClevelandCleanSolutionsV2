@@ -46,6 +46,11 @@ type OverrideModalState = null | {
   entry: PayrollEntry;
 };
 
+type EarningModalState = null | {
+  employeeId: string;
+  employeeName: string;
+};
+
 const DEDUCTION_CATEGORIES = [
   { value: 'missed_day', label: 'Missed Day (auto)' },
   { value: 'uniform', label: 'Uniform' },
@@ -53,6 +58,12 @@ const DEDUCTION_CATEGORIES = [
   { value: 'advance', label: 'Advance' },
   { value: 'manual_adjustment', label: 'Manual Adjustment' },
   { value: 'other', label: 'Other' },
+] as const;
+
+const EARNING_CATEGORIES = [
+  { value: 'monthly', label: 'Monthly / Salary / Owner Draw' },
+  { value: 'per_visit', label: 'Per-Visit' },
+  { value: 'hourly', label: 'Hourly' },
 ] as const;
 
 function toDate(value: Timestamp | Date | string | undefined | null): Date {
@@ -117,6 +128,13 @@ export default function PayrollDashboard() {
   const [overrideForm, setOverrideForm] = useState({
     amount: '',
     reason: '',
+    saving: false,
+  });
+  const [earningModal, setEarningModal] = useState<EarningModalState>(null);
+  const [earningForm, setEarningForm] = useState({
+    amount: '',
+    category: 'monthly',
+    note: '',
     saving: false,
   });
   const [finalizing, setFinalizing] = useState(false);
@@ -400,6 +418,42 @@ export default function PayrollDashboard() {
     }
   }
 
+  async function handleAddEarningSubmit() {
+    if (!earningModal || !selectedPeriodId) return;
+    const amountValue = Number(earningForm.amount);
+    if (!Number.isFinite(amountValue) || amountValue <= 0) {
+      show({ type: 'error', message: 'Enter a valid earning amount.' });
+      return;
+    }
+
+    setEarningForm((prev) => ({ ...prev, saving: true }));
+    try {
+      await addPayrollEntry({
+        periodId: selectedPeriodId,
+        employeeId: earningModal.employeeId,
+        type: 'earning',
+        category: earningForm.category as PayrollEntry['category'],
+        amount: amountValue,
+        description: earningForm.note || undefined,
+      });
+      setEarningModal(null);
+      setEarningForm({
+        amount: '',
+        category: 'monthly',
+        note: '',
+        saving: false,
+      });
+      show({ type: 'success', message: 'Earning added.' });
+    } catch (error) {
+      console.error('Failed to add earning:', error);
+      show({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to add earning.',
+      });
+      setEarningForm((prev) => ({ ...prev, saving: false }));
+    }
+  }
+
   async function handleOverrideSubmit() {
     if (!overrideModal || !selectedPeriodId) return;
     const amountValue = Number(overrideForm.amount);
@@ -477,6 +531,16 @@ export default function PayrollDashboard() {
       saving: false,
     });
     setDeductionModal({ employeeId, employeeName });
+  }
+
+  function openEarningModal(employeeId: string, employeeName: string) {
+    setEarningForm({
+      amount: '',
+      category: 'monthly',
+      note: '',
+      saving: false,
+    });
+    setEarningModal({ employeeId, employeeName });
   }
 
   function openOverrideModal(employeeId: string, employeeName: string, entry: PayrollEntry) {
@@ -626,12 +690,20 @@ export default function PayrollDashboard() {
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {canEdit && !isFinalized && (
-                      <button
-                        className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                        onClick={() => openDeductionModal(summary.employeeId, summary.name)}
-                      >
-                        Add Deduction
-                      </button>
+                      <>
+                        <button
+                          className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                          onClick={() => openEarningModal(summary.employeeId, summary.name)}
+                        >
+                          Add Earning
+                        </button>
+                        <button
+                          className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                          onClick={() => openDeductionModal(summary.employeeId, summary.name)}
+                        >
+                          Add Deduction
+                        </button>
+                      </>
                     )}
                     <button
                       className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
@@ -795,6 +867,84 @@ export default function PayrollDashboard() {
                 disabled={deductionForm.saving}
               >
                 {deductionForm.saving ? 'Saving…' : 'Add Deduction'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Earning Modal */}
+      {earningModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-zinc-900">
+            <h2 className="text-lg font-semibold">Add Earning • {earningModal.employeeName}</h2>
+            <div className="mt-4 space-y-3">
+              <label className="block text-sm font-medium">
+                Amount
+                <input
+                  type="number"
+                  step="0.01"
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+                  value={earningForm.amount}
+                  onChange={(event) =>
+                    setEarningForm((prev) => ({
+                      ...prev,
+                      amount: event.target.value,
+                    }))
+                  }
+                  disabled={earningForm.saving}
+                />
+              </label>
+              <label className="block text-sm font-medium">
+                Category
+                <select
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+                  value={earningForm.category}
+                  onChange={(event) =>
+                    setEarningForm((prev) => ({
+                      ...prev,
+                      category: event.target.value,
+                    }))
+                  }
+                  disabled={earningForm.saving}
+                >
+                  {EARNING_CATEGORIES.map((category) => (
+                    <option key={category.value} value={category.value}>
+                      {category.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm font-medium">
+                Description / Notes
+                <textarea
+                  className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                  rows={3}
+                  value={earningForm.note}
+                  onChange={(event) =>
+                    setEarningForm((prev) => ({
+                      ...prev,
+                      note: event.target.value,
+                    }))
+                  }
+                  disabled={earningForm.saving}
+                />
+              </label>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                onClick={() => setEarningModal(null)}
+                disabled={earningForm.saving}
+              >
+                Cancel
+              </button>
+              <button
+                className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                onClick={handleAddEarningSubmit}
+                disabled={earningForm.saving}
+              >
+                {earningForm.saving ? 'Saving…' : 'Add Earning'}
               </button>
             </div>
           </div>
