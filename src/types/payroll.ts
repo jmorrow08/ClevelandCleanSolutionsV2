@@ -16,6 +16,7 @@ export type PayrollPeriod = {
   status: PayrollPeriodStatus;
   totals: PayrollPeriodTotals;
   createdAt: Timestamp;
+  updatedAt?: Timestamp;
   finalizedAt?: Timestamp;
   finalizedBy?: string;
 };

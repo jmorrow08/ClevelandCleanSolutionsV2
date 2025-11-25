@@ -41,6 +41,7 @@ import EmployeeDetail from '../features/hr/EmployeeDetail';
 import ClientDetail from '../features/crm/ClientDetail';
 import LocationDetail from '../features/crm/LocationDetail';
 import ClientsList from '../features/crm/ClientsList';
+import PayrollRunDetail from '../features/finance/PayrollRunDetail';
 import InventoryList from '../features/inventory/InventoryList';
 import InventoryDetail from '../features/inventory/InventoryDetail';
 import Social from '../features/marketing/Social';
@@ -62,6 +63,7 @@ const router = createBrowserRouter([
         children: [
           { path: '/', element: <AdminDashboard /> },
           { path: '/finance', element: <FinanceHub /> },
+          { path: '/finance/payroll/:id', element: <PayrollRunDetail /> },
           { path: '/finance/payroll-prep', element: <FinanceHub /> },
           { path: '/scheduling', element: <SchedulingPage /> },
           { path: '/scheduling/dispatch', element: <DispatchPage /> },
