@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useState } from 'react';
 
 import InvoicesPage from '@/features/finance/InvoicesPage';
 import PaymentsPage from '@/features/finance/PaymentsPage';
@@ -18,14 +17,7 @@ const tabs = [
 ];
 
 export default function FinanceHub() {
-  const location = useLocation();
   const [active, setActive] = useState<string>(tabs[0].key);
-
-  useEffect(() => {
-    if (location.pathname.startsWith('/finance/payroll')) {
-      setActive('payroll');
-    }
-  }, [location.pathname]);
 
   return (
     <div className="space-y-4">
