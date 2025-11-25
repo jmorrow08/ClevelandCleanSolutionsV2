@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
 import AppLayout from './AppLayout';
 import ProtectedRoute from './ProtectedRoute';
 import AdminDashboard from '../features/dashboard/AdminDashboard';
@@ -63,6 +63,8 @@ const router = createBrowserRouter([
         children: [
           { path: '/', element: <AdminDashboard /> },
           { path: '/finance', element: <FinanceHub /> },
+          // Legacy redirect: payroll-prep was consolidated into the main Payroll Review tab
+          { path: '/finance/payroll-prep', element: <Navigate to="/finance" replace /> },
           { path: '/finance/payroll/:id', element: <PayrollRunDetail /> },
           { path: '/scheduling', element: <SchedulingPage /> },
           { path: '/scheduling/dispatch', element: <DispatchPage /> },
