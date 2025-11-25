@@ -75,15 +75,21 @@ function formatPayDate(payDate: any): string {
   });
 }
 
-function buildPeriodLabel(period: PayrollPeriod | SemiMonthlyPeriod): string {
-  const payDate = 'payDate' in period ? toDate((period as PayrollPeriod).payDate) : period.payDate;
-  const periodStart =
-    'periodStart' in period
-      ? toDate((period as PayrollPeriod).periodStart)
-      : period.workPeriodStart;
-  const periodEnd =
-    'periodEnd' in period ? toDate((period as PayrollPeriod).periodEnd) : period.workPeriodEnd;
+function isStoredPayrollPeriod(period: PayrollPeriod | SemiMonthlyPeriod): period is PayrollPeriod {
+  return 'periodStart' in period;
+}
 
+function buildPeriodLabel(period: PayrollPeriod | SemiMonthlyPeriod): string {
+  if (isStoredPayrollPeriod(period)) {
+    const payDate = toDate(period.payDate);
+    const periodStart = toDate(period.periodStart);
+    const periodEnd = toDate(period.periodEnd);
+    return `${formatPayDate(payDate)} • ${formatDateRange(periodStart, periodEnd)}`;
+  }
+
+  const payDate = toDate(period.payDate);
+  const periodStart = toDate(period.workPeriodStart);
+  const periodEnd = toDate(period.workPeriodEnd);
   return `${formatPayDate(payDate)} • ${formatDateRange(periodStart, periodEnd)}`;
 }
 

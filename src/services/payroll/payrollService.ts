@@ -79,6 +79,10 @@ const ZERO_TOTALS: PayrollPeriodTotals = {
   net: 0,
 };
 
+type FirestorePayrollPeriod = Omit<PayrollPeriod, 'id'>;
+type FirestorePayrollEntry = Omit<PayrollEntry, 'id'>;
+type JobData = Record<string, any> & { id: string };
+
 function normalizeAmount(type: PayrollEntryType, amount: number) {
   const abs = Math.abs(amount);
   if (type === 'earning') {
@@ -118,17 +122,21 @@ export async function getPayrollPeriodById(periodId: string): Promise<PayrollPer
   const periodRef = doc(db, 'payrollPeriods', periodId);
   const snap = await getDoc(periodRef);
   if (!snap.exists()) return null;
-  return { id: snap.id, ...(snap.data() as PayrollPeriod) };
+  const data = snap.data() as FirestorePayrollPeriod;
+  return { id: snap.id, ...data };
 }
 
 export async function listPayrollPeriods(limit = 20): Promise<PayrollPeriod[]> {
   const db = getFirestoreInstance();
   const q = query(collection(db, 'payrollPeriods'), orderBy('payDate', 'desc'));
   const snap = await getDocs(q);
-  return snap.docs.slice(0, limit).map((docSnap) => ({
-    id: docSnap.id,
-    ...(docSnap.data() as PayrollPeriod),
-  }));
+  return snap.docs.slice(0, limit).map((docSnap) => {
+    const data = docSnap.data() as FirestorePayrollPeriod;
+    return {
+      id: docSnap.id,
+      ...data,
+    };
+  });
 }
 
 export async function addPayrollEntry(input: CreatePayrollEntryInput): Promise<string> {
@@ -246,10 +254,13 @@ export function listenToPayrollEntries(
     orderBy('createdAt', 'asc'),
   );
   return onSnapshot(entriesQuery, (snap) => {
-    const entries = snap.docs.map((docSnap) => ({
-      id: docSnap.id,
-      ...(docSnap.data() as PayrollEntry),
-    }));
+    const entries = snap.docs.map((docSnap) => {
+      const data = docSnap.data() as FirestorePayrollEntry;
+      return {
+        id: docSnap.id,
+        ...data,
+      };
+    });
     callback(entries);
   });
 }
@@ -265,7 +276,8 @@ export function listenToPayrollPeriod(
       callback(null);
       return;
     }
-    callback({ id: snap.id, ...(snap.data() as PayrollPeriod) });
+    const data = snap.data() as FirestorePayrollPeriod;
+    callback({ id: snap.id, ...data });
   });
 }
 
@@ -434,7 +446,10 @@ export async function createPayrollEntriesForJob(jobId: string) {
     throw new Error(`Job ${jobId} not found`);
   }
 
-  const jobData = { id: jobId, ...(jobSnap.data() as Record<string, any>) };
+  const jobData: JobData = {
+    ...(jobSnap.data() as Record<string, any>),
+    id: jobId,
+  };
   const assignments = extractAssignedEmployees(jobData);
   if (!assignments.length) {
     return { created: 0 };
@@ -561,7 +576,10 @@ export async function syncMonthlyMissedWorkDeductions(
 
   for (const docSnap of jobsSnap.docs) {
     const data = docSnap.data() as Record<string, any>;
-    const job = { id: docSnap.id, ...data };
+    const job: JobData = {
+      ...data,
+      id: docSnap.id,
+    };
     const assignments = extractAssignedEmployees(job);
     if (!assignments.length) continue;
     const status =
@@ -744,9 +762,11 @@ export async function getPayrollSummary(periodId: string): Promise<PayrollPeriod
     }
   });
 
+  const periodData = periodSnap.data() as FirestorePayrollPeriod;
+
   return {
-    period: { id: periodSnap.id, ...(periodSnap.data() as PayrollPeriod) },
-    totals: (periodSnap.data() as PayrollPeriod)?.totals ?? ZERO_TOTALS,
+    period: { id: periodSnap.id, ...periodData },
+    totals: periodData?.totals ?? ZERO_TOTALS,
     byEmployee: Array.from(byEmployee.entries()).map(([employeeId, totals]) => ({
       employeeId,
       gross: Number(totals.gross.toFixed(2)),
