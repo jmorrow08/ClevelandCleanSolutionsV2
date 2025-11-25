@@ -540,7 +540,7 @@ export async function syncMonthlyMissedWorkDeductions(
 ): Promise<{ created: number; removed: number }> {
   const db = getFirestoreInstance();
 
-  const existingAutoSnap = await getDocs(
+  const existingAutoMissedSnap = await getDocs(
     query(
       collection(db, 'payrollEntries'),
       where('periodId', '==', period.periodId),
@@ -548,14 +548,33 @@ export async function syncMonthlyMissedWorkDeductions(
     ),
   );
 
+  const existingAutoBaseSnap = await getDocs(
+    query(
+      collection(db, 'payrollEntries'),
+      where('periodId', '==', period.periodId),
+      where('source', '==', 'auto:monthly_base'),
+    ),
+  );
+
   let removed = 0;
-  if (!existingAutoSnap.empty) {
-    const batch = writeBatch(db);
-    existingAutoSnap.forEach((docSnap) => {
-      batch.delete(docSnap.ref);
+  const cleanupBatch = writeBatch(db);
+
+  if (!existingAutoMissedSnap.empty) {
+    existingAutoMissedSnap.forEach((docSnap) => {
+      cleanupBatch.delete(docSnap.ref);
       removed += 1;
     });
-    await batch.commit();
+  }
+
+  if (!existingAutoBaseSnap.empty) {
+    existingAutoBaseSnap.forEach((docSnap) => {
+      cleanupBatch.delete(docSnap.ref);
+      removed += 1;
+    });
+  }
+
+  if (removed > 0) {
+    await cleanupBatch.commit();
   }
 
   const jobsSnap = await getDocs(
@@ -618,15 +637,30 @@ export async function syncMonthlyMissedWorkDeductions(
 
   let created = 0;
   for (const [employeeId, record] of attendanceByEmployee.entries()) {
+    if (!Number.isFinite(record.monthlyAmount) || record.monthlyAmount <= 0) continue;
+
+    const semiMonthlyAmount = Number((record.monthlyAmount / 2).toFixed(2));
+    if (!Number.isFinite(semiMonthlyAmount) || semiMonthlyAmount <= 0) continue;
+
+    // 1) Ensure base semi-monthly earning is recorded
+    await addPayrollEntry({
+      periodId: period.periodId,
+      employeeId,
+      type: 'earning',
+      category: 'monthly',
+      amount: semiMonthlyAmount,
+      description: 'Base monthly salary for period',
+      source: 'auto:monthly_base',
+    });
+    created += 1;
+
+    // 2) Attendance-based missed-day deduction (if applicable)
     const scheduled = record.scheduledDates.size;
     if (scheduled === 0) continue;
 
     const completed = record.completedDates.size;
     const missed = scheduled - completed;
     if (missed <= 0) continue;
-
-    const semiMonthlyAmount = record.monthlyAmount / 2;
-    if (!Number.isFinite(semiMonthlyAmount) || semiMonthlyAmount <= 0) continue;
 
     const dailyRate = semiMonthlyAmount / scheduled;
     const deduction = Number((dailyRate * missed).toFixed(2));
