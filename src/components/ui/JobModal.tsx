@@ -511,13 +511,29 @@ export default function JobModal({
         // Auto-update timesheet earnings and payroll entries when job transitions to completed
         if (isTransitionToCompleted) {
           try {
-            const [{ updateTimesheetEarningsOnJobCompletion }, { createPayrollEntriesForJob }] =
-              await Promise.all([
-                import('../../services/automation/timesheetAutomation'),
-                import('../../services/payroll/payrollService'),
-              ]);
-            await updateTimesheetEarningsOnJobCompletion(job.id!);
-            await createPayrollEntriesForJob(job.id!);
+            const [
+              { updateTimesheetEarningsOnJobCompletion, rollbackTimesheetEarningsOnJobCompletion },
+              { createPayrollEntriesForJob },
+            ] = await Promise.all([
+              import('../../services/automation/timesheetAutomation'),
+              import('../../services/payroll/payrollService'),
+            ]);
+            const timesheetResult = await updateTimesheetEarningsOnJobCompletion(job.id!);
+            try {
+              await createPayrollEntriesForJob(job.id!);
+            } catch (payrollError) {
+              if (timesheetResult.timesheetIds?.length) {
+                try {
+                  await rollbackTimesheetEarningsOnJobCompletion(timesheetResult.timesheetIds);
+                } catch (timesheetRollbackError) {
+                  console.error(
+                    'Failed to rollback timesheet approvals after payroll entry failure:',
+                    timesheetRollbackError,
+                  );
+                }
+              }
+              throw payrollError;
+            }
           } catch (error) {
             console.error('Failed to run post-completion payroll updates:', error);
             const rollbackPayload: Record<string, any> = {

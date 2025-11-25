@@ -776,6 +776,7 @@ export async function syncMonthlyMissedWorkDeductions(
 
   if (removed > 0) {
     await cleanupBatch.commit();
+    await recalcPayrollPeriodTotals(period.periodId);
   }
 
   const jobsSnap = await getDocs(
