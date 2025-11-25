@@ -453,6 +453,10 @@ export default function JobModal({
       // Prepare job status update
       const statusChanged = (statusLegacy || '') !== prevStatus;
       const isTransitionToCompleted = statusChanged && statusLegacy === 'Completed';
+      const shouldSetApprovalTimestamp =
+        isTransitionToCompleted && (!hadApprovedAt || prevApprovedAt === null);
+      const shouldSetApprovalActor =
+        isTransitionToCompleted && (!hadApprovedBy || prevApprovedBy === null);
       if (statusChanged || anyBecameVisible) {
         if (isTransitionToCompleted) {
           try {
@@ -487,11 +491,15 @@ export default function JobModal({
         }
         const payload: any = {};
         if (statusChanged) payload.status = statusLegacy || null;
-        if (anyBecameVisible || isTransitionToCompleted) {
+        if (shouldSetApprovalTimestamp) {
           payload.approvedAt = serverTimestamp();
+        }
+        if (shouldSetApprovalActor) {
           payload.approvedBy = auth.currentUser?.uid || null;
         }
-        batch.update(doc(db, 'serviceHistory', job.id), payload);
+        if (Object.keys(payload).length > 0) {
+          batch.update(doc(db, 'serviceHistory', job.id), payload);
+        }
       }
 
       await batch.commit();

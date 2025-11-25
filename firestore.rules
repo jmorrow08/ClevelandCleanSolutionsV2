@@ -418,8 +418,16 @@ service cloud.firestore {
 
     // --- payrollEntries (per-employee earnings & deductions within a period) ---
     match /payrollEntries/{entryId} {
-      // Raw payroll ledger; only finance roles should manage directly
-      allow read: if isAtLeastAdmin();
+      // Raw payroll ledger; finance roles manage entries, employees may view their own
+      function isEntryOwner() {
+        return isLoggedIn() &&
+               (
+                 resource.data.employeeId == request.auth.uid ||
+                 resource.data.employeeId == currentProfileId()
+               );
+      }
+
+      allow read: if isAtLeastAdmin() || isEntryOwner();
       allow create, update: if isAtLeastAdmin();
       allow delete: if isSuperAdmin();
     }
