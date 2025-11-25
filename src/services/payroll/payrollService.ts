@@ -1051,6 +1051,29 @@ export async function finalizePayrollPeriod(
 
   let expenseId: string | undefined;
   const netAmount = Number(period.totals.net || 0);
+  const alreadyFinalizedInTxn = await runTransaction(db, async (transaction) => {
+    const periodRef = doc(db, 'payrollPeriods', periodId);
+    const snap = await transaction.get(periodRef);
+    if (!snap.exists()) throw new Error('Payroll period not found');
+    const current = snap.data() as PayrollPeriod;
+    if (current.status === 'finalized') return true;
+    transaction.update(periodRef, {
+      status: 'finalized',
+      finalizedAt: serverTimestamp(),
+      finalizedBy,
+      updatedAt: serverTimestamp(),
+    });
+    return false;
+  });
+
+  if (alreadyFinalizedInTxn) {
+    return {
+      totals: period.totals,
+      expenseCreated: false,
+      alreadyFinalized: true,
+    };
+  }
+
   if (Math.abs(netAmount) > 0.005) {
     const existingExpenseSnap = await getDocs(
       query(collection(db, 'expenses'), where('payrollPeriodId', '==', periodId), limit(1)),
@@ -1070,20 +1093,6 @@ export async function finalizePayrollPeriod(
       expenseId = expenseDoc.id;
     }
   }
-
-  await runTransaction(db, async (transaction) => {
-    const periodRef = doc(db, 'payrollPeriods', periodId);
-    const snap = await transaction.get(periodRef);
-    if (!snap.exists()) throw new Error('Payroll period not found');
-    const current = snap.data() as PayrollPeriod;
-    if (current.status === 'finalized') return;
-    transaction.update(periodRef, {
-      status: 'finalized',
-      finalizedAt: serverTimestamp(),
-      finalizedBy,
-      updatedAt: serverTimestamp(),
-    });
-  });
 
   return {
     totals: period.totals,
