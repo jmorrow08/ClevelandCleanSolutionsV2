@@ -800,14 +800,9 @@ export async function syncMonthlyMissedWorkDeductions(
       ...data,
       id: docSnap.id,
     };
+    const status = resolveJobStatus(job).toLowerCase();
     const assignments = extractAssignedEmployees(job);
     if (!assignments.length) continue;
-    const status =
-      typeof data.status === 'string'
-        ? data.status
-        : typeof data.statusLegacy === 'string'
-        ? data.statusLegacy
-        : '';
 
     for (const assignment of assignments) {
       // Skip owner from monthly salary and missed-day deductions; owner is off automated payroll.
@@ -834,7 +829,7 @@ export async function syncMonthlyMissedWorkDeductions(
 
       record.monthlyAmount = Math.max(record.monthlyAmount, rateSnapshot.amount);
       record.scheduledDates.add(dayKey);
-      if (status === 'Completed') {
+      if (status === 'completed') {
         record.completedDates.add(dayKey);
       }
       attendanceByEmployee.set(assignment.employeeId, record);

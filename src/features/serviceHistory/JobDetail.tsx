@@ -404,6 +404,37 @@ export default function JobDetail() {
       const statusChanged = (statusLegacy || '') !== prevStatus;
       const isTransitionToCompleted = statusChanged && statusLegacy === 'Completed';
       if (statusChanged || anyBecameVisible) {
+        if (isTransitionToCompleted) {
+          try {
+            const { validateJobPayrollReadiness } = await import(
+              '../../services/payroll/payrollService'
+            );
+            const missingRateEmployeeIds = await validateJobPayrollReadiness(jobId!);
+            if (missingRateEmployeeIds.length) {
+              const names = await getEmployeeNames(missingRateEmployeeIds);
+              const readableNames = missingRateEmployeeIds.map((id, index) => names[index] || id);
+              show({
+                type: 'error',
+                message: `Cannot complete job. Missing pay rates for: ${readableNames.join(', ')}.`,
+              });
+              setStatusLegacy(prevStatus);
+              setSavingApproval(false);
+              return;
+            }
+          } catch (error) {
+            console.error('Failed to validate payroll readiness:', error);
+            show({
+              type: 'error',
+              message:
+                error instanceof Error
+                  ? error.message
+                  : 'Unable to verify pay rates for this job. Try again later.',
+            });
+            setStatusLegacy(prevStatus);
+            setSavingApproval(false);
+            return;
+          }
+        }
         const payload: any = {};
         if (statusChanged) payload.status = statusLegacy || null;
         if (anyBecameVisible || isTransitionToCompleted) {
