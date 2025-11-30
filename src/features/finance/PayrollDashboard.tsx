@@ -366,6 +366,20 @@ export default function PayrollDashboard() {
       }
     } catch (error) {
       console.error('Failed to load payroll periods:', error);
+
+      // Check if this is a permission error and re-throw it
+      // so the calling code can display the permission error UI
+      const isPermissionError =
+        error instanceof Error &&
+        (error.message.includes('permission') ||
+          error.message.includes('PERMISSION_DENIED') ||
+          (error as any).code === 'permission-denied');
+
+      if (isPermissionError) {
+        throw error;
+      }
+
+      // For non-permission errors, show a toast
       show({
         type: 'error',
         message: 'Unable to load payroll periods.',
