@@ -433,7 +433,7 @@ export default function PayrollDashboard() {
           );
         } else {
           show({
-            type: 'warning',
+            type: 'info',
             message: 'Entries synced, but failed to refresh period data.',
           });
         }
@@ -598,7 +598,7 @@ export default function PayrollDashboard() {
           );
         } else {
           show({
-            type: 'warning',
+            type: 'info',
             message: 'Finalized, but failed to refresh period data.',
           });
         }
