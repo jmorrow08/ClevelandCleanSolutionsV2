@@ -358,7 +358,9 @@ export default function PayrollDashboard() {
         // Try to create the missing period, but don't fail if we can't
         try {
           // Parse YYYY-MM-DD as a LOCAL date to avoid TZ shifting to previous day.
-          const [y, m, d] = String(focusId).split('-').map((x) => Number(x));
+          const [y, m, d] = String(focusId)
+            .split('-')
+            .map((x) => Number(x));
           const payDate =
             Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)
               ? new Date(y, m - 1, d, 12, 0, 0, 0) // midday local to be safe

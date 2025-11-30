@@ -726,7 +726,9 @@ export async function syncPayrollEntriesForPeriod(periodId: string): Promise<{
     workingPeriod = storedPeriodToSemi(period);
   } else {
     // Parse YYYY-MM-DD as a LOCAL date to avoid timezone shifts that change the calendar day.
-    const [y, m, d] = String(periodId).split('-').map((x) => Number(x));
+    const [y, m, d] = String(periodId)
+      .split('-')
+      .map((x) => Number(x));
     const payDate =
       Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)
         ? new Date(y, m - 1, d, 12, 0, 0, 0) // Midday local to guarantee date-of-month
