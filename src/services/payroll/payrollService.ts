@@ -34,6 +34,14 @@ import {
   semiMonthlyPeriodToFirestorePayload,
 } from '@/services/payroll/semiMonthlyPeriods';
 
+function omitUndefined<T extends Record<string, unknown>>(obj: T): T {
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) cleaned[key] = value;
+  }
+  return cleaned as T;
+}
+
 type CreatePayrollEntryInput = {
   periodId: string;
   employeeId: string;
@@ -252,7 +260,7 @@ export async function addPayrollEntry(input: CreatePayrollEntryInput): Promise<s
     input.amount,
   );
 
-  const entryPayload: Omit<PayrollEntry, 'id'> = {
+  const entryPayloadRaw: Omit<PayrollEntry, 'id'> = {
     periodId: input.periodId,
     employeeId: input.employeeId,
     jobId: input.jobId,
@@ -274,6 +282,9 @@ export async function addPayrollEntry(input: CreatePayrollEntryInput): Promise<s
     createdAt: Timestamp.now(),
     override: input.override,
   };
+
+  // Firestore forbids undefined field values. Strip them before writing.
+  const entryPayload = omitUndefined(entryPayloadRaw);
 
   const entryId = await runTransaction(db, async (transaction) => {
     const periodSnap = await transaction.get(periodRef);
@@ -344,21 +355,40 @@ export function listenToPayrollEntries(
   callback: (entries: PayrollEntry[]) => void,
 ): Unsubscribe {
   const db = getFirestoreInstance();
-  const entriesQuery = query(
-    collection(db, 'payrollEntries'),
-    where('periodId', '==', periodId),
-    orderBy('createdAt', 'asc'),
-  );
-  return onSnapshot(entriesQuery, (snap) => {
-    const entries = snap.docs.map((docSnap) => {
-      const data = docSnap.data() as FirestorePayrollEntry;
-      return {
-        id: docSnap.id,
-        ...data,
-      };
-    });
-    callback(entries);
-  });
+  let unsub: Unsubscribe | null = null;
+
+  const subscribe = (withOrder: boolean) => {
+    const constraints = [where('periodId', '==', periodId)];
+    if (withOrder) constraints.push(orderBy('createdAt', 'asc'));
+    const q = query(collection(db, 'payrollEntries'), ...constraints);
+    unsub = onSnapshot(
+      q,
+      (snap) => {
+        const entries = snap.docs.map((docSnap) => {
+          const data = docSnap.data() as FirestorePayrollEntry;
+          return { id: docSnap.id, ...data };
+        });
+        callback(entries);
+      },
+      (error) => {
+        // If index is missing for the ordered query, fall back to unordered
+        const code = (error as any)?.code || (error as any)?.name;
+        if (withOrder && (code === 'failed-precondition' || code === 'FAILED_PRECONDITION')) {
+          if (unsub) unsub();
+          // Retry without order to avoid blocking the UI; entries will be unsorted.
+          subscribe(false);
+          return;
+        }
+        console.warn('listenToPayrollEntries error:', code || error);
+        callback([]);
+      },
+    );
+  };
+
+  subscribe(true);
+  return () => {
+    if (unsub) unsub();
+  };
 }
 
 export function listenToPayrollPeriod(
