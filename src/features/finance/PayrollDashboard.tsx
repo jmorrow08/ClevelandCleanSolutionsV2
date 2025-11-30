@@ -397,9 +397,8 @@ export default function PayrollDashboard() {
     try {
       setSyncingPeriod(true);
       const result = await syncPayrollEntriesForPeriod(selectedPeriodId);
-      await refreshPeriodOptions(selectedPeriodId);
-      await refreshMissingRatesForPeriodId(selectedPeriodId);
 
+      // Always inform the user about the sync result, regardless of refresh outcome
       const summaryParts = [
         `${result.createdEntries} entries created`,
         `${result.skippedJobs} jobs skipped`,
@@ -410,13 +409,35 @@ export default function PayrollDashboard() {
       if (result.errors.length) {
         summaryParts.push(`${result.errors.length} jobs failed`);
       }
-
       show({
         type: result.errors.length ? 'error' : 'success',
         message: `Payroll sync processed ${result.processedJobs} jobs (${summaryParts.join(
           ', ',
         )}).`,
       });
+
+      // Refresh period options and dependent data, but treat failures as non-fatal
+      try {
+        await refreshPeriodOptions(selectedPeriodId);
+        await refreshMissingRatesForPeriodId(selectedPeriodId);
+      } catch (error) {
+        console.error('Post-sync refresh failed:', error);
+        const isPermissionError =
+          error instanceof Error &&
+          (error.message.includes('permission') ||
+            error.message.includes('PERMISSION_DENIED') ||
+            (error as any).code === 'permission-denied');
+        if (isPermissionError) {
+          setPermissionError(
+            'You do not have permission to access payroll data. Please contact your administrator to verify your account has the correct role.',
+          );
+        } else {
+          show({
+            type: 'warning',
+            message: 'Entries synced, but failed to refresh period data.',
+          });
+        }
+      }
     } catch (error) {
       console.error('Failed to sync payroll entries:', error);
       show({
@@ -554,13 +575,34 @@ export default function PayrollDashboard() {
     try {
       setFinalizing(true);
       const result = await finalizePayrollPeriod(selectedPeriodId, user?.uid || 'system');
-      await refreshPeriodOptions(selectedPeriodId);
       const message = result.alreadyFinalized
         ? 'Payroll period was already finalized.'
         : result.expenseCreated
         ? 'Payroll finalized and expense recorded.'
         : 'Payroll finalized.';
       show({ type: 'success', message });
+
+      // Refresh period options, but treat failures as non-fatal
+      try {
+        await refreshPeriodOptions(selectedPeriodId);
+      } catch (error) {
+        console.error('Post-finalize refresh failed:', error);
+        const isPermissionError =
+          error instanceof Error &&
+          (error.message.includes('permission') ||
+            error.message.includes('PERMISSION_DENIED') ||
+            (error as any).code === 'permission-denied');
+        if (isPermissionError) {
+          setPermissionError(
+            'You do not have permission to access payroll data. Please contact your administrator to verify your account has the correct role.',
+          );
+        } else {
+          show({
+            type: 'warning',
+            message: 'Finalized, but failed to refresh period data.',
+          });
+        }
+      }
     } catch (error) {
       console.error('Failed to finalize payroll period:', error);
       show({
@@ -696,7 +738,18 @@ export default function PayrollDashboard() {
                 if (nextId) {
                   refreshPeriodOptions(nextId).catch((err) => {
                     console.error('Failed to refresh periods on selection:', err);
-                    show({ type: 'error', message: 'Unable to refresh payroll periods.' });
+                    const isPermissionError =
+                      err instanceof Error &&
+                      (err.message.includes('permission') ||
+                        err.message.includes('PERMISSION_DENIED') ||
+                        (err as any).code === 'permission-denied');
+                    if (isPermissionError) {
+                      setPermissionError(
+                        'You do not have permission to access payroll data. Please contact your administrator to verify your account has the correct role.',
+                      );
+                    } else {
+                      show({ type: 'error', message: 'Unable to refresh payroll periods.' });
+                    }
                   });
                 }
               }}
@@ -713,7 +766,18 @@ export default function PayrollDashboard() {
             onClick={() => {
               refreshPeriodOptions(selectedPeriodId ?? undefined).catch((err) => {
                 console.error('Failed to refresh periods:', err);
-                show({ type: 'error', message: 'Unable to refresh payroll periods.' });
+                const isPermissionError =
+                  err instanceof Error &&
+                  (err.message.includes('permission') ||
+                    err.message.includes('PERMISSION_DENIED') ||
+                    (err as any).code === 'permission-denied');
+                if (isPermissionError) {
+                  setPermissionError(
+                    'You do not have permission to access payroll data. Please contact your administrator to verify your account has the correct role.',
+                  );
+                } else {
+                  show({ type: 'error', message: 'Unable to refresh payroll periods.' });
+                }
               });
             }}
           >
