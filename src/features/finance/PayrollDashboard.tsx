@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Timestamp } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
@@ -140,26 +141,59 @@ export default function PayrollDashboard() {
   const [finalizing, setFinalizing] = useState(false);
   const [missingRateEmployeeIds, setMissingRateEmployeeIds] = useState<string[]>([]);
   const [syncingPeriod, setSyncingPeriod] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
 
-  const canEdit = !!(claims?.admin || claims?.owner || claims?.super_admin) && !loading;
+  const hasAdminAccess = !!(claims?.admin || claims?.owner || claims?.super_admin);
+  const canEdit = hasAdminAccess && !loading;
   const canFinalize = !!(claims?.owner || claims?.super_admin);
 
   useEffect(() => {
     let mounted = true;
     async function initialize() {
+      const currentPeriod = getCurrentSemiMonthlyPeriod();
+
+      // Try to ensure the current period exists, but continue even if it fails
       try {
-        const currentPeriod = getCurrentSemiMonthlyPeriod();
         await ensurePayrollPeriodExists(currentPeriod);
-        if (!mounted) return;
-        setSelectedPeriodId(currentPeriod.periodId);
+      } catch (ensureError) {
+        console.warn('Could not ensure payroll period exists:', ensureError);
+        // Don't block initialization - the period might already exist
+        // or the user might only have read access to existing periods
+      }
+
+      if (!mounted) return;
+
+      // Set the selected period and load available periods
+      setSelectedPeriodId(currentPeriod.periodId);
+
+      try {
         await refreshPeriodOptions(currentPeriod.periodId);
-      } catch (error) {
-        console.error(error);
         if (mounted) {
-          show({
-            type: 'error',
-            message: error instanceof Error ? error.message : 'Failed to initialize payroll data.',
-          });
+          setPermissionError(null); // Clear any previous permission errors
+        }
+      } catch (refreshError: unknown) {
+        console.error('Failed to load payroll periods:', refreshError);
+        if (mounted) {
+          const isPermissionError =
+            refreshError instanceof Error &&
+            (refreshError.message.includes('permission') ||
+              refreshError.message.includes('PERMISSION_DENIED') ||
+              (refreshError as any).code === 'permission-denied');
+
+          if (isPermissionError) {
+            setPermissionError(
+              'You do not have permission to access payroll data. Please contact your administrator to verify your account has the correct role.',
+            );
+          } else {
+            show({
+              type: 'error',
+              message: 'Failed to load payroll periods. Please try again.',
+            });
+          }
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
         }
       }
     }
@@ -315,11 +349,18 @@ export default function PayrollDashboard() {
     try {
       const results = await listPayrollPeriods(24);
       if (focusId && !results.find((p) => p.id === focusId)) {
-        const payDate = toDate(`${focusId}T00:00:00Z`);
-        const fallback = getSemiMonthlyPeriodForPayDate(payDate);
-        await ensurePayrollPeriodExists(fallback);
-        const updated = await listPayrollPeriods(24);
-        setPeriodOptions(updated);
+        // Try to create the missing period, but don't fail if we can't
+        try {
+          const payDate = toDate(`${focusId}T00:00:00Z`);
+          const fallback = getSemiMonthlyPeriodForPayDate(payDate);
+          await ensurePayrollPeriodExists(fallback);
+          const updated = await listPayrollPeriods(24);
+          setPeriodOptions(updated);
+        } catch (ensureError) {
+          // If we can't create the period, just use what we have
+          console.warn('Could not create period, using existing:', ensureError);
+          setPeriodOptions(results);
+        }
       } else {
         setPeriodOptions(results);
       }
@@ -562,6 +603,73 @@ export default function PayrollDashboard() {
   }
 
   const isFinalized = activePeriod?.status === 'finalized';
+
+  // Show access denied if user doesn't have admin access
+  if (!hasAdminAccess && !loading) {
+    return (
+      <div className="space-y-5">
+        <h1 className="text-2xl font-semibold">Payroll Review</h1>
+        <div className="rounded-md border border-red-300 bg-red-50 px-4 py-6 text-center dark:border-red-800 dark:bg-red-900/20">
+          <p className="font-medium text-red-700 dark:text-red-300">Access Denied</p>
+          <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+            You do not have permission to access payroll data. This feature is restricted to
+            administrators and owners.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show permission error if Firebase rules are blocking access
+  if (permissionError) {
+    const handleRefreshToken = async () => {
+      try {
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          // Force token refresh to get latest claims
+          await currentUser.getIdToken(true);
+          show({ type: 'info', message: 'Token refreshed. Reloading...' });
+          setTimeout(() => window.location.reload(), 500);
+        } else {
+          window.location.reload();
+        }
+      } catch {
+        window.location.reload();
+      }
+    };
+
+    return (
+      <div className="space-y-5">
+        <h1 className="text-2xl font-semibold">Payroll Review</h1>
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-6 dark:border-amber-800 dark:bg-amber-900/20">
+          <p className="font-medium text-amber-700 dark:text-amber-300">Permission Issue</p>
+          <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">{permissionError}</p>
+          <p className="mt-4 text-xs text-amber-600 dark:text-amber-400">
+            Your role: {claims?.role || 'unknown'} • User ID: {user?.uid?.slice(0, 8)}...
+          </p>
+          <div className="mt-4 flex gap-2">
+            <button
+              className="rounded-md border border-amber-400 px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-900/40"
+              onClick={handleRefreshToken}
+            >
+              Refresh Token & Retry
+            </button>
+            <button
+              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              onClick={() => {
+                setPermissionError(null);
+                setLoading(true);
+                window.location.reload();
+              }}
+            >
+              Simple Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

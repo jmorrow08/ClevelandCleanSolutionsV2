@@ -155,12 +155,58 @@ function normalizeAmount(type: PayrollEntryType, amount: number) {
 async function ensurePayrollPeriod(period: SemiMonthlyPeriod) {
   const db = getFirestoreInstance();
   const periodRef = doc(db, 'payrollPeriods', period.periodId);
-  await runTransaction(db, async (transaction) => {
-    const snap = await transaction.get(periodRef);
-    if (!snap.exists()) {
-      transaction.set(periodRef, semiMonthlyPeriodToFirestorePayload(period));
+
+  // First check if the period already exists (read-only operation)
+  try {
+    const existingSnap = await getDoc(periodRef);
+    if (existingSnap.exists()) {
+      // Period already exists, nothing to do
+      return;
     }
-  });
+  } catch (readError: unknown) {
+    // If we can't read, we might not have permissions at all - log and continue
+    // The transaction below will also fail, but we'll handle it gracefully
+    console.warn('Could not read payroll period, attempting to create:', readError);
+  }
+
+  // Try to create the period using a transaction
+  try {
+    await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(periodRef);
+      if (!snap.exists()) {
+        transaction.set(periodRef, semiMonthlyPeriodToFirestorePayload(period));
+      }
+    });
+  } catch (error: unknown) {
+    // Handle permission errors gracefully
+    const isPermissionError =
+      error instanceof Error &&
+      (error.message.includes('permission') ||
+        error.message.includes('PERMISSION_DENIED') ||
+        (error as any).code === 'permission-denied');
+
+    if (isPermissionError) {
+      // Try one more read to see if the period exists (might have been created by someone else)
+      try {
+        const retrySnap = await getDoc(periodRef);
+        if (retrySnap.exists()) {
+          // Period exists, we just couldn't create it - that's fine
+          console.info('Payroll period exists but user lacks create permission (read-only access)');
+          return;
+        }
+      } catch {
+        // Can't read either - user doesn't have permissions to this collection
+      }
+
+      // Period doesn't exist and user can't create it
+      throw new Error(
+        'You do not have permission to create payroll periods. Please contact an administrator.',
+      );
+    }
+
+    // Re-throw non-permission errors
+    throw error;
+  }
 }
 
 export async function ensurePayrollPeriodExists(period: SemiMonthlyPeriod) {
