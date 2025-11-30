@@ -679,6 +679,7 @@ export async function createPayrollEntriesForJob(jobId: string) {
 
     if (rateSnapshot.type === 'monthly') {
       // Monthly earnings recorded during period processing, but attendance matters.
+      // Flag it but don't call syncMonthlyMissedWorkDeductions here - let the caller handle it once.
       monthlyAssignmentsDetected = true;
       continue;
     }
@@ -713,20 +714,13 @@ export async function createPayrollEntriesForJob(jobId: string) {
     created += 1;
   }
 
-  let recalcNeeded = created > 0;
-
-  if (monthlyAssignmentsDetected) {
-    const result = await syncMonthlyMissedWorkDeductions(period);
-    if (result.created > 0 || result.removed > 0) {
-      recalcNeeded = true;
-    }
-  }
-
-  if (recalcNeeded) {
+  // Only recalc if we actually created per-visit/hourly entries.
+  // Monthly sync is handled by the caller (syncPayrollEntriesForPeriod) once for the entire period.
+  if (created > 0) {
     await recalcPayrollPeriodTotals(period.periodId);
   }
 
-  return { created, periodId: period.periodId };
+  return { created, periodId: period.periodId, hasMonthlyAssignments: monthlyAssignmentsDetected };
 }
 
 export async function validateJobPayrollReadiness(jobId: string): Promise<string[]> {
@@ -775,6 +769,7 @@ export async function syncPayrollEntriesForPeriod(periodId: string): Promise<{
   let processedJobs = 0;
   let createdEntries = 0;
   let skippedJobs = 0;
+  let hasAnyMonthlyAssignments = false;
   const missingRateEmployeeIds = new Set<string>();
   const errors: string[] = [];
 
@@ -793,15 +788,23 @@ export async function syncPayrollEntriesForPeriod(periodId: string): Promise<{
     try {
       const result = await createPayrollEntriesForJob(job.id);
       createdEntries += result.created;
+      if (result.hasMonthlyAssignments) {
+        hasAnyMonthlyAssignments = true;
+      }
     } catch (error) {
       console.error('Failed to backfill payroll for job', job.id, error);
       errors.push(job.id);
     }
   }
 
-  if (createdEntries > 0) {
-    await recalcPayrollPeriodTotals(workingPeriod.periodId);
+  // Sync monthly base earnings and missed-day deductions ONCE for the entire period
+  // (not per-job, which was causing duplicate entries and corrupted totals)
+  if (hasAnyMonthlyAssignments) {
+    await syncMonthlyMissedWorkDeductions(workingPeriod);
   }
+
+  // Final recalc to ensure totals are accurate
+  await recalcPayrollPeriodTotals(workingPeriod.periodId);
 
   return {
     processedJobs,
