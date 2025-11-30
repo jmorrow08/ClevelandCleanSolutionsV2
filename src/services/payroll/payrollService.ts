@@ -13,6 +13,7 @@ import {
   Timestamp,
   where,
   writeBatch,
+  type QueryConstraint,
   type Unsubscribe,
 } from 'firebase/firestore';
 
@@ -358,7 +359,7 @@ export function listenToPayrollEntries(
   let unsub: Unsubscribe | null = null;
 
   const subscribe = (withOrder: boolean) => {
-    const constraints = [where('periodId', '==', periodId)];
+    const constraints: QueryConstraint[] = [where('periodId', '==', periodId)];
     if (withOrder) constraints.push(orderBy('createdAt', 'asc'));
     const q = query(collection(db, 'payrollEntries'), ...constraints);
     unsub = onSnapshot(
