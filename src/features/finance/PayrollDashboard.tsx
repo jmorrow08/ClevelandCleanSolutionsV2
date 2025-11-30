@@ -150,10 +150,16 @@ export default function PayrollDashboard() {
   useEffect(() => {
     let mounted = true;
     async function initialize() {
+      // Non-admins should not attempt any payroll writes or reads here.
+      if (!hasAdminAccess) {
+        if (mounted) setLoading(false);
+        return;
+      }
       const currentPeriod = getCurrentSemiMonthlyPeriod();
 
       // Try to ensure the current period exists, but continue even if it fails
       try {
+        // Only admins/owners can create periods
         await ensurePayrollPeriodExists(currentPeriod);
       } catch (ensureError) {
         console.warn('Could not ensure payroll period exists:', ensureError);
@@ -202,7 +208,7 @@ export default function PayrollDashboard() {
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hasAdminAccess]);
 
   useEffect(() => {
     if (!selectedPeriodId) return;
@@ -351,7 +357,12 @@ export default function PayrollDashboard() {
       if (focusId && !results.find((p) => p.id === focusId)) {
         // Try to create the missing period, but don't fail if we can't
         try {
-          const payDate = toDate(`${focusId}T00:00:00Z`);
+          // Parse YYYY-MM-DD as a LOCAL date to avoid TZ shifting to previous day.
+          const [y, m, d] = String(focusId).split('-').map((x) => Number(x));
+          const payDate =
+            Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)
+              ? new Date(y, m - 1, d, 12, 0, 0, 0) // midday local to be safe
+              : toDate(focusId);
           const fallback = getSemiMonthlyPeriodForPayDate(payDate);
           await ensurePayrollPeriodExists(fallback);
           const updated = await listPayrollPeriods(24);

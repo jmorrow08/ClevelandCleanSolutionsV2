@@ -367,14 +367,22 @@ export function listenToPayrollPeriod(
 ): Unsubscribe {
   const db = getFirestoreInstance();
   const periodRef = doc(db, 'payrollPeriods', periodId);
-  return onSnapshot(periodRef, (snap) => {
-    if (!snap.exists()) {
+  return onSnapshot(
+    periodRef,
+    (snap) => {
+      if (!snap.exists()) {
+        callback(null);
+        return;
+      }
+      const data = snap.data() as FirestorePayrollPeriod;
+      callback({ id: snap.id, ...data });
+    },
+    (error) => {
+      // Avoid crashing the UI on permission issues; surface null state instead.
+      console.warn('listenToPayrollPeriod error:', (error as any)?.code || error);
       callback(null);
-      return;
-    }
-    const data = snap.data() as FirestorePayrollPeriod;
-    callback({ id: snap.id, ...data });
-  });
+    },
+  );
 }
 
 function extractAssignedEmployees(jobData: Record<string, any>): JobAssignment[] {
@@ -717,7 +725,12 @@ export async function syncPayrollEntriesForPeriod(periodId: string): Promise<{
   if (period) {
     workingPeriod = storedPeriodToSemi(period);
   } else {
-    const payDate = new Date(`${periodId}T00:00:00Z`);
+    // Parse YYYY-MM-DD as a LOCAL date to avoid timezone shifts that change the calendar day.
+    const [y, m, d] = String(periodId).split('-').map((x) => Number(x));
+    const payDate =
+      Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)
+        ? new Date(y, m - 1, d, 12, 0, 0, 0) // Midday local to guarantee date-of-month
+        : new Date(`${periodId}T00:00:00`);
     if (Number.isNaN(payDate.getTime())) {
       throw new Error(`Payroll period ${periodId} not found`);
     }
