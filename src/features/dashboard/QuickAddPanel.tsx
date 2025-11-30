@@ -32,6 +32,11 @@ type Mode = 'new-service' | 'new-client' | 'new-location' | 'new-employee';
 
 type Option = { id: string; label: string };
 
+// Legacy HTTPS endpoint still used for employee creation.
+// Client creation now uses callable `createClientUser`.
+const CREATE_USER_URL =
+  'https://us-central1-cleveland-clean-portal.cloudfunctions.net/createNewUser_v1';
+
 export function QuickAddModal({ onClose }: { onClose: () => void }) {
   const { show } = useToast();
   const { user } = useAuth();
