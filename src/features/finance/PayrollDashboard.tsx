@@ -366,24 +366,9 @@ export default function PayrollDashboard() {
       }
     } catch (error) {
       console.error('Failed to load payroll periods:', error);
-
-      // Check if this is a permission error and re-throw it
-      // so the calling code can display the permission error UI
-      const isPermissionError =
-        error instanceof Error &&
-        (error.message.includes('permission') ||
-          error.message.includes('PERMISSION_DENIED') ||
-          (error as any).code === 'permission-denied');
-
-      if (isPermissionError) {
-        throw error;
-      }
-
-      // For non-permission errors, show a toast
-      show({
-        type: 'error',
-        message: 'Unable to load payroll periods.',
-      });
+      // Re-throw all errors so callers can handle them appropriately
+      // (e.g., initialize() needs to know if loading failed to avoid clearing error state)
+      throw error;
     }
   }
 
@@ -708,7 +693,12 @@ export default function PayrollDashboard() {
               onChange={(event) => {
                 const nextId = event.target.value || null;
                 setSelectedPeriodId(nextId);
-                if (nextId) refreshPeriodOptions(nextId);
+                if (nextId) {
+                  refreshPeriodOptions(nextId).catch((err) => {
+                    console.error('Failed to refresh periods on selection:', err);
+                    show({ type: 'error', message: 'Unable to refresh payroll periods.' });
+                  });
+                }
               }}
             >
               {periodOptions.map((period) => (
@@ -720,7 +710,12 @@ export default function PayrollDashboard() {
           </label>
           <button
             className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-            onClick={() => refreshPeriodOptions(selectedPeriodId ?? undefined)}
+            onClick={() => {
+              refreshPeriodOptions(selectedPeriodId ?? undefined).catch((err) => {
+                console.error('Failed to refresh periods:', err);
+                show({ type: 'error', message: 'Unable to refresh payroll periods.' });
+              });
+            }}
           >
             Refresh Periods
           </button>
