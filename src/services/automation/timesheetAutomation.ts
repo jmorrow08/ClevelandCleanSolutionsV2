@@ -12,8 +12,9 @@ import {
   Timestamp,
   serverTimestamp,
   writeBatch,
-} from "firebase/firestore";
-import { getFirestoreInstance } from "../firebase";
+  runTransaction,
+} from 'firebase/firestore';
+import { getFirestoreInstance } from '../firebase';
 
 // Type definitions
 type ClockEvent = {
@@ -35,7 +36,7 @@ type JobAssignment = {
 };
 
 type RateSnapshot = {
-  type: "per_visit" | "hourly" | "monthly";
+  type: 'per_visit' | 'hourly' | 'monthly';
   amount: number;
   monthlyPayDay?: number;
 };
@@ -43,18 +44,15 @@ type RateSnapshot = {
 /**
  * Automatically create timesheets from clock events
  */
-export async function processClockEventsForTimesheets(
-  startDate: Date,
-  endDate: Date
-) {
+export async function processClockEventsForTimesheets(startDate: Date, endDate: Date) {
   const db = getFirestoreInstance();
 
   // 1. Get all clock events in the date range
   const clockQuery = query(
-    collection(db, "employeeTimeTracking"),
-    where("clockInTime", ">=", Timestamp.fromDate(startDate)),
-    where("clockInTime", "<", Timestamp.fromDate(endDate)),
-    orderBy("clockInTime", "asc")
+    collection(db, 'employeeTimeTracking'),
+    where('clockInTime', '>=', Timestamp.fromDate(startDate)),
+    where('clockInTime', '<', Timestamp.fromDate(endDate)),
+    orderBy('clockInTime', 'asc'),
   );
 
   const clockSnap = await getDocs(clockQuery);
@@ -67,9 +65,9 @@ export async function processClockEventsForTimesheets(
 
   // 2. Get relevant jobs for the same period
   const jobsQuery = query(
-    collection(db, "serviceHistory"),
-    where("serviceDate", ">=", Timestamp.fromDate(startDate)),
-    where("serviceDate", "<", Timestamp.fromDate(endDate))
+    collection(db, 'serviceHistory'),
+    where('serviceDate', '>=', Timestamp.fromDate(startDate)),
+    where('serviceDate', '<', Timestamp.fromDate(endDate)),
   );
 
   const jobsSnap = await getDocs(jobsQuery);
@@ -102,17 +100,14 @@ export async function processClockEventsForTimesheets(
 
   for (const clockEvent of clockEvents) {
     // Find matching job assignment
-    const matchingJob = findMatchingJobForClockEvent(
-      clockEvent,
-      jobAssignments
-    );
+    const matchingJob = findMatchingJobForClockEvent(clockEvent, jobAssignments);
 
     if (matchingJob) {
       // Check if timesheet already exists
       const existingTimesheet = await checkTimesheetExists(
         clockEvent.employeeProfileId,
         matchingJob.jobId,
-        matchingJob.serviceDate
+        matchingJob.serviceDate,
       );
 
       if (!existingTimesheet) {
@@ -121,7 +116,7 @@ export async function processClockEventsForTimesheets(
           clockEvent.employeeProfileId,
           clockEvent.clockInTime,
           matchingJob.locationId,
-          matchingJob.clientProfileId
+          matchingJob.clientProfileId,
         );
 
         if (rateSnapshot) {
@@ -135,22 +130,20 @@ export async function processClockEventsForTimesheets(
             start: clockEvent.clockInTime,
             end: clockEvent.clockOutTime,
             hours,
-            units: rateSnapshot.type === "per_visit" ? 1 : undefined,
+            units: rateSnapshot.type === 'per_visit' ? 1 : undefined,
             rateSnapshot,
             employeeApproved: true, // Auto-approved for clock-based entries
             adminApproved: false, // Still needs admin verification
-            source: "clock_event",
+            source: 'clock_event',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           };
 
-          const timesheetRef = doc(collection(db, "timesheets"));
+          const timesheetRef = doc(collection(db, 'timesheets'));
           batch.set(timesheetRef, timesheetData);
           processedCount++;
         } else {
-          console.warn(
-            `No rate found for employee ${clockEvent.employeeProfileId}`
-          );
+          console.warn(`No rate found for employee ${clockEvent.employeeProfileId}`);
           skippedCount++;
         }
       } else {
@@ -179,20 +172,18 @@ export async function processClockEventsForTimesheets(
  */
 function findMatchingJobForClockEvent(
   clockEvent: ClockEvent,
-  jobAssignments: JobAssignment[]
+  jobAssignments: JobAssignment[],
 ): JobAssignment | null {
   // Find jobs for the same employee and date
   const employeeJobs = jobAssignments.filter(
-    (job) => job.employeeId === clockEvent.employeeProfileId
+    (job) => job.employeeId === clockEvent.employeeProfileId,
   );
 
   if (employeeJobs.length === 0) return null;
 
   // Find jobs at the same location (if location is specified)
   if (clockEvent.locationId) {
-    const locationJobs = employeeJobs.filter(
-      (job) => job.locationId === clockEvent.locationId
-    );
+    const locationJobs = employeeJobs.filter((job) => job.locationId === clockEvent.locationId);
     if (locationJobs.length > 0) {
       // Return the first matching job (could be enhanced with time proximity)
       return locationJobs[0];
@@ -224,7 +215,7 @@ function calculateHoursFromClockEvent(clockEvent: ClockEvent): number {
 async function checkTimesheetExists(
   employeeId: string,
   jobId: string,
-  serviceDate: Date
+  serviceDate: Date,
 ): Promise<boolean> {
   const db = getFirestoreInstance();
 
@@ -234,17 +225,17 @@ async function checkTimesheetExists(
   endOfDay.setHours(23, 59, 59, 999);
 
   const qy = query(
-    collection(db, "timesheets"),
-    where("employeeId", "==", employeeId),
-    where("start", ">=", Timestamp.fromDate(startOfDay)),
-    where("start", "<=", Timestamp.fromDate(endOfDay))
+    collection(db, 'timesheets'),
+    where('employeeId', '==', employeeId),
+    where('start', '>=', Timestamp.fromDate(startOfDay)),
+    where('start', '<=', Timestamp.fromDate(endOfDay)),
   );
 
   const snap = await getDocs(qy);
   let exists = false;
   snap.forEach((doc) => {
     const data = doc.data() as any;
-    if (String(data?.jobId || "") === jobId) exists = true;
+    if (String(data?.jobId || '') === jobId) exists = true;
   });
   return exists;
 }
@@ -256,36 +247,36 @@ async function getEffectiveRate(
   employeeId: string,
   effectiveAt: Timestamp,
   locationId?: string,
-  clientProfileId?: string
+  clientProfileId?: string,
 ): Promise<RateSnapshot | null> {
   const db = getFirestoreInstance();
 
   // Try scoped rates first (location/client specific)
   let rateQuery = query(
-    collection(db, "employeeRates"),
-    where("employeeId", "==", employeeId),
-    where("effectiveDate", "<=", effectiveAt),
-    orderBy("effectiveDate", "desc"),
-    limit(1)
+    collection(db, 'employeeRates'),
+    where('employeeId', '==', employeeId),
+    where('effectiveDate', '<=', effectiveAt),
+    orderBy('effectiveDate', 'desc'),
+    limit(1),
   );
 
   if (locationId) {
     rateQuery = query(
-      collection(db, "employeeRates"),
-      where("employeeId", "==", employeeId),
-      where("locationId", "==", locationId),
-      where("effectiveDate", "<=", effectiveAt),
-      orderBy("effectiveDate", "desc"),
-      limit(1)
+      collection(db, 'employeeRates'),
+      where('employeeId', '==', employeeId),
+      where('locationId', '==', locationId),
+      where('effectiveDate', '<=', effectiveAt),
+      orderBy('effectiveDate', 'desc'),
+      limit(1),
     );
   } else if (clientProfileId) {
     rateQuery = query(
-      collection(db, "employeeRates"),
-      where("employeeId", "==", employeeId),
-      where("clientProfileId", "==", clientProfileId),
-      where("effectiveDate", "<=", effectiveAt),
-      orderBy("effectiveDate", "desc"),
-      limit(1)
+      collection(db, 'employeeRates'),
+      where('employeeId', '==', employeeId),
+      where('clientProfileId', '==', clientProfileId),
+      where('effectiveDate', '<=', effectiveAt),
+      orderBy('effectiveDate', 'desc'),
+      limit(1),
     );
   }
 
@@ -293,9 +284,8 @@ async function getEffectiveRate(
   if (!rateSnap.empty) {
     const data = rateSnap.docs[0].data() as any;
     const rateSnapshot: RateSnapshot = {
-      type: data.rateType || (data.hourlyRate ? "hourly" : "per_visit"),
-      amount:
-        data.amount || data.hourlyRate || data.perVisitRate || data.rate || 0,
+      type: data.rateType || (data.hourlyRate ? 'hourly' : 'per_visit'),
+      amount: data.amount || data.hourlyRate || data.perVisitRate || data.rate || 0,
     };
 
     // Only include monthlyPayDay if it's defined and not null
@@ -317,32 +307,56 @@ export async function updateTimesheetEarningsOnJobCompletion(jobId: string) {
 
   // Get all timesheets for this job
   const timesheetsQuery = query(
-    collection(db, "timesheets"),
-    where("jobId", "==", jobId),
-    where("source", "==", "clock_event"),
-    where("adminApproved", "==", false)
+    collection(db, 'timesheets'),
+    where('jobId', '==', jobId),
+    where('source', '==', 'clock_event'),
+    where('adminApproved', '==', false),
   );
 
   const timesheetsSnap = await getDocs(timesheetsQuery);
 
-  if (timesheetsSnap.empty) return { updated: 0 };
+  if (timesheetsSnap.empty) return { updated: 0, timesheetIds: [] as string[] };
 
   const batch = writeBatch(db);
   let updatedCount = 0;
+  const updatedTimesheetIds: string[] = [];
 
-  timesheetsSnap.forEach((doc) => {
-    const data = doc.data() as any;
+  timesheetsSnap.forEach((docSnap) => {
+    const data = docSnap.data() as any;
     // Mark as admin approved and update earnings calculation
-    batch.update(doc.ref, {
+    batch.update(docSnap.ref, {
       adminApproved: true,
       updatedAt: serverTimestamp(),
     });
     updatedCount++;
+    updatedTimesheetIds.push(docSnap.id);
   });
 
   if (updatedCount > 0) {
     await batch.commit();
   }
 
-  return { updated: updatedCount };
+  return { updated: updatedCount, timesheetIds: updatedTimesheetIds };
+}
+
+export async function rollbackTimesheetEarningsOnJobCompletion(timesheetIds: string[]) {
+  if (!Array.isArray(timesheetIds) || timesheetIds.length === 0) {
+    return;
+  }
+
+  const db = getFirestoreInstance();
+  await runTransaction(db, async (transaction) => {
+    for (const timesheetId of timesheetIds) {
+      const timesheetRef = doc(db, 'timesheets', timesheetId);
+      const snap = await transaction.get(timesheetRef);
+      if (!snap.exists()) continue;
+      const data = snap.data() as any;
+      // Only revert auto-generated clock event approvals
+      if (data?.source !== 'clock_event') continue;
+      transaction.update(timesheetRef, {
+        adminApproved: false,
+        updatedAt: serverTimestamp(),
+      });
+    }
+  });
 }

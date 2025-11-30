@@ -16,6 +16,8 @@ import {
   Timestamp,
   writeBatch,
   limit,
+  deleteField,
+  FieldValue,
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { firebaseConfig } from '../../services/firebase';
@@ -28,14 +30,31 @@ import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { makeDayBounds, mergePhotoResults } from '../../services/firebase';
 
+// Helper to safely convert Timestamp | Date | null to Date
+function toDate(value: Timestamp | Date | null | undefined): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof (value as Timestamp).toDate === 'function') {
+    return (value as Timestamp).toDate();
+  }
+  // Fallback for plain objects with seconds (e.g., from JSON)
+  if ((value as any)?.seconds) {
+    return new Date((value as any).seconds * 1000);
+  }
+  return null;
+}
+
 type JobRecord = {
   id: string;
-  serviceDate?: any;
-  clientProfileId?: string;
-  locationId?: string;
+  serviceDate?: Timestamp | Date | null;
+  clientProfileId?: string | null;
+  locationId?: string | null;
   assignedEmployees?: string[];
-  status?: string;
-  statusV2?: CanonicalStatus;
+  status?: string | null;
+  statusV2?: CanonicalStatus | null;
+  approvedAt?: Timestamp | Date | null;
+  approvedBy?: string | null;
+  [key: string]: unknown;
 };
 
 type Note = {
@@ -132,11 +151,7 @@ export default function JobDetail() {
               serviceDateType: typeof j.serviceDate,
             });
 
-            const dt: Date = j.serviceDate?.toDate
-              ? j.serviceDate.toDate()
-              : (j.serviceDate as any)?.seconds
-              ? new Date((j.serviceDate as any).seconds * 1000)
-              : new Date();
+            const dt: Date = toDate(j.serviceDate) || new Date();
 
             console.log('🔍 DEBUG: Parsed service date:', dt);
 
@@ -230,11 +245,7 @@ export default function JobDetail() {
         }
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
-        const dt: Date = job.serviceDate?.toDate
-          ? job.serviceDate.toDate()
-          : (job.serviceDate as any)?.seconds
-          ? new Date((job.serviceDate as any).seconds * 1000)
-          : new Date();
+        const dt: Date = toDate(job.serviceDate) || new Date();
         const { start, end } = makeDayBoundsUtil(dt, 'America/New_York');
         const qref = query(
           collection(db, 'employeeTimeTracking'),
@@ -279,14 +290,18 @@ export default function JobDetail() {
     if (!job || !jobId) return;
     if (!getApps().length) initializeApp(firebaseConfig);
     const db = getFirestore();
-    const payload: any = {};
-    if (Array.isArray(updated.assignedEmployees))
-      payload.assignedEmployees = updated.assignedEmployees;
-    if (updated.serviceDate instanceof Date)
+    const payload: Partial<JobRecord> & Record<string, unknown> = {};
+    if (Array.isArray(updated.assignedEmployees)) {
+      payload.assignedEmployees = [...updated.assignedEmployees];
+    }
+    if (updated.serviceDate instanceof Date) {
       payload.serviceDate = Timestamp.fromDate(updated.serviceDate);
-    if ((updated as any).statusV2) payload.statusV2 = (updated as any).statusV2;
+    }
+    if ('statusV2' in updated) {
+      payload.statusV2 = updated.statusV2 ?? null;
+    }
     await updateDoc(doc(db, 'serviceHistory', jobId), payload);
-    setJob((prev) => (prev ? { ...prev, ...payload } : prev));
+    setJob((prev) => (prev ? ({ ...prev, ...payload } as JobRecord) : prev));
   }
 
   async function saveAdminNotes() {
@@ -369,7 +384,13 @@ export default function JobDetail() {
   async function saveApproval() {
     if (!jobId || !job) return;
     const prevState = photoState;
+    const prevPhotos = photos.map((p) => ({ ...p }));
     const prevStatus = job.status || '';
+    const hadApprovedAt = job ? Object.prototype.hasOwnProperty.call(job, 'approvedAt') : false;
+    const hadApprovedBy = job ? Object.prototype.hasOwnProperty.call(job, 'approvedBy') : false;
+    const prevApprovedAt = hadApprovedAt ? (job as any).approvedAt ?? null : undefined;
+    const prevApprovedBy = hadApprovedBy ? (job as any).approvedBy ?? null : undefined;
+
     try {
       setSavingApproval(true);
       if (!getApps().length) initializeApp(firebaseConfig);
@@ -379,6 +400,7 @@ export default function JobDetail() {
       const batch = writeBatch(db);
 
       let anyBecameVisible = false;
+      const photoRollbackPayloads: Array<{ id: string; payload: Record<string, any> }> = [];
       // Prepare photo updates
       for (const p of photos) {
         const originalVisible = !!(p as any).isClientVisible;
@@ -396,20 +418,70 @@ export default function JobDetail() {
           if (visChanged) payload.isClientVisible = nextVisible;
           if (notesChanged) payload.notes = current.notes ?? null;
           batch.update(doc(db, 'servicePhotos', p.id), payload);
+
+          const rollbackPayload: Record<string, any> = {};
+          if (visChanged) rollbackPayload.isClientVisible = originalVisible;
+          if (notesChanged) {
+            rollbackPayload.notes = notesFieldExists[p.id] ? p.notes ?? null : deleteField();
+          }
+          photoRollbackPayloads.push({ id: p.id, payload: rollbackPayload });
         }
         if (!originalVisible && nextVisible) anyBecameVisible = true;
       }
 
       // Prepare job status update
       const statusChanged = (statusLegacy || '') !== prevStatus;
+      const isTransitionToCompleted = statusChanged && statusLegacy === 'Completed';
+      const shouldSetApprovalTimestamp =
+        isTransitionToCompleted && (!hadApprovedAt || prevApprovedAt === null);
+      const shouldSetApprovalActor =
+        isTransitionToCompleted && (!hadApprovedBy || prevApprovedBy === null);
       if (statusChanged || anyBecameVisible) {
-        const payload: any = {};
+        if (isTransitionToCompleted) {
+          try {
+            const { validateJobPayrollReadiness } = await import(
+              '../../services/payroll/payrollService'
+            );
+            const missingRateEmployeeIds = await validateJobPayrollReadiness(jobId!);
+            if (missingRateEmployeeIds.length) {
+              const names = await getEmployeeNames(missingRateEmployeeIds);
+              const readableNames = missingRateEmployeeIds.map((id, index) => names[index] || id);
+              show({
+                type: 'error',
+                message: `Cannot complete job. Missing pay rates for: ${readableNames.join(', ')}.`,
+              });
+              setStatusLegacy(prevStatus);
+              setSavingApproval(false);
+              return;
+            }
+          } catch (error) {
+            console.error('Failed to validate payroll readiness:', error);
+            show({
+              type: 'error',
+              message:
+                error instanceof Error
+                  ? error.message
+                  : 'Unable to verify pay rates for this job. Try again later.',
+            });
+            setStatusLegacy(prevStatus);
+            setSavingApproval(false);
+            return;
+          }
+        }
+        const payload: Record<string, unknown> = {};
         if (statusChanged) payload.status = statusLegacy || null;
-        if (anyBecameVisible || statusLegacy === 'Completed') {
+        if (shouldSetApprovalTimestamp) {
           payload.approvedAt = serverTimestamp();
+        }
+        if (shouldSetApprovalActor) {
           payload.approvedBy = auth.currentUser?.uid || null;
         }
-        batch.update(doc(db, 'serviceHistory', jobId), payload);
+        if (Object.keys(payload).length > 0) {
+          batch.update(
+            doc(db, 'serviceHistory', jobId),
+            payload as { [x: string]: FieldValue | Partial<unknown> | undefined },
+          );
+        }
       }
 
       await batch.commit();
@@ -426,24 +498,145 @@ export default function JobDetail() {
         }),
       );
       if (statusChanged || anyBecameVisible) {
-        setJob((prev) =>
-          prev
-            ? {
-                ...prev,
-                status: statusLegacy || prev.status,
-              }
-            : prev,
-        );
+        setJob((prev) => {
+          if (!prev) return prev;
+          const next: JobRecord & Record<string, unknown> = {
+            ...prev,
+            status: statusLegacy || prev.status,
+          } as JobRecord & Record<string, unknown>;
+          // Note: We don't set approvedAt locally because the server uses serverTimestamp()
+          // which may differ from Timestamp.now() due to clock skew. The correct value
+          // will be available on next fetch. We preserve existing values if not changing.
+          if (prevApprovedAt !== undefined) {
+            next.approvedAt = prevApprovedAt;
+          } else if (!shouldSetApprovalTimestamp) {
+            delete next.approvedAt;
+          }
+          // approvedBy can be set locally since it's a simple UID, not a timestamp
+          if (shouldSetApprovalActor) {
+            next.approvedBy = auth.currentUser?.uid || null;
+          } else if (prevApprovedBy !== undefined) {
+            next.approvedBy = prevApprovedBy;
+          } else {
+            delete next.approvedBy;
+          }
+          return next;
+        });
 
-        // Auto-update timesheet earnings when job is completed
-        if (statusLegacy === 'Completed') {
+        // Auto-update timesheet earnings and payroll entries when job transitions to completed
+        if (isTransitionToCompleted) {
           try {
-            const { updateTimesheetEarningsOnJobCompletion } = await import(
-              '../../services/automation/timesheetAutomation'
-            );
-            await updateTimesheetEarningsOnJobCompletion(jobId!);
+            const [
+              { updateTimesheetEarningsOnJobCompletion, rollbackTimesheetEarningsOnJobCompletion },
+              { createPayrollEntriesForJob },
+            ] = await Promise.all([
+              import('../../services/automation/timesheetAutomation'),
+              import('../../services/payroll/payrollService'),
+            ]);
+            const timesheetResult = await updateTimesheetEarningsOnJobCompletion(jobId!);
+            try {
+              await createPayrollEntriesForJob(jobId!);
+            } catch (payrollError) {
+              if (photoRollbackPayloads.length) {
+                try {
+                  const photoRollbackBatch = writeBatch(db);
+                  for (const rollback of photoRollbackPayloads) {
+                    photoRollbackBatch.update(
+                      doc(db, 'servicePhotos', rollback.id),
+                      rollback.payload,
+                    );
+                  }
+                  await photoRollbackBatch.commit();
+                } catch (photoRollbackError) {
+                  console.error(
+                    'Failed to rollback photo approvals after payroll entry failure:',
+                    photoRollbackError,
+                  );
+                }
+              }
+              setPhotoState(prevState);
+              setPhotos(prevPhotos);
+              if (timesheetResult.timesheetIds?.length) {
+                try {
+                  await rollbackTimesheetEarningsOnJobCompletion(timesheetResult.timesheetIds);
+                } catch (timesheetRollbackError) {
+                  console.error(
+                    'Failed to rollback timesheet approvals after payroll entry failure:',
+                    timesheetRollbackError,
+                  );
+                }
+              }
+              throw payrollError;
+            }
           } catch (error) {
-            console.error('Failed to update timesheet earnings:', error);
+            console.error('Failed to run post-completion payroll updates:', error);
+            const rollbackPayload: Record<string, unknown> = {
+              status: prevStatus || null,
+            };
+            if (prevApprovedAt !== undefined) {
+              rollbackPayload.approvedAt = prevApprovedAt;
+            } else {
+              rollbackPayload.approvedAt = deleteField();
+            }
+            if (prevApprovedBy !== undefined) {
+              rollbackPayload.approvedBy = prevApprovedBy;
+            } else {
+              rollbackPayload.approvedBy = deleteField();
+            }
+            try {
+              await updateDoc(
+                doc(db, 'serviceHistory', jobId),
+                rollbackPayload as { [x: string]: FieldValue | Partial<unknown> | undefined },
+              );
+            } catch (rollbackError) {
+              console.error('Failed to rollback job completion state:', rollbackError);
+            }
+            if (photoRollbackPayloads.length) {
+              try {
+                const photoRollbackBatch = writeBatch(db);
+                for (const rollback of photoRollbackPayloads) {
+                  photoRollbackBatch.update(
+                    doc(db, 'servicePhotos', rollback.id),
+                    rollback.payload,
+                  );
+                }
+                await photoRollbackBatch.commit();
+              } catch (photoRollbackError) {
+                console.error(
+                  'Failed to rollback photo approvals after job state rollback:',
+                  photoRollbackError,
+                );
+              }
+            }
+            setStatusLegacy(prevStatus);
+            setJob((prevJob) => {
+              if (!prevJob) return prevJob;
+              const next: JobRecord & Record<string, unknown> = {
+                ...prevJob,
+                status: prevStatus || prevJob.status,
+              } as JobRecord & Record<string, unknown>;
+              if (prevApprovedAt !== undefined) {
+                next.approvedAt = prevApprovedAt;
+              } else {
+                delete next.approvedAt;
+              }
+              if (prevApprovedBy !== undefined) {
+                next.approvedBy = prevApprovedBy;
+              } else {
+                delete next.approvedBy;
+              }
+              return next;
+            });
+            setPhotos(prevPhotos);
+            setPhotoState(prevState);
+            show({
+              type: 'error',
+              message:
+                error instanceof Error
+                  ? error.message
+                  : 'Job marked completed, but payroll updates failed. Please review payroll.',
+            });
+            return;
           }
         }
       }
@@ -451,6 +644,7 @@ export default function JobDetail() {
     } catch (e: any) {
       // Rollback UI
       setPhotoState(prevState);
+      setPhotos(prevPhotos);
       setStatusLegacy(prevStatus);
       show({ type: 'error', message: e?.message || 'Failed to save changes.' });
     } finally {
@@ -559,7 +753,7 @@ export default function JobDetail() {
               <div className="min-w-0">
                 <div className="font-medium truncate">{locationName || clientName || job.id}</div>
                 <div className="text-xs text-zinc-500 mt-0.5 truncate">
-                  {job.serviceDate?.toDate ? job.serviceDate.toDate().toLocaleDateString() : '—'}{' '}
+                  {toDate(job.serviceDate)?.toLocaleDateString() ?? '—'}{' '}
                   <span className="text-xs text-zinc-500">
                     {timeWindow || (job.serviceDate ? formatJobWindow(job.serviceDate) : '')}
                   </span>
@@ -624,9 +818,7 @@ export default function JobDetail() {
                         </div>
                         <div>
                           <span className="text-zinc-500">Service Date:</span>{' '}
-                          {job.serviceDate?.toDate
-                            ? job.serviceDate.toDate().toLocaleString()
-                            : '—'}
+                          {toDate(job.serviceDate)?.toLocaleString() ?? '—'}
                         </div>
                         <div>
                           <span className="text-zinc-500">Status:</span>{' '}

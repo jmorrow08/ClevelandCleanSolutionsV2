@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { initializeApp, getApps } from "firebase/app";
+import { useEffect, useMemo, useState } from 'react';
+import { initializeApp, getApps } from 'firebase/app';
 import {
   getFirestore,
   doc,
@@ -16,37 +16,46 @@ import {
   Timestamp,
   writeBatch,
   limit,
-} from "firebase/firestore";
-import { getAuth } from "firebase/auth";
-import { firebaseConfig } from "../../services/firebase";
-import {
-  makeDayBounds as makeDayBoundsUtil,
-  formatJobWindow,
-} from "../../utils/time";
-import {
-  getClientName,
-  getLocationName,
-  getEmployeeNames,
-} from "../../services/queries/resolvers";
-import {
-  mapLegacyStatus,
-  type CanonicalStatus,
-} from "../../services/statusMap";
-import { RoleGuard } from "../../context/RoleGuard";
-import EmployeeAssignmentForm from "../../features/serviceHistory/EmployeeAssignmentForm";
-import { useToast } from "../../context/ToastContext";
-import { useAuth } from "../../context/AuthContext";
-import { makeDayBounds, mergePhotoResults } from "../../services/firebase";
-import { ChevronLeft, ChevronRight, X, ArrowRight } from "lucide-react";
+  deleteField,
+  FieldValue,
+} from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { firebaseConfig } from '../../services/firebase';
+import { makeDayBounds as makeDayBoundsUtil, formatJobWindow } from '../../utils/time';
+import { getClientName, getLocationName, getEmployeeNames } from '../../services/queries/resolvers';
+import { mapLegacyStatus, type CanonicalStatus } from '../../services/statusMap';
+import { RoleGuard } from '../../context/RoleGuard';
+import EmployeeAssignmentForm from '../../features/serviceHistory/EmployeeAssignmentForm';
+import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import { makeDayBounds, mergePhotoResults } from '../../services/firebase';
+import { ChevronLeft, ChevronRight, X, ArrowRight } from 'lucide-react';
+
+// Helper to safely convert Timestamp | Date | null to Date
+function toDate(value: Timestamp | Date | null | undefined): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof (value as Timestamp).toDate === 'function') {
+    return (value as Timestamp).toDate();
+  }
+  // Fallback for plain objects with seconds (e.g., from JSON)
+  if ((value as any)?.seconds) {
+    return new Date((value as any).seconds * 1000);
+  }
+  return null;
+}
 
 type JobRecord = {
   id: string;
-  serviceDate?: any;
-  clientProfileId?: string;
-  locationId?: string;
+  serviceDate?: Timestamp | Date | null;
+  clientProfileId?: string | null;
+  locationId?: string | null;
   assignedEmployees?: string[];
-  status?: string;
-  statusV2?: CanonicalStatus;
+  status?: string | null;
+  statusV2?: CanonicalStatus | null;
+  approvedAt?: Timestamp | Date | null;
+  approvedBy?: string | null;
+  [key: string]: unknown;
 };
 
 type Note = {
@@ -98,20 +107,18 @@ export default function JobModal({
 
   const [loading, setLoading] = useState(true);
   const [job, setJob] = useState<JobRecord | null>(null);
-  const [clientName, setClientName] = useState<string>("");
-  const [locationName, setLocationName] = useState<string>("");
+  const [clientName, setClientName] = useState<string>('');
+  const [locationName, setLocationName] = useState<string>('');
   const [notes, setNotes] = useState<Note[]>([]);
-  const [newNote, setNewNote] = useState<string>("");
+  const [newNote, setNewNote] = useState<string>('');
   const [postingNote, setPostingNote] = useState(false);
-  const [adminNotes, setAdminNotes] = useState<string>("");
+  const [adminNotes, setAdminNotes] = useState<string>('');
   const [savingAdminNotes, setSavingAdminNotes] = useState(false);
   const [assignedDisplay, setAssignedDisplay] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
 
   // UI tabs: Overview vs Approval
-  const [activeTab, setActiveTab] = useState<"overview" | "approval">(
-    "overview"
-  );
+  const [activeTab, setActiveTab] = useState<'overview' | 'approval'>('overview');
 
   // Approval state
   const [approvalLoading, setApprovalLoading] = useState(false);
@@ -119,12 +126,10 @@ export default function JobModal({
   const [photoState, setPhotoState] = useState<
     Record<string, { isClientVisible: boolean; notes?: string }>
   >({});
-  const [notesFieldExists, setNotesFieldExists] = useState<
-    Record<string, boolean>
-  >({});
-  const [statusLegacy, setStatusLegacy] = useState<string>("");
+  const [notesFieldExists, setNotesFieldExists] = useState<Record<string, boolean>>({});
+  const [statusLegacy, setStatusLegacy] = useState<string>('');
   const [savingApproval, setSavingApproval] = useState(false);
-  const [timeWindow, setTimeWindow] = useState<string>("");
+  const [timeWindow, setTimeWindow] = useState<string>('');
 
   // Check if user has admin permissions
   const isAdmin = claims?.admin || claims?.owner || claims?.super_admin;
@@ -138,23 +143,23 @@ export default function JobModal({
       if (!isOpen) return;
 
       switch (e.key) {
-        case "ArrowLeft":
+        case 'ArrowLeft':
           e.preventDefault();
           navigateToJob(currentIndex - 1);
           break;
-        case "ArrowRight":
+        case 'ArrowRight':
           e.preventDefault();
           navigateToJob(currentIndex + 1);
           break;
-        case "Escape":
+        case 'Escape':
           e.preventDefault();
           onClose();
           break;
       }
     };
 
-    window.addEventListener("keydown", handleKeyPress);
-    return () => window.removeEventListener("keydown", handleKeyPress);
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
   }, [isOpen, currentIndex, jobs.length]);
 
   const navigateToJob = (newIndex: number) => {
@@ -174,68 +179,61 @@ export default function JobModal({
       setLoading(true);
       if (!getApps().length) initializeApp(firebaseConfig);
       const db = getFirestore();
-      const snap = await getDoc(doc(db, "serviceHistory", jobId));
+      const snap = await getDoc(doc(db, 'serviceHistory', jobId));
       if (!snap.exists()) {
         setJob(null);
         return;
       }
       const j = { id: snap.id, ...(snap.data() as any) } as JobRecord;
       setJob(j);
-      setStatusLegacy(((snap.data() as any)?.status as string) || "");
-      if (j.clientProfileId)
-        setClientName(await getClientName(j.clientProfileId));
+      setStatusLegacy(((snap.data() as any)?.status as string) || '');
+      if (j.clientProfileId) setClientName(await getClientName(j.clientProfileId));
       if (j.locationId) setLocationName(await getLocationName(j.locationId));
 
       // Load admin notes from job data
-      setAdminNotes((j as any).adminNotes || "");
+      setAdminNotes((j as any).adminNotes || '');
 
       // Load notes for this job (client/admin notes from jobNotes + employee day notes)
       try {
         const list: Note[] = [];
         // 1) jobNotes linked to this job (no orderBy to avoid composite index)
-        const ns = await getDocs(
-          query(collection(db, "jobNotes"), where("jobId", "==", jobId))
-        );
+        const ns = await getDocs(query(collection(db, 'jobNotes'), where('jobId', '==', jobId)));
         ns.forEach((d) => {
           const data = d.data() as any;
           // Filter out admin notes since we display them separately
-          if (data.authorRole !== "admin") {
+          if (data.authorRole !== 'admin') {
             list.push({ id: d.id, ...(d.data() as any) } as Note);
           }
         });
         // 2) employee day notes for same location and service date
         if (j.locationId && j.serviceDate) {
-          console.log("🔍 DEBUG JobModal: Loading employee notes for job:", {
+          console.log('🔍 DEBUG JobModal: Loading employee notes for job:', {
             jobId,
             locationId: j.locationId,
             serviceDate: j.serviceDate,
             serviceDateType: typeof j.serviceDate,
           });
 
-          const dt: Date = j.serviceDate?.toDate
-            ? j.serviceDate.toDate()
-            : (j.serviceDate as any)?.seconds
-            ? new Date((j.serviceDate as any).seconds * 1000)
-            : new Date();
+          const dt: Date = toDate(j.serviceDate) || new Date();
 
-          console.log("🔍 DEBUG JobModal: Parsed service date:", dt);
+          console.log('🔍 DEBUG JobModal: Parsed service date:', dt);
 
-          const { start, end } = makeDayBoundsUtil(dt, "America/New_York");
-          console.log("🔍 DEBUG JobModal: Date range for employee notes:", {
+          const { start, end } = makeDayBoundsUtil(dt, 'America/New_York');
+          console.log('🔍 DEBUG JobModal: Date range for employee notes:', {
             start: start.toISOString(),
             end: end.toISOString(),
-            timezone: "America/New_York",
+            timezone: 'America/New_York',
           });
 
           try {
             // Query by locationId only, then filter by date client-side to avoid composite index requirement
             const locationNotesQuery = query(
-              collection(db, "generalJobNotes"),
-              where("locationId", "==", j.locationId)
+              collection(db, 'generalJobNotes'),
+              where('locationId', '==', j.locationId),
             );
             const locationNotesSnapshot = await getDocs(locationNotesQuery);
             console.log(
-              `Employee notes for location ${j.locationId}: ${locationNotesSnapshot.size} found`
+              `Employee notes for location ${j.locationId}: ${locationNotesSnapshot.size} found`,
             );
 
             // Filter by date client-side
@@ -244,7 +242,7 @@ export default function JobModal({
               const data = doc.data();
               const createdAt = data.createdAt;
 
-              if (createdAt && typeof createdAt.toDate === "function") {
+              if (createdAt && typeof createdAt.toDate === 'function') {
                 const noteDate = createdAt.toDate();
                 if (noteDate >= start && noteDate <= end) {
                   filteredNotes.push({
@@ -255,9 +253,7 @@ export default function JobModal({
               }
             });
 
-            console.log(
-              `Employee notes in date range: ${filteredNotes.length}`
-            );
+            console.log(`Employee notes in date range: ${filteredNotes.length}`);
 
             filteredNotes.forEach((item) => {
               const data = item.data;
@@ -265,29 +261,22 @@ export default function JobModal({
                 id: item.id,
                 message: data.notes,
                 createdAt: data.createdAt,
-                authorRole: "employee",
+                authorRole: 'employee',
               });
             });
           } catch (error) {
-            console.error("Error loading employee notes:", error);
+            console.error('Error loading employee notes:', error);
           }
         } else {
-          console.log(
-            "🔍 DEBUG JobModal: Missing required data for employee notes:",
-            {
-              locationId: j.locationId,
-              serviceDate: j.serviceDate,
-            }
-          );
+          console.log('🔍 DEBUG JobModal: Missing required data for employee notes:', {
+            locationId: j.locationId,
+            serviceDate: j.serviceDate,
+          });
         }
         // Sort newest first by createdAt, handling Firestore Timestamp-like values
         list.sort((a, b) => {
           const getMs = (t: any) =>
-            t?.toDate
-              ? t.toDate().getTime()
-              : t?.seconds
-              ? t.seconds * 1000
-              : 0;
+            t?.toDate ? t.toDate().getTime() : t?.seconds ? t.seconds * 1000 : 0;
           return getMs(b.createdAt) - getMs(a.createdAt);
         });
         setNotes(list);
@@ -312,26 +301,20 @@ export default function JobModal({
     (async () => {
       try {
         if (!job || !job.locationId || !job.serviceDate) {
-          setTimeWindow(
-            job?.serviceDate ? formatJobWindow(job.serviceDate) : ""
-          );
+          setTimeWindow(job?.serviceDate ? formatJobWindow(job.serviceDate) : '');
           return;
         }
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
-        const dt: Date = job.serviceDate?.toDate
-          ? job.serviceDate.toDate()
-          : (job.serviceDate as any)?.seconds
-          ? new Date((job.serviceDate as any).seconds * 1000)
-          : new Date();
-        const { start, end } = makeDayBoundsUtil(dt, "America/New_York");
+        const dt: Date = toDate(job.serviceDate) || new Date();
+        const { start, end } = makeDayBoundsUtil(dt, 'America/New_York');
         const qref = query(
-          collection(db, "employeeTimeTracking"),
-          where("locationId", "==", job.locationId),
-          where("clockInTime", ">=", Timestamp.fromDate(start)),
-          where("clockOutTime", "<=", Timestamp.fromDate(end)),
-          orderBy("clockInTime", "asc"),
-          limit(10)
+          collection(db, 'employeeTimeTracking'),
+          where('locationId', '==', job.locationId),
+          where('clockInTime', '>=', Timestamp.fromDate(start)),
+          where('clockOutTime', '<=', Timestamp.fromDate(end)),
+          orderBy('clockInTime', 'asc'),
+          limit(10),
         );
         const snap = await getDocs(qref);
         const rows: any[] = [];
@@ -339,16 +322,14 @@ export default function JobModal({
         const assigned = Array.isArray(job.assignedEmployees)
           ? (job.assignedEmployees as string[])
           : [];
-        let rec = rows.find((r) =>
-          assigned.includes((r as any).employeeProfileId || "")
-        );
+        let rec = rows.find((r) => assigned.includes((r as any).employeeProfileId || ''));
         if (!rec) rec = rows[0];
         if (rec?.clockInTime?.toDate && rec?.clockOutTime?.toDate) {
           setTimeWindow(
             formatJobWindow(job.serviceDate, {
               start: rec.clockInTime,
               end: rec.clockOutTime,
-            })
+            }),
           );
         } else if (rec?.clockInTime?.toDate && !rec?.clockOutTime) {
           setTimeWindow(formatJobWindow(job.serviceDate));
@@ -356,7 +337,7 @@ export default function JobModal({
           setTimeWindow(formatJobWindow(job.serviceDate));
         }
       } catch {
-        setTimeWindow(job?.serviceDate ? formatJobWindow(job.serviceDate) : "");
+        setTimeWindow(job?.serviceDate ? formatJobWindow(job.serviceDate) : '');
       }
     })();
   }, [job?.id, job?.serviceDate, job?.locationId]);
@@ -366,20 +347,22 @@ export default function JobModal({
     return job.statusV2 || mapLegacyStatus(job.status) || undefined;
   }, [job]);
 
-  async function handleSave(
-    updated: Partial<JobRecord> & { serviceDate?: Date }
-  ) {
+  async function handleSave(updated: Partial<JobRecord> & { serviceDate?: Date }) {
     if (!job || !job.id) return;
     if (!getApps().length) initializeApp(firebaseConfig);
     const db = getFirestore();
-    const payload: any = {};
-    if (Array.isArray(updated.assignedEmployees))
-      payload.assignedEmployees = updated.assignedEmployees;
-    if (updated.serviceDate instanceof Date)
+    const payload: Partial<JobRecord> & Record<string, unknown> = {};
+    if (Array.isArray(updated.assignedEmployees)) {
+      payload.assignedEmployees = [...updated.assignedEmployees];
+    }
+    if (updated.serviceDate instanceof Date) {
       payload.serviceDate = Timestamp.fromDate(updated.serviceDate);
-    if ((updated as any).statusV2) payload.statusV2 = (updated as any).statusV2;
-    await updateDoc(doc(db, "serviceHistory", job.id), payload);
-    setJob((prev) => (prev ? { ...prev, ...payload } : prev));
+    }
+    if ('statusV2' in updated) {
+      payload.statusV2 = updated.statusV2 ?? null;
+    }
+    await updateDoc(doc(db, 'serviceHistory', job.id), payload);
+    setJob((prev) => (prev ? ({ ...prev, ...payload } as JobRecord) : prev));
   }
 
   async function saveAdminNotes() {
@@ -389,14 +372,14 @@ export default function JobModal({
       setSavingAdminNotes(true);
       if (!getApps().length) initializeApp(firebaseConfig);
       const db = getFirestore();
-      await updateDoc(doc(db, "serviceHistory", job.id), {
+      await updateDoc(doc(db, 'serviceHistory', job.id), {
         adminNotes: notes,
         updatedAt: serverTimestamp(),
       });
-      show({ type: "success", message: "Admin notes saved successfully" });
+      show({ type: 'success', message: 'Admin notes saved successfully' });
     } catch (error: any) {
       show({
-        type: "error",
+        type: 'error',
         message: `Failed to save admin notes: ${error.message}`,
       });
     } finally {
@@ -412,11 +395,9 @@ export default function JobModal({
       if (!getApps().length) initializeApp(firebaseConfig);
       const db = getFirestore();
       const auth = getAuth();
-      const claims = (await auth.currentUser?.getIdTokenResult(true))
-        ?.claims as any;
-      let authorRole: string = "employee";
-      if (claims?.admin || claims?.owner || claims?.super_admin)
-        authorRole = "admin";
+      const claims = (await auth.currentUser?.getIdTokenResult(true))?.claims as any;
+      let authorRole: string = 'employee';
+      if (claims?.admin || claims?.owner || claims?.super_admin) authorRole = 'admin';
       const payload: any = {
         jobId: job.id,
         locationId: job.locationId || null,
@@ -425,9 +406,9 @@ export default function JobModal({
         createdAt: serverTimestamp(),
         date: serverTimestamp(),
       };
-      const ref = await addDoc(collection(db, "jobNotes"), payload);
+      const ref = await addDoc(collection(db, 'jobNotes'), payload);
       setNotes((prev) => [{ id: ref.id, ...payload }, ...prev]);
-      setNewNote("");
+      setNewNote('');
     } catch {
       // ignore
     } finally {
@@ -438,7 +419,13 @@ export default function JobModal({
   async function saveApproval() {
     if (!job?.id || !job) return;
     const prevState = photoState;
-    const prevStatus = job.status || "";
+    const prevPhotos = photos.map((p) => ({ ...p }));
+    const prevStatus = job.status || '';
+    const hadApprovedAt = job ? Object.prototype.hasOwnProperty.call(job, 'approvedAt') : false;
+    const hadApprovedBy = job ? Object.prototype.hasOwnProperty.call(job, 'approvedBy') : false;
+    const prevApprovedAt = hadApprovedAt ? (job as any).approvedAt ?? null : undefined;
+    const prevApprovedBy = hadApprovedBy ? (job as any).approvedBy ?? null : undefined;
+
     try {
       setSavingApproval(true);
       if (!getApps().length) initializeApp(firebaseConfig);
@@ -448,37 +435,88 @@ export default function JobModal({
       const batch = writeBatch(db);
 
       let anyBecameVisible = false;
+      const photoRollbackPayloads: Array<{ id: string; payload: Record<string, any> }> = [];
       // Prepare photo updates
       for (const p of photos) {
         const originalVisible = !!(p as any).isClientVisible;
         const current = photoState[p.id] || {
           isClientVisible: originalVisible,
-          notes: notesFieldExists[p.id] ? p.notes ?? "" : undefined,
+          notes: notesFieldExists[p.id] ? p.notes ?? '' : undefined,
         };
         const nextVisible = !!current.isClientVisible;
         const notesChanged = notesFieldExists[p.id]
-          ? (current.notes ?? "") !== ((p.notes as any) ?? "")
+          ? (current.notes ?? '') !== ((p.notes as any) ?? '')
           : false;
         const visChanged = nextVisible !== originalVisible;
         if (visChanged || notesChanged) {
           const payload: any = {};
           if (visChanged) payload.isClientVisible = nextVisible;
           if (notesChanged) payload.notes = current.notes ?? null;
-          batch.update(doc(db, "servicePhotos", p.id), payload);
+          batch.update(doc(db, 'servicePhotos', p.id), payload);
+
+          const rollbackPayload: Record<string, any> = {};
+          if (visChanged) rollbackPayload.isClientVisible = originalVisible;
+          if (notesChanged) {
+            rollbackPayload.notes = notesFieldExists[p.id] ? p.notes ?? null : deleteField();
+          }
+          photoRollbackPayloads.push({ id: p.id, payload: rollbackPayload });
         }
         if (!originalVisible && nextVisible) anyBecameVisible = true;
       }
 
       // Prepare job status update
-      const statusChanged = (statusLegacy || "") !== prevStatus;
+      const statusChanged = (statusLegacy || '') !== prevStatus;
+      const isTransitionToCompleted = statusChanged && statusLegacy === 'Completed';
+      const shouldSetApprovalTimestamp =
+        isTransitionToCompleted && (!hadApprovedAt || prevApprovedAt === null);
+      const shouldSetApprovalActor =
+        isTransitionToCompleted && (!hadApprovedBy || prevApprovedBy === null);
       if (statusChanged || anyBecameVisible) {
-        const payload: any = {};
+        if (isTransitionToCompleted) {
+          try {
+            const { validateJobPayrollReadiness } = await import(
+              '../../services/payroll/payrollService'
+            );
+            const missingRateEmployeeIds = await validateJobPayrollReadiness(job.id!);
+            if (missingRateEmployeeIds.length) {
+              const names = await getEmployeeNames(missingRateEmployeeIds);
+              const readableNames = missingRateEmployeeIds.map((id, index) => names[index] || id);
+              show({
+                type: 'error',
+                message: `Cannot complete job. Missing pay rates for: ${readableNames.join(', ')}.`,
+              });
+              setStatusLegacy(prevStatus);
+              setSavingApproval(false);
+              return;
+            }
+          } catch (error) {
+            console.error('Failed to validate payroll readiness:', error);
+            show({
+              type: 'error',
+              message:
+                error instanceof Error
+                  ? error.message
+                  : 'Unable to verify pay rates for this job. Try again later.',
+            });
+            setStatusLegacy(prevStatus);
+            setSavingApproval(false);
+            return;
+          }
+        }
+        const payload: Record<string, unknown> = {};
         if (statusChanged) payload.status = statusLegacy || null;
-        if (anyBecameVisible || statusLegacy === "Completed") {
+        if (shouldSetApprovalTimestamp) {
           payload.approvedAt = serverTimestamp();
+        }
+        if (shouldSetApprovalActor) {
           payload.approvedBy = auth.currentUser?.uid || null;
         }
-        batch.update(doc(db, "serviceHistory", job.id), payload);
+        if (Object.keys(payload).length > 0) {
+          batch.update(
+            doc(db, 'serviceHistory', job.id),
+            payload as { [x: string]: FieldValue | Partial<unknown> | undefined },
+          );
+        }
       }
 
       await batch.commit();
@@ -489,41 +527,161 @@ export default function JobModal({
           const st = photoState[p.id];
           if (!st) return p;
           const out: any = { ...p };
-          if (st.isClientVisible !== undefined)
-            out.isClientVisible = st.isClientVisible;
-          if (notesFieldExists[p.id] && st.notes !== undefined)
-            out.notes = st.notes;
+          if (st.isClientVisible !== undefined) out.isClientVisible = st.isClientVisible;
+          if (notesFieldExists[p.id] && st.notes !== undefined) out.notes = st.notes;
           return out;
-        })
+        }),
       );
       if (statusChanged || anyBecameVisible) {
-        setJob((prev) =>
-          prev
-            ? {
-                ...prev,
-                status: statusLegacy || prev.status,
-              }
-            : prev
-        );
+        setJob((prev) => {
+          if (!prev) return prev;
+          const next: JobRecord & Record<string, unknown> = {
+            ...prev,
+            status: statusLegacy || prev.status,
+          } as JobRecord & Record<string, unknown>;
+          // Note: We don't set approvedAt locally because the server uses serverTimestamp()
+          // which may differ from Timestamp.now() due to clock skew. The correct value
+          // will be available on next fetch. We preserve existing values if not changing.
+          if (prevApprovedAt !== undefined) {
+            next.approvedAt = prevApprovedAt;
+          } else if (!shouldSetApprovalTimestamp) {
+            delete next.approvedAt;
+          }
+          // approvedBy can be set locally since it's a simple UID, not a timestamp
+          if (shouldSetApprovalActor) {
+            next.approvedBy = auth.currentUser?.uid || null;
+          } else if (prevApprovedBy !== undefined) {
+            next.approvedBy = prevApprovedBy;
+          } else {
+            delete next.approvedBy;
+          }
+          return next;
+        });
 
-        // Auto-update timesheet earnings when job is completed
-        if (statusLegacy === "Completed") {
+        // Auto-update timesheet earnings and payroll entries when job transitions to completed
+        if (isTransitionToCompleted) {
           try {
-            const { updateTimesheetEarningsOnJobCompletion } = await import(
-              "../../services/automation/timesheetAutomation"
-            );
-            await updateTimesheetEarningsOnJobCompletion(job.id!);
+            const [
+              { updateTimesheetEarningsOnJobCompletion, rollbackTimesheetEarningsOnJobCompletion },
+              { createPayrollEntriesForJob },
+            ] = await Promise.all([
+              import('../../services/automation/timesheetAutomation'),
+              import('../../services/payroll/payrollService'),
+            ]);
+            const timesheetResult = await updateTimesheetEarningsOnJobCompletion(job.id!);
+            try {
+              await createPayrollEntriesForJob(job.id!);
+            } catch (payrollError) {
+              if (photoRollbackPayloads.length) {
+                try {
+                  const photoRollbackBatch = writeBatch(db);
+                  for (const rollback of photoRollbackPayloads) {
+                    photoRollbackBatch.update(
+                      doc(db, 'servicePhotos', rollback.id),
+                      rollback.payload,
+                    );
+                  }
+                  await photoRollbackBatch.commit();
+                } catch (photoRollbackError) {
+                  console.error(
+                    'Failed to rollback photo approvals after payroll entry failure:',
+                    photoRollbackError,
+                  );
+                }
+              }
+              setPhotoState(prevState);
+              setPhotos(prevPhotos);
+              if (timesheetResult.timesheetIds?.length) {
+                try {
+                  await rollbackTimesheetEarningsOnJobCompletion(timesheetResult.timesheetIds);
+                } catch (timesheetRollbackError) {
+                  console.error(
+                    'Failed to rollback timesheet approvals after payroll entry failure:',
+                    timesheetRollbackError,
+                  );
+                }
+              }
+              throw payrollError;
+            }
           } catch (error) {
-            console.error("Failed to update timesheet earnings:", error);
+            console.error('Failed to run post-completion payroll updates:', error);
+            const rollbackPayload: Record<string, unknown> = {
+              status: prevStatus || null,
+            };
+            if (prevApprovedAt !== undefined) {
+              rollbackPayload.approvedAt = prevApprovedAt;
+            } else {
+              rollbackPayload.approvedAt = deleteField();
+            }
+            if (prevApprovedBy !== undefined) {
+              rollbackPayload.approvedBy = prevApprovedBy;
+            } else {
+              rollbackPayload.approvedBy = deleteField();
+            }
+            try {
+              await updateDoc(
+                doc(db, 'serviceHistory', job.id),
+                rollbackPayload as { [x: string]: FieldValue | Partial<unknown> | undefined },
+              );
+            } catch (rollbackError) {
+              console.error('Failed to rollback job completion state:', rollbackError);
+            }
+            if (photoRollbackPayloads.length) {
+              try {
+                const photoRollbackBatch = writeBatch(db);
+                for (const rollback of photoRollbackPayloads) {
+                  photoRollbackBatch.update(
+                    doc(db, 'servicePhotos', rollback.id),
+                    rollback.payload,
+                  );
+                }
+                await photoRollbackBatch.commit();
+              } catch (photoRollbackError) {
+                console.error(
+                  'Failed to rollback photo approvals after job state rollback:',
+                  photoRollbackError,
+                );
+              }
+            }
+            setStatusLegacy(prevStatus);
+            setJob((prevJob) => {
+              if (!prevJob) return prevJob;
+              const next: JobRecord & Record<string, unknown> = {
+                ...prevJob,
+                status: prevStatus || prevJob.status,
+              } as JobRecord & Record<string, unknown>;
+              if (prevApprovedAt !== undefined) {
+                next.approvedAt = prevApprovedAt;
+              } else {
+                delete next.approvedAt;
+              }
+              if (prevApprovedBy !== undefined) {
+                next.approvedBy = prevApprovedBy;
+              } else {
+                delete next.approvedBy;
+              }
+              return next;
+            });
+            setPhotos(prevPhotos);
+            setPhotoState(prevState);
+            show({
+              type: 'error',
+              message:
+                error instanceof Error
+                  ? error.message
+                  : 'Job marked completed, but payroll updates failed. Please review payroll.',
+            });
+            return;
           }
         }
       }
-      show({ type: "success", message: "Approval changes saved." });
+      show({ type: 'success', message: 'Approval changes saved.' });
     } catch (e: any) {
       // Rollback UI
       setPhotoState(prevState);
+      setPhotos(prevPhotos);
       setStatusLegacy(prevStatus);
-      show({ type: "error", message: e?.message || "Failed to save changes." });
+      show({ type: 'error', message: e?.message || 'Failed to save changes.' });
     } finally {
       setSavingApproval(false);
     }
@@ -534,17 +692,15 @@ export default function JobModal({
     try {
       if (!getApps().length) initializeApp(firebaseConfig);
       const db = getFirestore();
-      await updateDoc(doc(db, "servicePhotos", photoId), {
+      await updateDoc(doc(db, 'servicePhotos', photoId), {
         serviceHistoryId: job.id,
       });
       setPhotos((prev) =>
-        prev.map((p) =>
-          p.id === job.id ? { ...p, serviceHistoryId: job.id } : p
-        )
+        prev.map((p) => (p.id === photoId ? { ...p, serviceHistoryId: job.id } : p)),
       );
-      show({ type: "success", message: "Photo attached to this job." });
+      show({ type: 'success', message: 'Photo attached to this job.' });
     } catch (e: any) {
-      show({ type: "error", message: e?.message || "Failed to attach photo." });
+      show({ type: 'error', message: e?.message || 'Failed to attach photo.' });
     }
   }
 
@@ -559,55 +715,45 @@ export default function JobModal({
 
         // Primary: photos linked by serviceHistoryId
         const qPrimary = query(
-          collection(db, "servicePhotos"),
-          where("serviceHistoryId", "==", j.id)
+          collection(db, 'servicePhotos'),
+          where('serviceHistoryId', '==', j.id),
         );
         const [primarySnap, fallbackSnap] = await Promise.all([
           getDocs(qPrimary),
           (async () => {
             // Fallback requires both serviceDate and locationId
             if (!j.locationId || !j.serviceDate) return null as any;
-            const { start, end } = makeDayBounds(
-              j.serviceDate,
-              "America/New_York"
-            );
+            const { start, end } = makeDayBounds(j.serviceDate, 'America/New_York');
             const qFallback = query(
-              collection(db, "servicePhotos"),
-              where("locationId", "==", j.locationId),
-              where("uploadedAt", ">=", Timestamp.fromDate(start)),
-              where("uploadedAt", "<=", Timestamp.fromDate(end))
+              collection(db, 'servicePhotos'),
+              where('locationId', '==', j.locationId),
+              where('uploadedAt', '>=', Timestamp.fromDate(start)),
+              where('uploadedAt', '<=', Timestamp.fromDate(end)),
             );
             return await getDocs(qFallback);
           })(),
         ]);
 
         const primary: PhotoItem[] = [];
-        primarySnap.forEach((d: any) =>
-          primary.push({ id: d.id, ...(d.data() as any) })
-        );
+        primarySnap.forEach((d: any) => primary.push({ id: d.id, ...(d.data() as any) }));
         const fallback: PhotoItem[] = [];
         if (fallbackSnap) {
-          fallbackSnap.forEach((d: any) =>
-            fallback.push({ id: d.id, ...(d.data() as any) })
-          );
+          fallbackSnap.forEach((d: any) => fallback.push({ id: d.id, ...(d.data() as any) }));
         }
         const merged = mergePhotoResults(primary, fallback);
         setPhotos(merged);
         // Initialize per-photo state and notes existence map
-        const initState: Record<
-          string,
-          { isClientVisible: boolean; notes?: string }
-        > = {};
+        const initState: Record<string, { isClientVisible: boolean; notes?: string }> = {};
         const notesExists: Record<string, boolean> = {};
         for (const p of merged) {
           const isVis = !!(p as any).isClientVisible;
           initState[p.id] = {
             isClientVisible: isVis,
-            notes: (Object.prototype.hasOwnProperty.call(p, "notes")
-              ? (p.notes as any) || ""
+            notes: (Object.prototype.hasOwnProperty.call(p, 'notes')
+              ? (p.notes as any) || ''
               : undefined) as any,
           };
-          notesExists[p.id] = Object.prototype.hasOwnProperty.call(p, "notes");
+          notesExists[p.id] = Object.prototype.hasOwnProperty.call(p, 'notes');
         }
         setPhotoState(initState);
         setNotesFieldExists(notesExists);
@@ -615,7 +761,7 @@ export default function JobModal({
         setApprovalLoading(false);
       }
     }
-    if (activeTab === "approval" && job) {
+    if (activeTab === 'approval' && job) {
       loadPhotosForApproval(job);
     }
   }, [activeTab, job]);
@@ -625,7 +771,7 @@ export default function JobModal({
 
     // Show confirmation dialog
     const confirmed = window.confirm(
-      "Are you sure you want to delete this job? This action cannot be undone."
+      'Are you sure you want to delete this job? This action cannot be undone.',
     );
 
     if (!confirmed) return;
@@ -635,14 +781,14 @@ export default function JobModal({
       if (!getApps().length) initializeApp(firebaseConfig);
       const db = getFirestore();
 
-      await deleteDoc(doc(db, "serviceHistory", job.id));
-      show({ message: "Job deleted successfully", type: "success" });
+      await deleteDoc(doc(db, 'serviceHistory', job.id));
+      show({ message: 'Job deleted successfully', type: 'success' });
       onClose();
     } catch (error: any) {
-      console.error("Error deleting job:", error);
+      console.error('Error deleting job:', error);
       show({
         message: `Failed to delete job: ${error.message}`,
-        type: "error",
+        type: 'error',
       });
     } finally {
       setDeleting(false);
@@ -655,9 +801,7 @@ export default function JobModal({
       for (const p of photos) {
         next[p.id] = {
           isClientVisible: true,
-          notes:
-            prev[p.id]?.notes ??
-            (notesFieldExists[p.id] ? p.notes ?? "" : undefined),
+          notes: prev[p.id]?.notes ?? (notesFieldExists[p.id] ? p.notes ?? '' : undefined),
         };
       }
       return next;
@@ -670,9 +814,7 @@ export default function JobModal({
       for (const p of photos) {
         next[p.id] = {
           isClientVisible: false,
-          notes:
-            prev[p.id]?.notes ??
-            (notesFieldExists[p.id] ? p.notes ?? "" : undefined),
+          notes: prev[p.id]?.notes ?? (notesFieldExists[p.id] ? p.notes ?? '' : undefined),
         };
       }
       return next;
@@ -691,12 +833,9 @@ export default function JobModal({
               {locationName || clientName || job?.id}
             </div>
             <div className="text-xs text-[var(--text)] opacity-70 mt-0.5 truncate">
-              {job?.serviceDate?.toDate
-                ? job.serviceDate.toDate().toLocaleDateString()
-                : "—"}{" "}
+              {toDate(job?.serviceDate)?.toLocaleDateString() ?? '—'}{' '}
               <span className="text-xs text-[var(--text)] opacity-70">
-                {timeWindow ||
-                  (job?.serviceDate ? formatJobWindow(job.serviceDate) : "")}
+                {timeWindow || (job?.serviceDate ? formatJobWindow(job.serviceDate) : '')}
               </span>
               {statusCanonical ? (
                 <span className="ml-2 px-2 py-0.5 rounded-md text-xs bg-[var(--muted)] text-[var(--text)]">
@@ -706,7 +845,7 @@ export default function JobModal({
             </div>
             {assignedDisplay.length ? (
               <div className="text-xs text-[var(--text)] opacity-70 mt-0.5 truncate">
-                Assigned: {assignedDisplay.join(", ")}
+                Assigned: {assignedDisplay.join(', ')}
               </div>
             ) : null}
           </div>
@@ -746,13 +885,9 @@ export default function JobModal({
         {/* Content */}
         <div className="overflow-y-auto flex-1 min-h-0">
           {loading ? (
-            <div className="p-4 text-sm text-[var(--text)] opacity-70">
-              Loading job details…
-            </div>
+            <div className="p-4 text-sm text-[var(--text)] opacity-70">Loading job details…</div>
           ) : !job ? (
-            <div className="p-4 text-sm text-[var(--text)] opacity-70">
-              Job not found.
-            </div>
+            <div className="p-4 text-sm text-[var(--text)] opacity-70">Job not found.</div>
           ) : (
             <div className="p-4">
               {/* Tabs */}
@@ -760,22 +895,18 @@ export default function JobModal({
                 <nav className="flex gap-2 text-sm text-[var(--text)]">
                   <button
                     className={`px-3 py-1.5 rounded-t-md text-[var(--text)] ${
-                      activeTab === "overview"
-                        ? "bg-[var(--muted)]"
-                        : "hover:bg-[var(--muted)]"
+                      activeTab === 'overview' ? 'bg-[var(--muted)]' : 'hover:bg-[var(--muted)]'
                     }`}
-                    onClick={() => setActiveTab("overview")}
+                    onClick={() => setActiveTab('overview')}
                   >
                     Overview
                   </button>
-                  <RoleGuard allow={["admin", "owner", "super_admin"]}>
+                  <RoleGuard allow={['admin', 'owner', 'super_admin']}>
                     <button
                       className={`px-3 py-1.5 rounded-t-md text-[var(--text)] ${
-                        activeTab === "approval"
-                          ? "bg-[var(--muted)]"
-                          : "hover:bg-[var(--muted)]"
+                        activeTab === 'approval' ? 'bg-[var(--muted)]' : 'hover:bg-[var(--muted)]'
                       }`}
-                      onClick={() => setActiveTab("approval")}
+                      onClick={() => setActiveTab('approval')}
                     >
                       Approval
                     </button>
@@ -783,7 +914,7 @@ export default function JobModal({
                 </nav>
               </div>
 
-              {activeTab === "overview" ? (
+              {activeTab === 'overview' ? (
                 <>
                   {/* Job Overview - Always show details */}
                   <div className="space-y-4">
@@ -794,31 +925,21 @@ export default function JobModal({
                         </div>
                         <div className="space-y-2 text-sm text-[var(--text)]">
                           <div>
-                            <span className="text-[var(--text)] opacity-70">
-                              Client:
-                            </span>{" "}
-                            {clientName || job.clientProfileId || "—"}
+                            <span className="text-[var(--text)] opacity-70">Client:</span>{' '}
+                            {clientName || job.clientProfileId || '—'}
                           </div>
                           <div>
-                            <span className="text-[var(--text)] opacity-70">
-                              Location:
-                            </span>{" "}
-                            {locationName || job.locationId || "—"}
+                            <span className="text-[var(--text)] opacity-70">Location:</span>{' '}
+                            {locationName || job.locationId || '—'}
                           </div>
                           <div>
-                            <span className="text-[var(--text)] opacity-70">
-                              Service Date:
-                            </span>{" "}
-                            {job.serviceDate?.toDate
-                              ? job.serviceDate.toDate().toLocaleString()
-                              : "—"}
+                            <span className="text-[var(--text)] opacity-70">Service Date:</span>{' '}
+                            {toDate(job.serviceDate)?.toLocaleString() ?? '—'}
                           </div>
                           <div>
-                            <span className="text-[var(--text)] opacity-70">
-                              Status:
-                            </span>{" "}
+                            <span className="text-[var(--text)] opacity-70">Status:</span>{' '}
                             <span className="px-2 py-0.5 rounded-md text-xs bg-[var(--muted)] text-[var(--text)]">
-                              {statusCanonical || "—"}
+                              {statusCanonical || '—'}
                             </span>
                           </div>
                         </div>
@@ -830,10 +951,7 @@ export default function JobModal({
                         {assignedDisplay.length > 0 ? (
                           <div className="space-y-1">
                             {assignedDisplay.map((name, i) => (
-                              <div
-                                key={i}
-                                className="text-sm text-[var(--text)]"
-                              >
+                              <div key={i} className="text-sm text-[var(--text)]">
                                 {name}
                               </div>
                             ))}
@@ -847,7 +965,7 @@ export default function JobModal({
                     </div>
 
                     {/* Employee Assignment Editing - Always available for admins */}
-                    <RoleGuard allow={["admin", "owner", "super_admin"]}>
+                    <RoleGuard allow={['admin', 'owner', 'super_admin']}>
                       <div className="border-t border-[var(--border)] pt-4">
                         <div className="text-sm font-medium text-[var(--text)] mb-3">
                           Edit Employee Assignments
@@ -859,7 +977,7 @@ export default function JobModal({
 
                   <div className="border-t border-[var(--border)] pt-3 space-y-6">
                     {/* Admin Notes Section - Only visible to admins */}
-                    <RoleGuard allow={["admin", "owner", "super_admin"]}>
+                    <RoleGuard allow={['admin', 'owner', 'super_admin']}>
                       <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
                         <div className="flex items-center gap-2 mb-3">
                           <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -871,8 +989,7 @@ export default function JobModal({
                           </span>
                         </div>
                         <div className="text-xs text-blue-700 dark:text-blue-300 mb-3">
-                          These notes will be visible to clients in the client
-                          portal
+                          These notes will be visible to clients in the client portal
                         </div>
                         <textarea
                           className="w-full border border-blue-300 dark:border-blue-700 rounded-md p-3 card-bg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -886,8 +1003,8 @@ export default function JobModal({
                           <button
                             className={`px-4 py-2 rounded-md text-white text-sm font-medium transition-colors ${
                               savingAdminNotes || !adminNotes.trim()
-                                ? "bg-zinc-400 cursor-not-allowed"
-                                : "bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500"
+                                ? 'bg-zinc-400 cursor-not-allowed'
+                                : 'bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500'
                             }`}
                             onClick={saveAdminNotes}
                             disabled={savingAdminNotes || !adminNotes.trim()}
@@ -898,7 +1015,7 @@ export default function JobModal({
                                 Saving…
                               </span>
                             ) : (
-                              "Save Admin Notes"
+                              'Save Admin Notes'
                             )}
                           </button>
                         </div>
@@ -923,34 +1040,30 @@ export default function JobModal({
                             <div
                               key={n.id}
                               className={`rounded-lg p-4 border ${
-                                n.authorRole === "employee"
-                                  ? "bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800"
-                                  : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                                n.authorRole === 'employee'
+                                  ? 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800'
+                                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                               }`}
                             >
                               <div className="flex items-center gap-2 mb-2">
                                 <div
                                   className={`w-2 h-2 rounded-full ${
-                                    n.authorRole === "employee"
-                                      ? "bg-orange-500"
-                                      : "bg-gray-500"
+                                    n.authorRole === 'employee' ? 'bg-orange-500' : 'bg-gray-500'
                                   }`}
                                 ></div>
                                 <span
                                   className={`text-xs font-semibold uppercase ${
-                                    n.authorRole === "employee"
-                                      ? "text-orange-700 dark:text-orange-300"
-                                      : "text-gray-600 dark:text-gray-400"
+                                    n.authorRole === 'employee'
+                                      ? 'text-orange-700 dark:text-orange-300'
+                                      : 'text-gray-600 dark:text-gray-400'
                                   }`}
                                 >
-                                  {n.authorRole === "employee"
-                                    ? "Employee Note"
-                                    : n.authorRole || "Note"}
+                                  {n.authorRole === 'employee'
+                                    ? 'Employee Note'
+                                    : n.authorRole || 'Note'}
                                 </span>
                                 <span className="text-xs text-gray-500">
-                                  {n.createdAt?.toDate
-                                    ? n.createdAt.toDate().toLocaleString()
-                                    : ""}
+                                  {n.createdAt?.toDate ? n.createdAt.toDate().toLocaleString() : ''}
                                 </span>
                               </div>
                               <div className="text-sm whitespace-pre-wrap text-gray-900 dark:text-gray-100">
@@ -981,8 +1094,8 @@ export default function JobModal({
                           <button
                             className={`px-4 py-2 rounded-md text-white text-sm font-medium transition-colors ${
                               postingNote || !newNote.trim()
-                                ? "bg-zinc-400 cursor-not-allowed"
-                                : "bg-emerald-600 hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500"
+                                ? 'bg-zinc-400 cursor-not-allowed'
+                                : 'bg-emerald-600 hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500'
                             }`}
                             onClick={postNote}
                             disabled={postingNote || !newNote.trim()}
@@ -993,7 +1106,7 @@ export default function JobModal({
                                 Posting…
                               </span>
                             ) : (
-                              "Add Note"
+                              'Add Note'
                             )}
                           </button>
                         </div>
@@ -1003,25 +1116,23 @@ export default function JobModal({
                 </>
               ) : (
                 // Approval tab
-                <RoleGuard allow={["admin", "owner", "super_admin"]}>
+                <RoleGuard allow={['admin', 'owner', 'super_admin']}>
                   <div className="space-y-3">
                     {/* Status dropdown (legacy labels) */}
                     <div className="flex items-end gap-3">
                       <div>
-                        <label className="block text-sm text-[var(--text)] mb-1">
-                          Job Status
-                        </label>
+                        <label className="block text-sm text-[var(--text)] mb-1">Job Status</label>
                         <select
                           className="w-full border border-[var(--border)] rounded-md p-2 card-bg text-sm text-[var(--text)]"
                           value={statusLegacy}
                           onChange={(e) => setStatusLegacy(e.target.value)}
                         >
                           {[
-                            "Scheduled",
-                            "In Progress",
-                            "Started",
-                            "Pending Approval",
-                            "Completed",
+                            'Scheduled',
+                            'In Progress',
+                            'Started',
+                            'Pending Approval',
+                            'Completed',
                           ].map((s) => (
                             <option key={s} value={s}>
                               {s}
@@ -1047,13 +1158,13 @@ export default function JobModal({
                         <button
                           className={`px-3 py-1.5 rounded-md text-white ${
                             savingApproval
-                              ? "bg-zinc-400 cursor-not-allowed"
-                              : "bg-blue-600 hover:bg-blue-700"
+                              ? 'bg-zinc-400 cursor-not-allowed'
+                              : 'bg-blue-600 hover:bg-blue-700'
                           }`}
                           onClick={saveApproval}
                           disabled={savingApproval}
                         >
-                          {savingApproval ? "Saving…" : "Save"}
+                          {savingApproval ? 'Saving…' : 'Save'}
                         </button>
                       </div>
                     </div>
@@ -1061,16 +1172,13 @@ export default function JobModal({
                     {/* Missing data warning for fallback */}
                     {!job.locationId || !job.serviceDate ? (
                       <div className="text-xs text-[var(--warning)]">
-                        Needs data: service date and location are required to
-                        find older uploads.
+                        Needs data: service date and location are required to find older uploads.
                       </div>
                     ) : null}
 
                     {/* Photos grid */}
                     {approvalLoading ? (
-                      <div className="text-sm text-[var(--text)] opacity-70">
-                        Loading photos…
-                      </div>
+                      <div className="text-sm text-[var(--text)] opacity-70">Loading photos…</div>
                     ) : photos.length === 0 ? (
                       <div className="text-sm text-[var(--text)] opacity-70">
                         No photos found for this service.
@@ -1082,21 +1190,16 @@ export default function JobModal({
                             isClientVisible: !!p.isClientVisible,
                           };
                           const showNotes = !!notesFieldExists[p.id];
-                          const notesVal = st.notes ?? p.notes ?? "";
+                          const notesVal = st.notes ?? p.notes ?? '';
                           const isAttached = p.serviceHistoryId === job.id;
                           return (
-                            <div
-                              key={p.id}
-                              className="rounded-lg p-3 bg-[var(--muted)]"
-                            >
+                            <div key={p.id} className="rounded-lg p-3 bg-[var(--muted)]">
                               {p.photoUrl ? (
                                 <img
                                   src={p.photoUrl}
                                   alt="service"
                                   className="w-full h-40 object-cover rounded cursor-pointer"
-                                  onClick={() =>
-                                    window.open(p.photoUrl!, "_blank")
-                                  }
+                                  onClick={() => window.open(p.photoUrl!, '_blank')}
                                 />
                               ) : (
                                 <div className="w-full h-40 bg-[var(--muted)] rounded" />
@@ -1106,14 +1209,10 @@ export default function JobModal({
                                   {p.uploadedAt?.toDate
                                     ? p.uploadedAt.toDate().toLocaleString()
                                     : p.uploadedAt?.seconds
-                                    ? new Date(
-                                        p.uploadedAt.seconds * 1000
-                                      ).toLocaleString()
-                                    : ""}
+                                    ? new Date(p.uploadedAt.seconds * 1000).toLocaleString()
+                                    : ''}
                                 </div>
-                                <div>
-                                  {p.employeeName || p.employeeProfileId || "—"}
-                                </div>
+                                <div>{p.employeeName || p.employeeProfileId || '—'}</div>
                               </div>
                               <div className="mt-2 flex items-center gap-2 text-sm">
                                 <input
@@ -1128,16 +1227,12 @@ export default function JobModal({
                                         isClientVisible: e.target.checked,
                                         notes:
                                           prev[p.id]?.notes ??
-                                          (notesFieldExists[p.id]
-                                            ? p.notes ?? ""
-                                            : undefined),
+                                          (notesFieldExists[p.id] ? p.notes ?? '' : undefined),
                                       },
                                     }))
                                   }
                                 />
-                                <label htmlFor={`vis-${p.id}`}>
-                                  Visible to client
-                                </label>
+                                <label htmlFor={`vis-${p.id}`}>Visible to client</label>
                               </div>
                               {showNotes ? (
                                 <div className="mt-2">
@@ -1152,8 +1247,7 @@ export default function JobModal({
                                         [p.id]: {
                                           ...prev[p.id],
                                           isClientVisible:
-                                            prev[p.id]?.isClientVisible ??
-                                            !!p.isClientVisible,
+                                            prev[p.id]?.isClientVisible ?? !!p.isClientVisible,
                                           notes: e.target.value,
                                         },
                                       }))
@@ -1192,7 +1286,7 @@ export default function JobModal({
               className="px-3 py-1.5 rounded-md bg-red-600 hover:bg-red-700 text-white disabled:bg-zinc-400 disabled:cursor-not-allowed text-sm"
               title="Delete this job"
             >
-              {deleting ? "Deleting…" : "Delete Job"}
+              {deleting ? 'Deleting…' : 'Delete Job'}
             </button>
           </div>
         )}

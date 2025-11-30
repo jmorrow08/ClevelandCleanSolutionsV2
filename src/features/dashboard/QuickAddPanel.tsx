@@ -6,8 +6,8 @@ import {
   useCallback,
   useContext,
   type ReactNode,
-} from "react";
-import { initializeApp, getApps } from "firebase/app";
+} from 'react';
+import { initializeApp, getApps } from 'firebase/app';
 import {
   getFirestore,
   collection,
@@ -20,25 +20,23 @@ import {
   Timestamp,
   getDoc,
   doc,
-} from "firebase/firestore";
-import { getAuth } from "firebase/auth";
-import { firebaseConfig } from "../../services/firebase";
-import { primeLocationName } from "../../services/queries/resolvers";
-import { useToast } from "../../context/ToastContext";
-import { useAuth } from "../../context/AuthContext";
+} from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { firebaseConfig } from '../../services/firebase';
+import { primeLocationName } from '../../services/queries/resolvers';
+import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import { createClientUser } from '@/services/clients';
 
-type Mode = "new-service" | "new-client" | "new-location" | "new-employee";
+type Mode = 'new-service' | 'new-client' | 'new-location' | 'new-employee';
 
 type Option = { id: string; label: string };
-
-const CREATE_USER_URL =
-  "https://us-central1-cleveland-clean-portal.cloudfunctions.net/createNewUser_v1";
 
 export function QuickAddModal({ onClose }: { onClose: () => void }) {
   const { show } = useToast();
   const { user } = useAuth();
 
-  const [mode, setMode] = useState<Mode>("new-service");
+  const [mode, setMode] = useState<Mode>('new-service');
 
   // Shared lookups
   const [clients, setClients] = useState<Option[]>([]);
@@ -46,47 +44,45 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
   const [employees, setEmployees] = useState<Option[]>([]);
 
   // === New Service form state ===
-  const [serviceType, setServiceType] = useState<"regular" | "custom">(
-    "regular"
-  );
-  const [serviceClientId, setServiceClientId] = useState("");
-  const [serviceLocationId, setServiceLocationId] = useState("");
-  const [serviceDateTime, setServiceDateTime] = useState("");
-  const [serviceNotes, setServiceNotes] = useState("");
+  const [serviceType, setServiceType] = useState<'regular' | 'custom'>('regular');
+  const [serviceClientId, setServiceClientId] = useState('');
+  const [serviceLocationId, setServiceLocationId] = useState('');
+  const [serviceDateTime, setServiceDateTime] = useState('');
+  const [serviceNotes, setServiceNotes] = useState('');
   const [serviceAssigned, setServiceAssigned] = useState<string[]>([]);
   // custom fields
-  const [customClientName, setCustomClientName] = useState("");
-  const [customLocationName, setCustomLocationName] = useState("");
-  const [customContact, setCustomContact] = useState("");
-  const [customPrice, setCustomPrice] = useState<string>("");
+  const [customClientName, setCustomClientName] = useState('');
+  const [customLocationName, setCustomLocationName] = useState('');
+  const [customContact, setCustomContact] = useState('');
+  const [customPrice, setCustomPrice] = useState<string>('');
 
   // === New Client form state ===
-  const [clientCompanyName, setClientCompanyName] = useState("");
-  const [clientContactName, setClientContactName] = useState("");
-  const [clientIdString, setClientIdString] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
-  const [clientPhone, setClientPhone] = useState("");
-  const [clientPassword, setClientPassword] = useState("");
+  const [clientCompanyName, setClientCompanyName] = useState('');
+  const [clientContactName, setClientContactName] = useState('');
+  const [clientIdString, setClientIdString] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [clientPassword, setClientPassword] = useState('');
 
   // === New Location form state ===
-  const [locClientId, setLocClientId] = useState("");
-  const [locName, setLocName] = useState("");
-  const [locIdString, setLocIdString] = useState("");
-  const [locLine1, setLocLine1] = useState("");
-  const [locCity, setLocCity] = useState("");
-  const [locState, setLocState] = useState("");
-  const [locZip, setLocZip] = useState("");
-  const [locContactName, setLocContactName] = useState("");
-  const [locContactPhone, setLocContactPhone] = useState("");
+  const [locClientId, setLocClientId] = useState('');
+  const [locName, setLocName] = useState('');
+  const [locIdString, setLocIdString] = useState('');
+  const [locLine1, setLocLine1] = useState('');
+  const [locCity, setLocCity] = useState('');
+  const [locState, setLocState] = useState('');
+  const [locZip, setLocZip] = useState('');
+  const [locContactName, setLocContactName] = useState('');
+  const [locContactPhone, setLocContactPhone] = useState('');
 
   // === New Employee form state ===
-  const [empFirst, setEmpFirst] = useState("");
-  const [empLast, setEmpLast] = useState("");
-  const [empIdString, setEmpIdString] = useState("");
-  const [empEmail, setEmpEmail] = useState("");
-  const [empPhone, setEmpPhone] = useState("");
-  const [empJobTitle, setEmpJobTitle] = useState("");
-  const [empPassword, setEmpPassword] = useState("");
+  const [empFirst, setEmpFirst] = useState('');
+  const [empLast, setEmpLast] = useState('');
+  const [empIdString, setEmpIdString] = useState('');
+  const [empEmail, setEmpEmail] = useState('');
+  const [empPhone, setEmpPhone] = useState('');
+  const [empJobTitle, setEmpJobTitle] = useState('');
+  const [empPassword, setEmpPassword] = useState('');
 
   const [saving, setSaving] = useState(false);
 
@@ -98,20 +94,15 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
       try {
         const snap = await getDocs(
           query(
-            collection(db, "clientMasterList"),
-            where("status", "==", true),
-            orderBy("companyName")
-          )
+            collection(db, 'clientMasterList'),
+            where('status', '==', true),
+            orderBy('companyName'),
+          ),
         );
         const list: Option[] = [];
         snap.forEach((d) => {
           const data = d.data() as any;
-          const label =
-            data.companyName ||
-            data.name ||
-            data.contactName ||
-            data.email ||
-            d.id;
+          const label = data.companyName || data.name || data.contactName || data.email || d.id;
           list.push({ id: d.id, label });
         });
         setClients(list);
@@ -119,20 +110,12 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
         // fallback without order
         try {
           const snap = await getDocs(
-            query(
-              collection(getFirestore(), "clientMasterList"),
-              where("status", "==", true)
-            )
+            query(collection(getFirestore(), 'clientMasterList'), where('status', '==', true)),
           );
           const list: Option[] = [];
           snap.forEach((d) => {
             const data = d.data() as any;
-            const label =
-              data.companyName ||
-              data.name ||
-              data.contactName ||
-              data.email ||
-              d.id;
+            const label = data.companyName || data.name || data.contactName || data.email || d.id;
             list.push({ id: d.id, label });
           });
           setClients(list);
@@ -142,17 +125,14 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
       // Employees
       try {
         const snap = await getDocs(
-          query(
-            collection(getFirestore(), "employeeMasterList"),
-            where("status", "==", true)
-          )
+          query(collection(getFirestore(), 'employeeMasterList'), where('status', '==', true)),
         );
         const list: Option[] = [];
         snap.forEach((d) => {
           const data = d.data() as any;
           const label =
             data.fullName ||
-            [data.firstName, data.lastName].filter(Boolean).join(" ") ||
+            [data.firstName, data.lastName].filter(Boolean).join(' ') ||
             data.name ||
             data.email ||
             d.id;
@@ -169,17 +149,17 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
     async function loadLocations() {
       if (!serviceClientId) {
         setLocations([]);
-        setServiceLocationId("");
+        setServiceLocationId('');
         return;
       }
       const db = getFirestore();
       try {
         const snap = await getDocs(
           query(
-            collection(db, "locations"),
-            where("clientProfileId", "==", serviceClientId),
-            where("status", "==", true)
-          )
+            collection(db, 'locations'),
+            where('clientProfileId', '==', serviceClientId),
+            where('status', '==', true),
+          ),
         );
         const list: Option[] = [];
         snap.forEach((d) => {
@@ -188,11 +168,10 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
           list.push({ id: d.id, label });
         });
         setLocations(list);
-        if (!list.find((x) => x.id === serviceLocationId))
-          setServiceLocationId("");
+        if (!list.find((x) => x.id === serviceLocationId)) setServiceLocationId('');
       } catch {}
     }
-    if (serviceType === "regular") loadLocations();
+    if (serviceType === 'regular') loadLocations();
   }, [serviceClientId, serviceType]);
 
   const employeeLabelById = useMemo(() => {
@@ -202,41 +181,41 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
   }, [employees]);
 
   function resetAll() {
-    setServiceType("regular");
-    setServiceClientId("");
-    setServiceLocationId("");
-    setServiceDateTime("");
-    setServiceNotes("");
+    setServiceType('regular');
+    setServiceClientId('');
+    setServiceLocationId('');
+    setServiceDateTime('');
+    setServiceNotes('');
     setServiceAssigned([]);
-    setCustomClientName("");
-    setCustomLocationName("");
-    setCustomContact("");
-    setCustomPrice("");
+    setCustomClientName('');
+    setCustomLocationName('');
+    setCustomContact('');
+    setCustomPrice('');
 
-    setClientCompanyName("");
-    setClientContactName("");
-    setClientIdString("");
-    setClientEmail("");
-    setClientPhone("");
-    setClientPassword("");
+    setClientCompanyName('');
+    setClientContactName('');
+    setClientIdString('');
+    setClientEmail('');
+    setClientPhone('');
+    setClientPassword('');
 
-    setLocClientId("");
-    setLocName("");
-    setLocIdString("");
-    setLocLine1("");
-    setLocCity("");
-    setLocState("");
-    setLocZip("");
-    setLocContactName("");
-    setLocContactPhone("");
+    setLocClientId('');
+    setLocName('');
+    setLocIdString('');
+    setLocLine1('');
+    setLocCity('');
+    setLocState('');
+    setLocZip('');
+    setLocContactName('');
+    setLocContactPhone('');
 
-    setEmpFirst("");
-    setEmpLast("");
-    setEmpIdString("");
-    setEmpEmail("");
-    setEmpPhone("");
-    setEmpJobTitle("");
-    setEmpPassword("");
+    setEmpFirst('');
+    setEmpLast('');
+    setEmpIdString('');
+    setEmpEmail('');
+    setEmpPhone('');
+    setEmpJobTitle('');
+    setEmpPassword('');
   }
 
   async function createService() {
@@ -254,13 +233,13 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
       let isCustomJob = false;
       let price: number | null = null;
 
-      if (serviceType === "regular") {
+      if (serviceType === 'regular') {
         clientId = serviceClientId || null;
         locationId = serviceLocationId || null;
         if (!clientId || !locationId || !serviceDateTime) {
           show({
-            type: "error",
-            message: "Client, location, and date/time are required",
+            type: 'error',
+            message: 'Client, location, and date/time are required',
           });
           return;
         }
@@ -272,9 +251,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
         // Get client name from actual document to ensure we get the correct name
         if (clientId) {
           try {
-            const clientDoc = await getDoc(
-              doc(db, "clientMasterList", clientId)
-            );
+            const clientDoc = await getDoc(doc(db, 'clientMasterList', clientId));
             if (clientDoc.exists()) {
               const clientData = clientDoc.data() as any;
               clientName =
@@ -287,7 +264,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               clientName = selectedClient?.label || null;
             }
           } catch (error) {
-            console.error("Error fetching client data:", error);
+            console.error('Error fetching client data:', error);
             clientName = selectedClient?.label || null;
           }
         }
@@ -295,7 +272,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
         // For location name, fetch the actual document to ensure we get the correct name
         if (locationId) {
           try {
-            const locationDoc = await getDoc(doc(db, "locations", locationId));
+            const locationDoc = await getDoc(doc(db, 'locations', locationId));
             if (locationDoc.exists()) {
               const locationData = locationDoc.data() as any;
               locationName =
@@ -308,12 +285,12 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
               locationName = selectedLocation?.label || null;
             }
           } catch (error) {
-            console.error("Error fetching location data:", error);
+            console.error('Error fetching location data:', error);
             locationName = selectedLocation?.label || null;
           }
         }
 
-        console.log("Job creation debug:", {
+        console.log('Job creation debug:', {
           clientId,
           clientName,
           locationId,
@@ -327,8 +304,8 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
         locationName = customLocationName.trim();
         if (!clientName || !locationName || !serviceDateTime) {
           show({
-            type: "error",
-            message: "Client, location, and date/time required",
+            type: 'error',
+            message: 'Client, location, and date/time required',
           });
           return;
         }
@@ -350,14 +327,14 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
         locationId: locationId,
         locationName: locationName || null,
         serviceDate: when,
-        serviceType: isCustomJob ? "Custom Service" : "Scheduled Service",
+        serviceType: isCustomJob ? 'Custom Service' : 'Scheduled Service',
         serviceNotes: null,
         adminNotes: null,
         assignedEmployees: serviceAssigned,
         employeeAssignments,
         employeeDisplayNames: employeeAssignments.map((a) => a.displayName),
-        status: "Scheduled",
-        statusV2: "scheduled",
+        status: 'Scheduled',
+        statusV2: 'scheduled',
         payrollProcessed: false,
         isCustomJob,
         customPrice: price,
@@ -366,22 +343,20 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
         createdBy: user?.uid || null,
       };
 
-      if (serviceType === "custom" && customContact.trim()) {
+      if (serviceType === 'custom' && customContact.trim()) {
         payload.serviceType = payload.serviceType
           ? `${payload.serviceType} | Contact: ${customContact.trim()}`
           : `Contact: ${customContact.trim()}`;
       }
 
-      const jobRef = await addDoc(collection(db, "serviceHistory"), payload);
+      const jobRef = await addDoc(collection(db, 'serviceHistory'), payload);
 
       // Create a note if serviceNotes is provided
       if (serviceNotes.trim()) {
         const auth = getAuth();
-        const claims = (await auth.currentUser?.getIdTokenResult(true))
-          ?.claims as any;
-        let authorRole: string = "employee";
-        if (claims?.admin || claims?.owner || claims?.super_admin)
-          authorRole = "admin";
+        const claims = (await auth.currentUser?.getIdTokenResult(true))?.claims as any;
+        let authorRole: string = 'employee';
+        if (claims?.admin || claims?.owner || claims?.super_admin) authorRole = 'admin';
 
         const notePayload = {
           jobId: jobRef.id,
@@ -392,19 +367,19 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
           date: serverTimestamp(),
         };
 
-        await addDoc(collection(db, "jobNotes"), notePayload);
+        await addDoc(collection(db, 'jobNotes'), notePayload);
       }
 
-      show({ type: "success", message: "Service scheduled" });
+      show({ type: 'success', message: 'Service scheduled' });
       resetAll();
     } catch (e: any) {
-      console.error("Quick Add job creation error:", e);
-      console.error("Error details:", {
+      console.error('Quick Add job creation error:', e);
+      console.error('Error details:', {
         code: e?.code,
         message: e?.message,
         payload: payload,
       });
-      show({ type: "error", message: e?.message || "Failed to schedule" });
+      show({ type: 'error', message: e?.message || 'Failed to schedule' });
     } finally {
       setSaving(false);
     }
@@ -420,43 +395,33 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
     const password = clientPassword;
     if (!company || !contact || !email || !idStr || !password) {
       show({
-        type: "error",
-        message: "All fields incl. password are required",
+        type: 'error',
+        message: 'All fields incl. password are required',
       });
       return;
     }
     try {
       setSaving(true);
       if (!getApps().length) initializeApp(firebaseConfig);
-      const auth = getAuth();
-      const idToken = await auth.currentUser?.getIdToken(true);
-      if (!idToken) throw new Error("Not authenticated");
-      const res = await fetch(CREATE_USER_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          role: "client",
-          clientIdString: idStr,
-          companyName: company,
-          contactName: contact,
-          phone,
-        }),
+      // Use callable function which authorizes owners/admins/super_admins
+      await createClientUser({
+        email,
+        password,
+        clientIdString: idStr,
+        companyName: company,
+        contactName: contact,
+        phone,
       });
-      const data = await res.json();
-      if (!res.ok || !data?.success) {
-        throw new Error(
-          data?.error?.message || data?.message || `HTTP ${res.status}`
-        );
-      }
-      show({ type: "success", message: "Client created" });
+      show({ type: 'success', message: 'Client created' });
       resetAll();
     } catch (e: any) {
-      show({ type: "error", message: e?.message || "Failed to create client" });
+      const raw = String(e?.message || '');
+      const lowered = raw.toLowerCase();
+      const friendly =
+        lowered.includes('permission-denied') || lowered.includes('insufficient')
+          ? 'Insufficient permissions to create client'
+          : raw || 'Failed to create client';
+      show({ type: 'error', message: friendly });
     } finally {
       setSaving(false);
     }
@@ -473,8 +438,8 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
     const zip = locZip.trim();
     if (!clientId || !name || !idStr || !line1 || !city || !state || !zip) {
       show({
-        type: "error",
-        message: "Client, name, id, and address required",
+        type: 'error',
+        message: 'Client, name, id, and address required',
       });
       return;
     }
@@ -482,7 +447,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
       setSaving(true);
       if (!getApps().length) initializeApp(firebaseConfig);
       const db = getFirestore();
-      const ref = await addDoc(collection(db, "locations"), {
+      const ref = await addDoc(collection(db, 'locations'), {
         clientProfileId: clientId,
         locationName: name,
         locationId: idStr,
@@ -496,12 +461,12 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
       try {
         primeLocationName(ref.id, name);
       } catch {}
-      show({ type: "success", message: "Location created" });
+      show({ type: 'success', message: 'Location created' });
       resetAll();
     } catch (e: any) {
       show({
-        type: "error",
-        message: e?.message || "Failed to create location",
+        type: 'error',
+        message: e?.message || 'Failed to create location',
       });
     } finally {
       setSaving(false);
@@ -518,7 +483,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
     const title = empJobTitle.trim();
     const password = empPassword;
     if (!first || !last || !idStr || !email || !password) {
-      show({ type: "error", message: "ID, name, email, password required" });
+      show({ type: 'error', message: 'ID, name, email, password required' });
       return;
     }
     try {
@@ -526,11 +491,11 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
       if (!getApps().length) initializeApp(firebaseConfig);
       const auth = getAuth();
       const idToken = await auth.currentUser?.getIdToken(true);
-      if (!idToken) throw new Error("Not authenticated");
+      if (!idToken) throw new Error('Not authenticated');
       const res = await fetch(CREATE_USER_URL, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${idToken}`,
         },
         body: JSON.stringify({
@@ -540,22 +505,20 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
           email,
           phone,
           jobTitle: title || null,
-          role: "employee",
+          role: 'employee',
           password,
         }),
       });
       const data = await res.json();
       if (!res.ok || !data?.success) {
-        throw new Error(
-          data?.error?.message || data?.message || `HTTP ${res.status}`
-        );
+        throw new Error(data?.error?.message || data?.message || `HTTP ${res.status}`);
       }
-      show({ type: "success", message: "Employee created" });
+      show({ type: 'success', message: 'Employee created' });
       resetAll();
     } catch (e: any) {
       show({
-        type: "error",
-        message: e?.message || "Failed to create employee",
+        type: 'error',
+        message: e?.message || 'Failed to create employee',
       });
     } finally {
       setSaving(false);
@@ -564,10 +527,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/40"
-        onClick={() => !saving && onClose()}
-      />
+      <div className="absolute inset-0 bg-black/40" onClick={() => !saving && onClose()} />
       <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg card-bg shadow-elev-3">
         <div className="p-6 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center justify-between">
@@ -595,7 +555,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
             </select>
           </div>
 
-          {mode === "new-service" && (
+          {mode === 'new-service' && (
             <div className="space-y-3">
               <div>
                 <label className="block text-sm mb-1">Service Type</label>
@@ -604,8 +564,8 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                     <input
                       type="radio"
                       name="qas-service-mode"
-                      checked={serviceType === "regular"}
-                      onChange={() => setServiceType("regular")}
+                      checked={serviceType === 'regular'}
+                      onChange={() => setServiceType('regular')}
                     />
                     Regular Service
                   </label>
@@ -613,15 +573,15 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                     <input
                       type="radio"
                       name="qas-service-mode"
-                      checked={serviceType === "custom"}
-                      onChange={() => setServiceType("custom")}
+                      checked={serviceType === 'custom'}
+                      onChange={() => setServiceType('custom')}
                     />
                     Custom Job
                   </label>
                 </div>
               </div>
 
-              {serviceType === "regular" ? (
+              {serviceType === 'regular' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm mb-1">Client</label>
@@ -647,9 +607,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                       disabled={!serviceClientId}
                     >
                       <option value="">
-                        {serviceClientId
-                          ? "Select location"
-                          : "Select client first"}
+                        {serviceClientId ? 'Select location' : 'Select client first'}
                       </option>
                       {locations.map((l) => (
                         <option key={l.id} value={l.id}>
@@ -659,9 +617,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm mb-1">
-                      Service Date & Time
-                    </label>
+                    <label className="block text-sm mb-1">Service Date & Time</label>
                     <input
                       type="datetime-local"
                       className="w-full border rounded-md px-3 py-2 card-bg"
@@ -670,19 +626,13 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm mb-1">
-                      Assigned employees
-                    </label>
+                    <label className="block text-sm mb-1">Assigned employees</label>
                     <select
                       multiple
                       className="w-full border rounded-md px-3 py-2 card-bg min-h-[120px]"
                       value={serviceAssigned}
                       onChange={(e) =>
-                        setServiceAssigned(
-                          Array.from(e.target.selectedOptions).map(
-                            (o) => o.value
-                          )
-                        )
+                        setServiceAssigned(Array.from(e.target.selectedOptions).map((o) => o.value))
                       }
                     >
                       {employees.map((e) => (
@@ -693,9 +643,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                     </select>
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-sm mb-1">
-                      Service Type / Notes
-                    </label>
+                    <label className="block text-sm mb-1">Service Type / Notes</label>
                     <input
                       className="w-full border rounded-md px-3 py-2 card-bg"
                       value={serviceNotes}
@@ -723,9 +671,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm mb-1">
-                      Contact (optional)
-                    </label>
+                    <label className="block text-sm mb-1">Contact (optional)</label>
                     <input
                       className="w-full border rounded-md px-3 py-2 card-bg"
                       value={customContact}
@@ -733,9 +679,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm mb-1">
-                      Custom Price (optional)
-                    </label>
+                    <label className="block text-sm mb-1">Custom Price (optional)</label>
                     <input
                       type="number"
                       className="w-full border rounded-md px-3 py-2 card-bg"
@@ -744,9 +688,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm mb-1">
-                      Service Date & Time
-                    </label>
+                    <label className="block text-sm mb-1">Service Date & Time</label>
                     <input
                       type="datetime-local"
                       className="w-full border rounded-md px-3 py-2 card-bg"
@@ -755,19 +697,13 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm mb-1">
-                      Assigned employees
-                    </label>
+                    <label className="block text-sm mb-1">Assigned employees</label>
                     <select
                       multiple
                       className="w-full border rounded-md px-3 py-2 card-bg min-h-[120px]"
                       value={serviceAssigned}
                       onChange={(e) =>
-                        setServiceAssigned(
-                          Array.from(e.target.selectedOptions).map(
-                            (o) => o.value
-                          )
-                        )
+                        setServiceAssigned(Array.from(e.target.selectedOptions).map((o) => o.value))
                       }
                     >
                       {employees.map((e) => (
@@ -778,9 +714,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                     </select>
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-sm mb-1">
-                      Service Type / Notes
-                    </label>
+                    <label className="block text-sm mb-1">Service Type / Notes</label>
                     <input
                       className="w-full border rounded-md px-3 py-2 card-bg"
                       value={serviceNotes}
@@ -797,13 +731,13 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                   onClick={createService}
                   disabled={saving}
                 >
-                  {saving ? "Saving…" : "Create"}
+                  {saving ? 'Saving…' : 'Create'}
                 </button>
               </div>
             </div>
           )}
 
-          {mode === "new-client" && (
+          {mode === 'new-client' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm mb-1">Company Name</label>
@@ -863,13 +797,13 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                   onClick={createClient}
                   disabled={saving}
                 >
-                  {saving ? "Creating…" : "Create Client"}
+                  {saving ? 'Creating…' : 'Create Client'}
                 </button>
               </div>
             </div>
           )}
 
-          {mode === "new-location" && (
+          {mode === 'new-location' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm mb-1">Client</label>
@@ -937,9 +871,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                 />
               </div>
               <div>
-                <label className="block text-sm mb-1">
-                  Contact Name (optional)
-                </label>
+                <label className="block text-sm mb-1">Contact Name (optional)</label>
                 <input
                   className="w-full border rounded-md px-3 py-2 card-bg"
                   value={locContactName}
@@ -947,9 +879,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                 />
               </div>
               <div>
-                <label className="block text-sm mb-1">
-                  Contact Phone (optional)
-                </label>
+                <label className="block text-sm mb-1">Contact Phone (optional)</label>
                 <input
                   className="w-full border rounded-md px-3 py-2 card-bg"
                   value={locContactPhone}
@@ -962,13 +892,13 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                   onClick={createLocation}
                   disabled={saving}
                 >
-                  {saving ? "Saving…" : "Create Location"}
+                  {saving ? 'Saving…' : 'Create Location'}
                 </button>
               </div>
             </div>
           )}
 
-          {mode === "new-employee" && (
+          {mode === 'new-employee' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm mb-1">First Name</label>
@@ -1036,7 +966,7 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
                   onClick={createEmployee}
                   disabled={saving}
                 >
-                  {saving ? "Creating…" : "Create Employee"}
+                  {saving ? 'Creating…' : 'Create Employee'}
                 </button>
               </div>
             </div>
