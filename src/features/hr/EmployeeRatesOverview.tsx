@@ -1,20 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
-import { initializeApp, getApps } from "firebase/app";
+import { useEffect, useMemo, useState } from 'react';
+import { initializeApp, getApps } from 'firebase/app';
 import {
   getFirestore,
   collection,
   getDocs,
   addDoc,
   updateDoc,
+  deleteDoc,
   doc,
   serverTimestamp,
   query,
   where,
   orderBy,
-} from "firebase/firestore";
-import { firebaseConfig } from "../../services/firebase";
-import { RoleGuard } from "../../context/RoleGuard";
-import EmployeeRateModal from "./EmployeeRateModal";
+} from 'firebase/firestore';
+import { firebaseConfig } from '../../services/firebase';
+import { RoleGuard } from '../../context/RoleGuard';
+import EmployeeRateModal from './EmployeeRateModal';
 
 type RawRate = any;
 type RateDoc = {
@@ -22,7 +23,7 @@ type RateDoc = {
   employeeId?: string;
   employeeProfileId?: string;
   employeeName?: string;
-  rateType: "per_visit" | "hourly" | "monthly";
+  rateType: 'per_visit' | 'hourly' | 'monthly';
   amount: number;
   effectiveDate?: any;
   locationId?: string | null;
@@ -48,13 +49,11 @@ export default function EmployeeRatesOverview() {
   const [rates, setRates] = useState<RateDoc[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState<
-    "all" | "per_visit" | "hourly" | "monthly"
-  >("all");
+  const [search, setSearch] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'per_visit' | 'hourly' | 'monthly'>('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<RateDoc | null>(null);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
 
   const handleAddRate = (employeeId: string) => {
     setSelectedEmployeeId(employeeId);
@@ -63,15 +62,33 @@ export default function EmployeeRatesOverview() {
   };
 
   const handleEditRate = (rate: RateDoc) => {
-    setSelectedEmployeeId(rate.employeeId || "");
+    setSelectedEmployeeId(rate.employeeId || '');
     setEditing(rate);
     setModalOpen(true);
+  };
+
+  const handleDeleteRate = async (rate: RateDoc) => {
+    if (!rate.id) return;
+    const confirmed = window.confirm(
+      `Are you sure you want to delete this rate for ${rate.employeeName || 'this employee'}?`,
+    );
+    if (!confirmed) return;
+
+    try {
+      if (!getApps().length) initializeApp(firebaseConfig);
+      const db = getFirestore();
+      await deleteDoc(doc(db, 'employeeRates', rate.id));
+      setRates((prev) => prev.filter((r) => r.id !== rate.id));
+    } catch (error) {
+      console.error('Error deleting rate:', error);
+      alert('Failed to delete rate');
+    }
   };
 
   const handleModalClose = () => {
     setModalOpen(false);
     setEditing(null);
-    setSelectedEmployeeId("");
+    setSelectedEmployeeId('');
   };
 
   const handleRateSaved = async () => {
@@ -80,25 +97,22 @@ export default function EmployeeRatesOverview() {
       if (!getApps().length) initializeApp(firebaseConfig);
       const db = getFirestore();
       const [ratesSnap, employeesSnap, locationsSnap] = await Promise.all([
-        getDocs(collection(db, "employeeRates")),
-        getDocs(collection(db, "employeeMasterList")),
-        getDocs(query(
-          collection(db, "locations"),
-          where("status", "==", true),
-          orderBy("locationName", "asc")
-        )),
+        getDocs(collection(db, 'employeeRates')),
+        getDocs(collection(db, 'employeeMasterList')),
+        getDocs(
+          query(
+            collection(db, 'locations'),
+            where('status', '==', true),
+            orderBy('locationName', 'asc'),
+          ),
+        ),
       ]);
 
       const employeeList: Employee[] = [];
-      employeesSnap.forEach((d) =>
-        employeeList.push({ id: d.id, ...(d.data() as any) })
-      );
+      employeesSnap.forEach((d) => employeeList.push({ id: d.id, ...(d.data() as any) }));
       const employeeNameMap = new Map<string, string>();
       for (const e of employeeList) {
-        const name =
-          e.fullName ||
-          [e.firstName, e.lastName].filter(Boolean).join(" ") ||
-          e.id;
+        const name = e.fullName || [e.firstName, e.lastName].filter(Boolean).join(' ') || e.id;
         employeeNameMap.set(e.id, name);
       }
 
@@ -107,7 +121,7 @@ export default function EmployeeRatesOverview() {
         const data = d.data() as any;
         locationsList.push({
           id: d.id,
-          locationName: data.locationName || "Unnamed Location",
+          locationName: data.locationName || 'Unnamed Location',
         });
       });
 
@@ -115,21 +129,20 @@ export default function EmployeeRatesOverview() {
       ratesSnap.forEach((d) => {
         const raw = { id: d.id, ...(d.data() as any) };
         const norm = normalizeRate(raw);
-        const eid = norm.employeeId || norm.employeeProfileId || "";
-        const employeeName =
-          raw.employeeName || employeeNameMap.get(eid) || eid || "";
+        const eid = norm.employeeId || norm.employeeProfileId || '';
+        const employeeName = raw.employeeName || employeeNameMap.get(eid) || eid || '';
         list.push({ ...norm, id: d.id, employeeName });
       });
       list.sort(
         (a, b) =>
           (normalizeEffectiveDate(b)?.getTime?.() || 0) -
-          (normalizeEffectiveDate(a)?.getTime?.() || 0)
+          (normalizeEffectiveDate(a)?.getTime?.() || 0),
       );
       setEmployees(employeeList);
       setLocations(locationsList);
       setRates(list);
     } catch (error) {
-      console.error("Error refreshing rates:", error);
+      console.error('Error refreshing rates:', error);
     }
   };
 
@@ -139,24 +152,21 @@ export default function EmployeeRatesOverview() {
         if (!getApps().length) initializeApp(firebaseConfig);
         const db = getFirestore();
         const [ratesSnap, employeesSnap, locationsSnap] = await Promise.all([
-          getDocs(collection(db, "employeeRates")),
-          getDocs(collection(db, "employeeMasterList")),
-          getDocs(query(
-            collection(db, "locations"),
-            where("status", "==", true),
-            orderBy("locationName", "asc")
-          )),
+          getDocs(collection(db, 'employeeRates')),
+          getDocs(collection(db, 'employeeMasterList')),
+          getDocs(
+            query(
+              collection(db, 'locations'),
+              where('status', '==', true),
+              orderBy('locationName', 'asc'),
+            ),
+          ),
         ]);
         const employeeList: Employee[] = [];
-        employeesSnap.forEach((d) =>
-          employeeList.push({ id: d.id, ...(d.data() as any) })
-        );
+        employeesSnap.forEach((d) => employeeList.push({ id: d.id, ...(d.data() as any) }));
         const employeeNameMap = new Map<string, string>();
         for (const e of employeeList) {
-          const name =
-            e.fullName ||
-            [e.firstName, e.lastName].filter(Boolean).join(" ") ||
-            e.id;
+          const name = e.fullName || [e.firstName, e.lastName].filter(Boolean).join(' ') || e.id;
           employeeNameMap.set(e.id, name);
         }
 
@@ -165,22 +175,21 @@ export default function EmployeeRatesOverview() {
           const data = d.data() as any;
           locationsList.push({
             id: d.id,
-            locationName: data.locationName || "Unnamed Location",
+            locationName: data.locationName || 'Unnamed Location',
           });
         });
         const list: RateDoc[] = [];
         ratesSnap.forEach((d) => {
           const raw = { id: d.id, ...(d.data() as any) };
           const norm = normalizeRate(raw);
-          const eid = norm.employeeId || norm.employeeProfileId || "";
-          const employeeName =
-            raw.employeeName || employeeNameMap.get(eid) || eid || "";
+          const eid = norm.employeeId || norm.employeeProfileId || '';
+          const employeeName = raw.employeeName || employeeNameMap.get(eid) || eid || '';
           list.push({ ...norm, id: d.id, employeeName });
         });
         list.sort(
           (a, b) =>
             (normalizeEffectiveDate(b)?.getTime?.() || 0) -
-            (normalizeEffectiveDate(a)?.getTime?.() || 0)
+            (normalizeEffectiveDate(a)?.getTime?.() || 0),
         );
         setEmployees(employeeList);
         setLocations(locationsList);
@@ -195,20 +204,14 @@ export default function EmployeeRatesOverview() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rates.filter((r) => {
-      const matchesType =
-        filterType === "all" ? true : r.rateType === filterType;
-      const target = `${r.employeeName || ""} ${
-        r.locationName || r.locationId || ""
+      const matchesType = filterType === 'all' ? true : r.rateType === filterType;
+      const target = `${r.employeeName || ''} ${
+        r.locationName || r.locationId || ''
       }`.toLowerCase();
       const matchesSearch = q ? target.includes(q) : true;
       return matchesType && matchesSearch;
     });
   }, [rates, search, filterType]);
-
-
-
-
-
 
   return (
     <div className="space-y-3">
@@ -235,11 +238,11 @@ export default function EmployeeRatesOverview() {
             <option value="monthly">monthly</option>
           </select>
         </div>
-        <RoleGuard allow={["owner", "super_admin"]}>
+        <RoleGuard allow={['owner', 'super_admin']}>
           <button
             className="h-10 px-3 rounded-md border card-bg"
             onClick={() => {
-              setSelectedEmployeeId("");
+              setSelectedEmployeeId('');
               setEditing(null);
               setModalOpen(true);
             }}
@@ -280,26 +283,29 @@ export default function EmployeeRatesOverview() {
               </tr>
             ) : (
               filtered.map((r) => (
-                <tr
-                  key={r.id}
-                  className="border-t border-zinc-100 dark:border-zinc-700"
-                >
+                <tr key={r.id} className="border-t border-zinc-100 dark:border-zinc-700">
                   <td className="px-3 py-2">
                     {r.employeeName || r.employeeId || r.employeeProfileId}
                   </td>
                   <td className="px-3 py-2">{r.rateType}</td>
                   <td className="px-3 py-2">{formatMoney(r.amount || 0)}</td>
                   <td className="px-3 py-2">{formatDate(r.effectiveDate)}</td>
-                  <td className="px-3 py-2">
-                    {r.locationName || r.locationId || "All"}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <RoleGuard allow={["owner", "super_admin"]}>
+                  <td className="px-3 py-2">{r.locationName || r.locationId || 'All'}</td>
+                  <td className="px-3 py-2 text-right space-x-2">
+                    <RoleGuard allow={['owner', 'super_admin']}>
                       <button
                         className="text-blue-600 dark:text-blue-400 underline"
                         onClick={() => handleEditRate(r)}
                       >
                         Edit
+                      </button>
+                    </RoleGuard>
+                    <RoleGuard allow={['super_admin']}>
+                      <button
+                        className="text-red-600 dark:text-red-400 underline"
+                        onClick={() => handleDeleteRate(r)}
+                      >
+                        Delete
                       </button>
                     </RoleGuard>
                   </td>
@@ -324,13 +330,11 @@ export default function EmployeeRatesOverview() {
 
 function normalizeRate(raw: RawRate): RateDoc {
   const rateType =
-    (raw?.rateType as any) ||
-    (raw?.hourlyRate != null ? "hourly" : undefined) ||
-    "per_visit";
+    (raw?.rateType as any) || (raw?.hourlyRate != null ? 'hourly' : undefined) || 'per_visit';
   const amount =
-    (typeof raw?.amount === "number" ? raw.amount : null) ??
-    (typeof raw?.hourlyRate === "number" ? raw.hourlyRate : null) ??
-    (typeof raw?.rate === "number" ? raw.rate : null) ??
+    (typeof raw?.amount === 'number' ? raw.amount : null) ??
+    (typeof raw?.hourlyRate === 'number' ? raw.hourlyRate : null) ??
+    (typeof raw?.rate === 'number' ? raw.rate : null) ??
     0;
   return {
     id: raw?.id,
@@ -360,17 +364,17 @@ function normalizeEffectiveDate(r: any): Date | null {
 function formatDate(ts: any): string {
   try {
     const d = ts?.toDate ? ts.toDate() : ts instanceof Date ? ts : null;
-    return d ? d.toLocaleDateString() : "—";
+    return d ? d.toLocaleDateString() : '—';
   } catch {
-    return "—";
+    return '—';
   }
 }
 
 function formatMoney(v: number): string {
   try {
     return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: "USD",
+      style: 'currency',
+      currency: 'USD',
     }).format(v);
   } catch {
     return `$${Number(v || 0).toFixed(2)}`;
