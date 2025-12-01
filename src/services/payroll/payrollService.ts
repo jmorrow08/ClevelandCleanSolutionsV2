@@ -536,7 +536,9 @@ const MIN_EXPECTED_RATES = {
 
 function normalizeRateDocument(docData: Record<string, any>) {
   const type: 'per_visit' | 'hourly' | 'monthly' =
-    docData.rateType === 'per_visit' || docData.rateType === 'hourly' || docData.rateType === 'monthly'
+    docData.rateType === 'per_visit' ||
+    docData.rateType === 'hourly' ||
+    docData.rateType === 'monthly'
       ? docData.rateType
       : typeof docData.monthlyRate === 'number'
       ? 'monthly'
@@ -675,10 +677,22 @@ export async function createPayrollEntriesForJob(jobId: string) {
   const existingEntriesSnap = await getDocs(
     query(collection(db, 'payrollEntries'), where('jobId', '==', jobId)),
   );
+
+  // Track existing entries by employee for cleanup if rate type changed
+  const existingEntriesByEmployee = new Map<
+    string,
+    { docId: string; category: string; amount: number }[]
+  >();
+
   existingEntriesSnap.forEach((docSnap) => {
     const existing = docSnap.data() as PayrollEntry;
     if (existing.type === 'earning') {
       existingEarningKeys.add(`${existing.employeeId}:${existing.category}`);
+
+      // Track for potential cleanup
+      const entries = existingEntriesByEmployee.get(existing.employeeId) || [];
+      entries.push({ docId: docSnap.id, category: existing.category, amount: existing.amount });
+      existingEntriesByEmployee.set(existing.employeeId, entries);
     }
   });
 
@@ -698,6 +712,45 @@ export async function createPayrollEntriesForJob(jobId: string) {
     );
 
     if (!rateSnapshot) continue;
+
+    // Clean up stale entries if rate type has changed
+    const existingEntries = existingEntriesByEmployee.get(assignment.employeeId) || [];
+    for (const oldEntry of existingEntries) {
+      if (oldEntry.category !== rateSnapshot.type) {
+        // Rate type changed - delete the old entry
+        console.log(
+          `[createPayrollEntriesForJob] Rate type changed for employee ${assignment.employeeId}: was ${oldEntry.category}, now ${rateSnapshot.type}. Deleting stale entry.`,
+        );
+        try {
+          const entryRef = doc(db, 'payrollEntries', oldEntry.docId);
+          await runTransaction(db, async (transaction) => {
+            const periodRef = doc(db, 'payrollPeriods', period.periodId);
+            const periodSnap = await transaction.get(periodRef);
+            if (!periodSnap.exists()) return;
+
+            const periodData = periodSnap.data() as PayrollPeriod;
+            const totals = periodData?.totals
+              ? { ...periodData.totals }
+              : { gross: 0, deductions: 0, net: 0 };
+
+            // Remove the old entry's contribution from totals
+            totals.gross = Number((totals.gross - oldEntry.amount).toFixed(2));
+            totals.net = Number((totals.net - oldEntry.amount).toFixed(2));
+
+            transaction.update(periodRef, {
+              totals,
+              updatedAt: serverTimestamp(),
+            });
+
+            transaction.delete(entryRef);
+          });
+          // Remove from existing keys so we can create new entry
+          existingEarningKeys.delete(`${assignment.employeeId}:${oldEntry.category}`);
+        } catch (cleanupError) {
+          console.error(`Failed to clean up stale entry ${oldEntry.docId}:`, cleanupError);
+        }
+      }
+    }
 
     const { amount, hours, units } = calculateEarningForAssignment(rateSnapshot, assignment);
 
@@ -1292,11 +1345,46 @@ export async function refreshPayrollEntryRates(
         continue;
       }
 
-      // Skip if rate type changed (shouldn't happen, but be safe)
+      // If rate type changed, delete the old entry (it's now invalid)
+      // This happens when an employee's pay structure changed (e.g., per_visit -> monthly)
       if (freshRate.type !== entry.category) {
-        errors.push(
-          `Rate type mismatch for entry ${entryDoc.id}: was ${entry.category}, now ${freshRate.type}`,
+        console.log(
+          `[refreshPayrollEntryRates] Rate type changed for entry ${entryDoc.id}: was ${entry.category}, now ${freshRate.type}. Deleting stale entry.`,
         );
+        try {
+          // Delete the stale entry and adjust period totals
+          await runTransaction(db, async (transaction) => {
+            const periodRef = doc(db, 'payrollPeriods', periodId);
+            const periodSnap = await transaction.get(periodRef);
+            if (!periodSnap.exists()) return;
+
+            const periodData = periodSnap.data() as PayrollPeriod;
+            const totals = periodData?.totals
+              ? { ...periodData.totals }
+              : { gross: 0, deductions: 0, net: 0 };
+
+            // Remove the old entry's contribution from totals
+            const oldAmount = entry.amount;
+            totals.gross = Number((totals.gross - oldAmount).toFixed(2));
+            totals.net = Number((totals.net - oldAmount).toFixed(2));
+
+            transaction.update(periodRef, {
+              totals,
+              updatedAt: serverTimestamp(),
+            });
+
+            transaction.delete(entryDoc.ref);
+          });
+          updated++;
+          console.log(
+            `[refreshPayrollEntryRates] Deleted stale entry ${entryDoc.id} (${entry.category} $${entry.amount})`,
+          );
+        } catch (deleteError) {
+          console.error(`Error deleting stale entry ${entryDoc.id}:`, deleteError);
+          errors.push(
+            `Rate type mismatch for entry ${entryDoc.id}: was ${entry.category}, now ${freshRate.type}`,
+          );
+        }
         continue;
       }
 

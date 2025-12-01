@@ -716,10 +716,14 @@ export const backfillRateSnapshots = functions
             const rateDoc = rateQuery.docs[0].data();
 
             // Determine rate type and create snapshot
-            if (rateDoc.rateType === 'per_visit' && rateDoc.perVisitRate) {
+            // Check all possible field names for per_visit rate (amount, rate, perVisitRate)
+            const perVisitAmount =
+              Number(rateDoc.amount) || Number(rateDoc.rate) || Number(rateDoc.perVisitRate) || 0;
+
+            if (rateDoc.rateType === 'per_visit' && perVisitAmount > 0) {
               rateSnapshot = {
                 type: 'per_visit',
-                amount: Number(rateDoc.perVisitRate) || 0,
+                amount: perVisitAmount,
               };
             } else if (rateDoc.rateType === 'hourly' && rateDoc.hourlyRate) {
               rateSnapshot = {

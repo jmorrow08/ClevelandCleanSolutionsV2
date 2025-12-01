@@ -600,8 +600,7 @@
         { "fieldPath": "lastName", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
-    }
-    ,
+    },
     {
       "collectionGroup": "payrollEntries",
       "queryScope": "COLLECTION",

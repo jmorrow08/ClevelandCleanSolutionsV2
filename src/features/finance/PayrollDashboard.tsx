@@ -19,6 +19,7 @@ import {
   finalizePayrollPeriod,
   syncPayrollEntriesForPeriod,
   findMissingRateEmployeeIdsForPeriod,
+  refreshPayrollEntryRates,
 } from '@/services/payroll/payrollService';
 import {
   getCurrentSemiMonthlyPeriod,
@@ -62,7 +63,7 @@ const DEDUCTION_CATEGORIES = [
 ] as const;
 
 const EARNING_CATEGORIES = [
-  { value: 'monthly', label: 'Monthly / Salary / Owner Draw' },
+  { value: 'monthly', label: 'Monthly' },
   { value: 'per_visit', label: 'Per-Visit' },
   { value: 'hourly', label: 'Hourly' },
 ] as const;
@@ -141,6 +142,7 @@ export default function PayrollDashboard() {
   const [finalizing, setFinalizing] = useState(false);
   const [missingRateEmployeeIds, setMissingRateEmployeeIds] = useState<string[]>([]);
   const [syncingPeriod, setSyncingPeriod] = useState(false);
+  const [refreshingRates, setRefreshingRates] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
 
   const hasAdminAccess = !!(claims?.admin || claims?.owner || claims?.super_admin);
@@ -462,6 +464,46 @@ export default function PayrollDashboard() {
       });
     } finally {
       setSyncingPeriod(false);
+    }
+  }
+
+  async function handleRefreshLowRates() {
+    if (!selectedPeriodId || refreshingRates) return;
+
+    const confirmed = confirm(
+      'This will:\n' +
+        '1. Delete payroll entries where the rate type has changed (e.g., per_visit → monthly)\n' +
+        '2. Refresh entries below $5 using current employee rates\n\n' +
+        'This fixes stale entries from outdated pay structures. Continue?',
+    );
+    if (!confirmed) return;
+
+    try {
+      setRefreshingRates(true);
+      // Refresh entries below $5 (likely incorrect)
+      const result = await refreshPayrollEntryRates(selectedPeriodId, 5);
+
+      const messageParts = [`${result.updated} entries updated`];
+      if (result.skipped > 0) {
+        messageParts.push(`${result.skipped} skipped`);
+      }
+      if (result.errors.length > 0) {
+        messageParts.push(`${result.errors.length} errors`);
+        console.warn('Rate refresh errors:', result.errors);
+      }
+
+      show({
+        type: result.errors.length > 0 ? 'error' : 'success',
+        message: `Rate refresh complete: ${messageParts.join(', ')}.`,
+      });
+    } catch (error) {
+      console.error('Failed to refresh rates:', error);
+      show({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to refresh rates.',
+      });
+    } finally {
+      setRefreshingRates(false);
     }
   }
 
@@ -803,6 +845,16 @@ export default function PayrollDashboard() {
           >
             {syncingPeriod ? 'Syncing…' : 'Sync Completed Jobs'}
           </button>
+          {claims?.super_admin && (
+            <button
+              className="rounded-md border border-amber-400 px-3 py-2 text-sm text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-400 dark:hover:bg-amber-900/30 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={handleRefreshLowRates}
+              disabled={refreshingRates || !selectedPeriodId || isFinalized}
+              title="Fix entries with incorrect rates (e.g., $1.00 amounts)"
+            >
+              {refreshingRates ? 'Refreshing…' : 'Fix Low Rates'}
+            </button>
+          )}
           {canFinalize && (
             <button
               className={`rounded-md px-3 py-2 text-sm font-medium text-white ${
