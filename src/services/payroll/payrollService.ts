@@ -527,28 +527,52 @@ async function getEffectiveRateSnapshot(
   return null;
 }
 
+// Minimum expected rates to catch data issues (e.g., accidental $1 entries)
+const MIN_EXPECTED_RATES = {
+  per_visit: 5, // Minimum $5 per visit
+  hourly: 5, // Minimum $5/hour
+  monthly: 100, // Minimum $100/month
+};
+
 function normalizeRateDocument(docData: Record<string, any>) {
-  const type =
-    docData.rateType ??
-    (typeof docData.monthlyRate === 'number'
+  const type: 'per_visit' | 'hourly' | 'monthly' =
+    docData.rateType === 'per_visit' || docData.rateType === 'hourly' || docData.rateType === 'monthly'
+      ? docData.rateType
+      : typeof docData.monthlyRate === 'number'
       ? 'monthly'
       : typeof docData.hourlyRate === 'number'
       ? 'hourly'
-      : 'per_visit');
+      : 'per_visit';
+
+  // Check all possible field names for the amount
   const amount =
     typeof docData.amount === 'number'
       ? docData.amount
       : typeof docData.rate === 'number'
       ? docData.rate
+      : typeof docData.perVisitRate === 'number'
+      ? docData.perVisitRate
       : typeof docData.hourlyRate === 'number'
       ? docData.hourlyRate
       : typeof docData.monthlyRate === 'number'
       ? docData.monthlyRate
       : 0;
 
+  const finalAmount = Number(amount);
+
+  // Warn if rate is suspiciously low (likely a data entry error)
+  const minExpected = MIN_EXPECTED_RATES[type] || 5;
+  if (finalAmount > 0 && finalAmount < minExpected) {
+    console.warn(
+      `[PayrollService] Suspiciously low ${type} rate detected: $${finalAmount}. ` +
+        `Expected minimum: $${minExpected}. Rate doc ID: ${docData.id || 'unknown'}. ` +
+        `Employee: ${docData.employeeId || docData.employeeProfileId || 'unknown'}`,
+    );
+  }
+
   return {
     type,
-    amount: Number(amount),
+    amount: finalAmount,
   } as { type: 'per_visit' | 'hourly' | 'monthly'; amount: number };
 }
 
@@ -1195,4 +1219,161 @@ export async function finalizePayrollPeriod(
     expenseId,
     alreadyFinalized: false,
   };
+}
+
+/**
+ * Refresh rate snapshots on existing payroll entries from the current employeeRates.
+ * This is useful for fixing entries that were created with incorrect rates.
+ * Only affects entries that have a jobId (job-based earnings).
+ */
+export async function refreshPayrollEntryRates(
+  periodId: string,
+  minAmount?: number,
+): Promise<{
+  updated: number;
+  skipped: number;
+  errors: string[];
+}> {
+  const db = getFirestoreInstance();
+
+  // Get all entries for this period
+  const entriesSnap = await getDocs(
+    query(
+      collection(db, 'payrollEntries'),
+      where('periodId', '==', periodId),
+      where('type', '==', 'earning'),
+    ),
+  );
+
+  let updated = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const entryDoc of entriesSnap.docs) {
+    const entry = entryDoc.data() as PayrollEntry;
+
+    // Only process entries with a jobId (job-based earnings)
+    if (!entry.jobId) {
+      skipped++;
+      continue;
+    }
+
+    // If minAmount is specified, only update entries below that threshold
+    if (typeof minAmount === 'number' && entry.amount >= minAmount) {
+      skipped++;
+      continue;
+    }
+
+    try {
+      // Get the job to find service date and location
+      const jobSnap = await getDoc(doc(db, 'serviceHistory', entry.jobId));
+      if (!jobSnap.exists()) {
+        errors.push(`Job ${entry.jobId} not found for entry ${entryDoc.id}`);
+        continue;
+      }
+
+      const jobData = jobSnap.data() as Record<string, any>;
+      const serviceDateRaw = jobData.serviceDate;
+      const serviceDate =
+        serviceDateRaw instanceof Timestamp
+          ? serviceDateRaw
+          : Timestamp.fromDate(new Date(serviceDateRaw));
+
+      // Get fresh rate snapshot
+      const freshRate = await getEffectiveRateSnapshot(
+        entry.employeeId,
+        serviceDate,
+        jobData.locationId ?? undefined,
+        jobData.clientProfileId ?? undefined,
+      );
+
+      if (!freshRate) {
+        errors.push(`No rate found for employee ${entry.employeeId} on entry ${entryDoc.id}`);
+        continue;
+      }
+
+      // Skip if rate type changed (shouldn't happen, but be safe)
+      if (freshRate.type !== entry.category) {
+        errors.push(
+          `Rate type mismatch for entry ${entryDoc.id}: was ${entry.category}, now ${freshRate.type}`,
+        );
+        continue;
+      }
+
+      // Calculate new amount
+      const oldAmount = entry.amount;
+      let newAmount: number;
+
+      if (freshRate.type === 'per_visit') {
+        newAmount = freshRate.amount;
+      } else if (freshRate.type === 'hourly') {
+        const hours = entry.hours ?? 0;
+        newAmount = Number((hours * freshRate.amount).toFixed(2));
+      } else {
+        // Monthly - skip, handled separately
+        skipped++;
+        continue;
+      }
+
+      // Only update if amount changed significantly
+      if (Math.abs(newAmount - oldAmount) < 0.01) {
+        skipped++;
+        continue;
+      }
+
+      // Track the override for audit trail
+      const overridePayload: PayrollEntryOverride = {
+        originalAmount: oldAmount,
+        adjustedBy: 'system:rate_refresh',
+        adjustedAt: Timestamp.now(),
+        reason: `Rate refreshed from $${oldAmount.toFixed(2)} to $${newAmount.toFixed(
+          2,
+        )} (fresh rate: $${freshRate.amount})`,
+      };
+
+      // Update the entry
+      await runTransaction(db, async (transaction) => {
+        const periodRef = doc(db, 'payrollPeriods', periodId);
+        const periodSnap = await transaction.get(periodRef);
+        if (!periodSnap.exists()) return;
+
+        const periodData = periodSnap.data() as PayrollPeriod;
+        const totals = periodData?.totals
+          ? { ...periodData.totals }
+          : { gross: 0, deductions: 0, net: 0 };
+
+        // Adjust totals
+        const delta = newAmount - oldAmount;
+        totals.gross = Number((totals.gross + delta).toFixed(2));
+        totals.net = Number((totals.net + delta).toFixed(2));
+
+        transaction.update(periodRef, {
+          totals,
+          updatedAt: serverTimestamp(),
+        });
+
+        transaction.update(entryDoc.ref, {
+          amount: newAmount,
+          rateSnapshot: freshRate,
+          override: overridePayload,
+          updatedAt: serverTimestamp(),
+        });
+      });
+
+      console.log(
+        `[refreshPayrollEntryRates] Updated entry ${entryDoc.id}: $${oldAmount} -> $${newAmount} (employee: ${entry.employeeId})`,
+      );
+      updated++;
+    } catch (error) {
+      console.error(`Error refreshing entry ${entryDoc.id}:`, error);
+      errors.push(
+        `Error on entry ${entryDoc.id}: ${error instanceof Error ? error.message : 'unknown'}`,
+      );
+    }
+  }
+
+  // Final recalc to ensure totals are accurate
+  await recalcPayrollPeriodTotals(periodId);
+
+  return { updated, skipped, errors };
 }

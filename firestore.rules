@@ -140,11 +140,11 @@ service cloud.firestore {
 
       // Allow reading for clients by email match or profile ownership
       // PRIORITY: Check email match first for client portal users, then profile ownership
-      allow read: if hasClaim('admin') || isOwner() ||
+      allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner() ||
                      isClientEmailMatch() ||
                      (hasClaim('client') && isProfileOwner(clientDocId)) ||
                      isProfileOwner(clientDocId);
-      allow create: if hasClaim('admin') || isOwner();
+      allow create: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
       allow update: if hasClaim('admin') || isOwner() ||
                        (hasClaim('client') && isProfileOwner(clientDocId) && clientCanUpdateProfileFields()) ||
                        (isClientEmailMatch() && clientCanUpdateProfileFields());
@@ -185,7 +185,7 @@ service cloud.firestore {
 
       // Allow employees and clients to read location documents
       // Accept either the employee custom claim OR role stored in /users, or client access
-      allow read: if hasClaim('admin') || isOwner() || hasClaim('employee') ||
+      allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner() || hasClaim('employee') ||
                     (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee')) ||
                     isLocationClient() || isClientV2();
       allow create, update, delete: if hasClaim('admin') || isOwner();
@@ -354,7 +354,7 @@ service cloud.firestore {
 
       // Allow employees to read serviceHistory documents (UI filters client-side to their own jobs).
       // Accept either the employee custom claim OR role stored in /users, plus specific allowances.
-      allow read: if hasClaim('admin') || isOwner() || isEmployeeV2() ||
+      allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner() || isEmployeeV2() ||
                     isJobClient() || isAssignedEmployee();
       // Creates allowed directly by admin/owner/super_admin (Quick Add)
       allow create: if request.auth != null && (
@@ -491,7 +491,7 @@ service cloud.firestore {
                  get(/databases/$(database)/documents/clientMasterList/$(resource.data.clientId)).data.email == request.auth.token.email));
       }
 
-      allow read: if hasClaim('admin') || isOwner() || isAgreementClient();
+      allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner() || isAgreementClient();
       allow create, update, delete: if hasClaim('admin') || isOwner();
     }
 
@@ -554,7 +554,7 @@ service cloud.firestore {
       // Create/update/delete restricted to admins
       allow create, update, delete: if hasClaim('admin') || isOwner();
       // Read allowed for admins, owners, or the client who owns the invoice (email match)
-      allow read: if hasClaim('admin') || isOwner() || 
+      allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner() || 
                      (isLoggedIn() && request.auth.token.email == resource.data.payeeEmail);
     }
 
@@ -641,7 +641,7 @@ service cloud.firestore {
       }
 
       // Allow reading for authenticated users who own the ticket OR admins/owners
-      allow read: if hasClaim('admin') || isOwner() || isTicketOwner();
+      allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner() || isTicketOwner();
 
       // Allow creating tickets for authenticated users with valid data and matching email
       allow create: if request.auth != null &&
@@ -675,14 +675,14 @@ service cloud.firestore {
       // Check if the authenticated user can comment on the ticket
       function canCommentOnTicket() {
         return request.auth != null &&
-               (hasClaim('admin') || isOwner() || hasClaim('employee') ||
+               (hasClaim('admin') || hasClaim('super_admin') || isOwner() || hasClaim('employee') ||
                 (hasClaim('client') && isTicketOwner()));
       }
 
       // Check if the authenticated user can read comments on the ticket
       function canReadComments() {
         return request.auth != null &&
-               (hasClaim('admin') || isOwner() || hasClaim('employee') ||
+               (hasClaim('admin') || hasClaim('super_admin') || isOwner() || hasClaim('employee') ||
                 (hasClaim('client') && isTicketOwner()));
       }
 
@@ -825,12 +825,12 @@ service cloud.firestore {
 
     // --- analyticsDaily & analyticsMonthly (read-only to admin/owner) ---
     match /analyticsDaily/{dateId} {
-      allow read: if hasClaim('admin') || isOwner();
+      allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner();
       allow write: if false; // writes via Cloud Functions only
     }
 
     match /analyticsMonthly/{monthId} {
-      allow read: if hasClaim('admin') || isOwner();
+      allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner();
       allow write: if false; // writes via Cloud Functions only
     }
 
