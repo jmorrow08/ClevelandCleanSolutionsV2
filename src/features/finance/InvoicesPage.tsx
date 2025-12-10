@@ -454,7 +454,7 @@ export default function InvoicesPage() {
                             Download
                           </button>
                         </RoleGuard>
-                        <RoleGuard allow={["super_admin"]}>
+                        <RoleGuard allow={["owner", "super_admin"]}>
                           <button
                             className="ml-2 px-2 py-1 text-xs rounded-md bg-red-600/10 text-red-700 dark:text-red-400"
                             onClick={async () => {
@@ -637,7 +637,7 @@ export default function InvoicesPage() {
                         Download
                       </button>
                     </RoleGuard>
-                    <RoleGuard allow={["super_admin"]}>
+                    <RoleGuard allow={["owner", "super_admin"]}>
                       <button
                         className="px-2 py-1 text-xs rounded-md bg-red-600/10 text-red-700 dark:text-red-400"
                         onClick={async () => {

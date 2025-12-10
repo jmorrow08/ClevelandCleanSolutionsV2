@@ -18,6 +18,7 @@ import {
   limit,
   deleteField,
   FieldValue,
+  deleteDoc,
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { firebaseConfig } from '../../services/firebase';
@@ -79,7 +80,7 @@ export default function JobDetail() {
   const [adminNotes, setAdminNotes] = useState<string>('');
   const [savingAdminNotes, setSavingAdminNotes] = useState(false);
   const [assignedDisplay, setAssignedDisplay] = useState<string[]>([]);
-  const [deleting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { show } = useToast();
 
   // Check if user has admin permissions
@@ -731,7 +732,28 @@ export default function JobDetail() {
     }
   }, [activeTab, job, jobId]);
 
-  // Delete disabled intentionally per business rule: service history cannot be deleted
+  async function handleDelete() {
+    if (!job?.id) return;
+    const confirmed = window.confirm('Delete this job? This cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+      setDeleting(true);
+      if (!getApps().length) initializeApp(firebaseConfig);
+      const db = getFirestore();
+      await deleteDoc(doc(db, 'serviceHistory', job.id));
+      show({ type: 'success', message: 'Job deleted.' });
+      navigate('/service-history');
+    } catch (error: any) {
+      console.error('Failed to delete service history job', error);
+      show({
+        type: 'error',
+        message: error?.message || 'Failed to delete job',
+      });
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <div className="space-y-3">
@@ -1017,6 +1039,15 @@ export default function JobDetail() {
                       </select>
                     </div>
                     <div className="ml-auto flex items-center gap-2">
+                      <RoleGuard allow={['owner', 'super_admin']}>
+                        <button
+                          className="px-3 py-1.5 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm disabled:bg-red-400 disabled:cursor-not-allowed"
+                          onClick={handleDelete}
+                          disabled={deleting}
+                        >
+                          {deleting ? 'Deleting…' : 'Delete'}
+                        </button>
+                      </RoleGuard>
                       <button
                         className="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-sm disabled:bg-zinc-400"
                         onClick={approveAll}

@@ -102,6 +102,27 @@ export default function EmployeeDetail({ employeeId }: { employeeId?: string }) 
     }
   }
 
+  async function handleDeleteEmployee() {
+    if (!id || !employee) return;
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${
+        employee.fullName || employee.email || 'this employee'
+      }? This action cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      const db = getFirestore();
+      await deleteDoc(doc(db, 'employeeMasterList', id));
+      alert('Employee deleted successfully');
+      // Navigate back to the employee list
+      window.history.back();
+    } catch (error) {
+      console.error('Error deleting employee:', error);
+      alert('Failed to delete employee. You may not have permission.');
+    }
+  }
+
   async function handleRateSaved() {
     // Refresh rates list
     if (!id) return;
@@ -278,7 +299,7 @@ export default function EmployeeDetail({ employeeId }: { employeeId?: string }) 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Employee</h1>
         <div className="flex items-center gap-2">
-          <RoleGuard allow={['owner', 'super_admin']}>
+          <RoleGuard allow={['owner', 'super_admin', 'admin']}>
             {employee && (
               <button
                 className="px-3 py-1.5 rounded-md border card-bg"
@@ -288,20 +309,10 @@ export default function EmployeeDetail({ employeeId }: { employeeId?: string }) 
               </button>
             )}
           </RoleGuard>
-          <HideFor roles={['super_admin']}>
+          <RoleGuard allow={['owner', 'super_admin', 'admin']}>
             <button
-              className="px-3 py-1.5 rounded-md bg-zinc-200 dark:bg-zinc-700 cursor-not-allowed text-sm"
-              title="Delete is super_admin-only"
-              disabled
-            >
-              Delete
-            </button>
-          </HideFor>
-          <RoleGuard allow={['super_admin']}>
-            <button
-              className="px-3 py-1.5 rounded-md bg-red-600/10 text-red-700 dark:text-red-400 cursor-not-allowed text-sm"
-              title="Delete not implemented"
-              disabled
+              className="px-3 py-1.5 rounded-md bg-red-600/10 text-red-700 dark:text-red-400 hover:bg-red-600/20 text-sm"
+              onClick={handleDeleteEmployee}
             >
               Delete
             </button>
