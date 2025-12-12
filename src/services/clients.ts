@@ -27,8 +27,3 @@ export async function createClientUser(params: CreateClientUserParams) {
   const res = await callable(params);
   return res.data as any;
 }
-
-
-
-
-

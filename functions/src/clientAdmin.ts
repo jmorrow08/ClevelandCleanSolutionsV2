@@ -114,8 +114,3 @@ export const createClientUser = functions
       throw new functions.https.HttpsError('internal', `${code}: ${message}`);
     }
   });
-
-
-
-
-
