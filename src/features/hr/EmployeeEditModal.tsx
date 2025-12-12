@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { FirebaseError, getApps, initializeApp } from "firebase/app";
+import { useEffect, useMemo, useState } from 'react';
+import { FirebaseError, getApps, initializeApp } from 'firebase/app';
 import {
   collection,
   doc,
@@ -10,11 +10,11 @@ import {
   query,
   updateDoc,
   where,
-} from "firebase/firestore";
-import { firebaseConfig } from "@/services/firebase";
-import { useToast } from "@/context/ToastContext";
-import { useAuth } from "@/context/AuthContext";
-import { getFunctions, httpsCallable } from "firebase/functions";
+} from 'firebase/firestore';
+import { firebaseConfig } from '@/services/firebase';
+import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 export type Employee = {
   id: string;
@@ -26,6 +26,8 @@ export type Employee = {
   role?: string | null;
   status?: boolean | null;
   userId?: string | null;
+  employeeIdString?: string | null;
+  jobTitle?: string | null;
 };
 
 export default function EmployeeEditModal({
@@ -41,41 +43,43 @@ export default function EmployeeEditModal({
   const { claims } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [fullName, setFullName] = useState(() => deriveDefaultName(employee));
-  const [phone, setPhone] = useState(employee.phone || "");
-  const [role, setRole] = useState(employee.role || "employee");
+  const [phone, setPhone] = useState(employee.phone || '');
+  const [role, setRole] = useState(employee.role || 'employee');
   const [status, setStatus] = useState(employee.status !== false);
+  const [employeeIdString, setEmployeeIdString] = useState(employee.employeeIdString || '');
+  const [jobTitle, setJobTitle] = useState(employee.jobTitle || '');
 
   const roleFromClaims = (claims as any)?.role as string | undefined;
-  const isSuperAdmin =
-    Boolean((claims as any)?.super_admin) || roleFromClaims === "super_admin";
-  const isOwner =
-    Boolean((claims as any)?.owner) || roleFromClaims === "owner";
+  const isSuperAdmin = Boolean((claims as any)?.super_admin) || roleFromClaims === 'super_admin';
+  const isOwner = Boolean((claims as any)?.owner) || roleFromClaims === 'owner';
   const canChangeRole = isSuperAdmin || isOwner;
   const roleOptions = useMemo(() => {
     if (isSuperAdmin) {
-      return ["employee", "admin", "owner", "client", "super_admin"] as const;
+      return ['employee', 'admin', 'owner', 'client', 'super_admin'] as const;
     }
     if (isOwner) {
-      return ["employee", "admin"] as const;
+      return ['employee', 'admin'] as const;
     }
     // Non-privileged users cannot change role; show current value only
-    return [employee.role || "employee"] as const;
+    return [employee.role || 'employee'] as const;
   }, [isSuperAdmin, isOwner, employee.role]);
 
   useEffect(() => {
     setFullName(deriveDefaultName(employee));
-    setPhone(employee.phone || "");
-    setRole(employee.role || "employee");
+    setPhone(employee.phone || '');
+    setRole(employee.role || 'employee');
     setStatus(employee.status !== false);
+    setEmployeeIdString(employee.employeeIdString || '');
+    setJobTitle(employee.jobTitle || '');
   }, [employee]);
 
   async function resolveLinkedUserId(db: ReturnType<typeof getFirestore>) {
     const directCandidates = [employee.userId, employee.id].filter(
-      (value): value is string => typeof value === "string" && value.trim().length > 0
+      (value): value is string => typeof value === 'string' && value.trim().length > 0,
     );
     for (const candidate of directCandidates) {
       try {
-        const candidateDoc = await getDoc(doc(db, "users", candidate));
+        const candidateDoc = await getDoc(doc(db, 'users', candidate));
         if (candidateDoc.exists()) {
           return candidate;
         }
@@ -84,11 +88,11 @@ export default function EmployeeEditModal({
       }
     }
 
-    const profileId = (employee.id || "").trim();
+    const profileId = (employee.id || '').trim();
     if (profileId) {
       try {
         const snap = await getDocs(
-          query(collection(db, "users"), where("profileId", "==", profileId), limit(1))
+          query(collection(db, 'users'), where('profileId', '==', profileId), limit(1)),
         );
         if (!snap.empty) {
           return snap.docs[0].id;
@@ -98,12 +102,12 @@ export default function EmployeeEditModal({
       }
     }
 
-    const email = (employee.email || "").trim();
+    const email = (employee.email || '').trim();
     if (email) {
       const lower = email.toLowerCase();
       try {
         const snap = await getDocs(
-          query(collection(db, "users"), where("emailLowercase", "==", lower), limit(1))
+          query(collection(db, 'users'), where('emailLowercase', '==', lower), limit(1)),
         );
         if (!snap.empty) {
           return snap.docs[0].id;
@@ -113,7 +117,7 @@ export default function EmployeeEditModal({
       }
       try {
         const snap = await getDocs(
-          query(collection(db, "users"), where("email", "==", email), limit(1))
+          query(collection(db, 'users'), where('email', '==', email), limit(1)),
         );
         if (!snap.empty) {
           return snap.docs[0].id;
@@ -129,7 +133,7 @@ export default function EmployeeEditModal({
   async function handleSave() {
     const name = fullName.trim();
     if (!name) {
-      show({ type: "error", message: "Full name is required" });
+      show({ type: 'error', message: 'Full name is required' });
       return;
     }
     try {
@@ -137,17 +141,17 @@ export default function EmployeeEditModal({
       if (!getApps().length) initializeApp(firebaseConfig);
       const db = getFirestore();
       const linkedUserId = await resolveLinkedUserId(db);
-      const normalizedRole = role || "employee";
-      const roleChanged = (employee.role || "employee") !== normalizedRole;
+      const normalizedRole = role || 'employee';
+      const roleChanged = (employee.role || 'employee') !== normalizedRole;
 
       if (roleChanged && canChangeRole) {
         if (!linkedUserId) {
           throw new Error(
-            "No linked user account found. Link this employee to a portal login before changing the role."
+            'No linked user account found. Link this employee to a portal login before changing the role.',
           );
         }
         const functions = getFunctions();
-        const setUserRole = httpsCallable(functions, "setUserRole");
+        const setUserRole = httpsCallable(functions, 'setUserRole');
         await setUserRole({ targetUid: linkedUserId, role: normalizedRole });
       }
 
@@ -156,24 +160,26 @@ export default function EmployeeEditModal({
         phone: phone.trim() || null,
         status,
         role: normalizedRole,
+        employeeIdString: employeeIdString.trim() || null,
+        jobTitle: jobTitle.trim() || null,
       };
       if (linkedUserId && linkedUserId !== employee.userId) {
         employeeUpdates.userId = linkedUserId;
       }
 
-      await updateDoc(doc(db, "employeeMasterList", employee.id), employeeUpdates);
+      await updateDoc(doc(db, 'employeeMasterList', employee.id), employeeUpdates);
 
       const userDocId = linkedUserId || employee.userId || null;
       if (userDocId) {
         try {
           // Do NOT write role directly; that is handled via callable to prevent escalation.
-          await updateDoc(doc(db, "users", userDocId), {
+          await updateDoc(doc(db, 'users', userDocId), {
             fullName: name,
             phone: phone.trim() || null,
             status,
           });
         } catch (err) {
-          if (!(err instanceof FirebaseError && err.code === "not-found")) {
+          if (!(err instanceof FirebaseError && err.code === 'not-found')) {
             throw err;
           }
         }
@@ -185,11 +191,13 @@ export default function EmployeeEditModal({
         role: normalizedRole,
         status,
         userId: linkedUserId || employee.userId || null,
+        employeeIdString: employeeIdString.trim() || null,
+        jobTitle: jobTitle.trim() || null,
       });
-      show({ type: "success", message: "Employee updated" });
+      show({ type: 'success', message: 'Employee updated' });
       onClose();
     } catch (e: any) {
-      show({ type: "error", message: e?.message || "Failed to update" });
+      show({ type: 'error', message: e?.message || 'Failed to update' });
     } finally {
       setSubmitting(false);
     }
@@ -197,11 +205,8 @@ export default function EmployeeEditModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/40"
-        onClick={() => !submitting && onClose()}
-      />
-      <div className="relative w-full max-w-md rounded-lg card-bg shadow-elev-3 p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={() => !submitting && onClose()} />
+      <div className="relative w-full max-w-lg rounded-lg card-bg shadow-elev-3 p-4 max-h-[90vh] overflow-y-auto">
         <div className="text-lg font-medium">Edit Employee</div>
         <div className="mt-3 space-y-3">
           <div>
@@ -223,8 +228,49 @@ export default function EmployeeEditModal({
             <input
               className="w-full border rounded-md px-3 py-2 card-bg"
               id="emp-phone"
-              value={phone || ""}
+              value={phone || ''}
               onChange={(e) => setPhone(e.target.value)}
+              disabled={submitting}
+            />
+          </div>
+          <div>
+            <label className="block text-sm mb-1" htmlFor="emp-email">
+              Email
+            </label>
+            <input
+              className="w-full border rounded-md px-3 py-2 card-bg bg-zinc-50 dark:bg-zinc-800 text-zinc-500"
+              id="emp-email"
+              value={employee.email || ''}
+              disabled
+              title="Email cannot be changed here (tied to auth account)"
+            />
+            <div className="text-xs text-zinc-400 mt-0.5">
+              Email linked to auth account — contact super admin to change
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm mb-1" htmlFor="emp-id-string">
+              Employee ID
+            </label>
+            <input
+              className="w-full border rounded-md px-3 py-2 card-bg"
+              id="emp-id-string"
+              placeholder="e.g. EMP-1001"
+              value={employeeIdString}
+              onChange={(e) => setEmployeeIdString(e.target.value)}
+              disabled={submitting}
+            />
+          </div>
+          <div>
+            <label className="block text-sm mb-1" htmlFor="emp-job-title">
+              Job Title
+            </label>
+            <input
+              className="w-full border rounded-md px-3 py-2 card-bg"
+              id="emp-job-title"
+              placeholder="e.g. Cleaner, Supervisor, Manager"
+              value={jobTitle}
+              onChange={(e) => setJobTitle(e.target.value)}
               disabled={submitting}
             />
           </div>
@@ -235,7 +281,7 @@ export default function EmployeeEditModal({
             <select
               className="w-full border rounded-md px-3 py-2 card-bg"
               id="emp-role"
-              value={role || "employee"}
+              value={role || 'employee'}
               onChange={(e) => setRole(e.target.value)}
               disabled={submitting || !canChangeRole}
             >
@@ -253,17 +299,17 @@ export default function EmployeeEditModal({
                 const isSelected = status === value;
                 return (
                   <button
-                    key={value ? "active" : "inactive"}
+                    key={value ? 'active' : 'inactive'}
                     type="button"
                     className={`px-3 py-1.5 rounded-md border text-sm transition ${
                       isSelected
-                        ? "bg-brand-500 text-white border-brand-500 dark:border-brand-400"
-                        : "card-bg border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300 hover:border-brand-300 hover:text-brand-600"
+                        ? 'bg-brand-500 text-white border-brand-500 dark:border-brand-400'
+                        : 'card-bg border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300 hover:border-brand-300 hover:text-brand-600'
                     }`}
                     onClick={() => setStatus(value)}
                     disabled={submitting}
                   >
-                    {value ? "Active" : "Inactive"}
+                    {value ? 'Active' : 'Inactive'}
                   </button>
                 );
               })}
@@ -280,12 +326,12 @@ export default function EmployeeEditModal({
           </button>
           <button
             className={`px-3 py-1.5 rounded-md text-white ${
-              submitting ? "bg-zinc-400" : "bg-blue-600 hover:bg-blue-700"
+              submitting ? 'bg-zinc-400' : 'bg-blue-600 hover:bg-blue-700'
             }`}
             onClick={handleSave}
             disabled={submitting}
           >
-            {submitting ? "Saving…" : "Save"}
+            {submitting ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>
@@ -296,7 +342,7 @@ export default function EmployeeEditModal({
 function deriveDefaultName(employee: Employee): string {
   return (
     employee.fullName ||
-    [employee.firstName, employee.lastName].filter(Boolean).join(" ").trim() ||
+    [employee.firstName, employee.lastName].filter(Boolean).join(' ').trim() ||
     employee.email ||
     employee.id
   );
