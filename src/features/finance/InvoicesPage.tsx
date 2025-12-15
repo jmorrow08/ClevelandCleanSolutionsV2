@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { initializeApp, getApps } from "firebase/app";
 import {
   getFirestore,
@@ -184,6 +184,27 @@ export default function InvoicesPage() {
         .some((v) => String(v).toLowerCase().includes(s))
     );
   }, [invoices, search]);
+
+  const handleDeleteInvoice = useCallback(
+    async (invoiceId: string) => {
+      try {
+        if (!getApps().length) initializeApp(firebaseConfig);
+        const db = getFirestore();
+        await deleteDoc(doc(db, "invoices", invoiceId));
+        setInvoices((prev) => prev.filter((x) => x.id !== invoiceId));
+        show({
+          type: "success",
+          message: "Invoice deleted.",
+        });
+      } catch (e: any) {
+        show({
+          type: "error",
+          message: e?.message || "Failed to delete",
+        });
+      }
+    },
+    [show]
+  );
 
   function exportCsv() {
     const header = ["Invoice", "Status", "Due", "Amount"];
@@ -464,22 +485,7 @@ export default function InvoicesPage() {
                                 )
                               )
                                 return;
-                              try {
-                                const db = getFirestore();
-                                await deleteDoc(doc(db, "invoices", inv.id));
-                                setInvoices((prev) =>
-                                  prev.filter((x) => x.id !== inv.id)
-                                );
-                                show({
-                                  type: "success",
-                                  message: "Invoice deleted.",
-                                });
-                              } catch (e: any) {
-                                show({
-                                  type: "error",
-                                  message: e?.message || "Failed to delete",
-                                });
-                              }
+                              await handleDeleteInvoice(inv.id);
                             }}
                           >
                             Delete
@@ -640,8 +646,14 @@ export default function InvoicesPage() {
                     <RoleGuard allow={["owner", "super_admin"]}>
                       <button
                         className="px-2 py-1 text-xs rounded-md bg-red-600/10 text-red-700 dark:text-red-400"
-                        onClick={() => {
-                          console.log("TODO: delete invoice", inv.id);
+                        onClick={async () => {
+                          if (
+                            !confirm(
+                              "Delete this invoice? This cannot be undone."
+                            )
+                          )
+                            return;
+                          await handleDeleteInvoice(inv.id);
                         }}
                       >
                         Delete
