@@ -783,5 +783,5 @@ export const backfillRateSnapshots = functions
 // RBAC: role management callable and mirror trigger
 export { setUserRole, setUserRoleByEmail, onUserRoleMirror } from './claims';
 export { grantSuperAdminByEmail } from './bootstrap';
-export { createClientUser } from './clientAdmin';
+export { createClientUser, deleteClient } from './clientAdmin';
 export { createEmployeeUser } from './employeeAdmin';
