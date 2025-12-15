@@ -9,6 +9,7 @@ import { NewLocationProvider } from "./features/crm/NewLocationModal";
 import { useFavicon } from "./hooks/useFavicon";
 import { getFirebaseApp } from "./services/firebase";
 import "./index.css";
+import { AppConfigProvider } from "./config/appConfig";
 
 // Component to handle favicon updates
 function FaviconManager() {
@@ -22,20 +23,22 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <SettingsProvider>
-          <FaviconManager />
-          <ToastProvider>
-            <QuickActionsProvider>
-              <NewClientProvider>
-                <NewLocationProvider>
-                  <AppRouter />
-                </NewLocationProvider>
-              </NewClientProvider>
-            </QuickActionsProvider>
-          </ToastProvider>
-        </SettingsProvider>
-      </AuthProvider>
+      <AppConfigProvider>
+        <AuthProvider>
+          <SettingsProvider>
+            <FaviconManager />
+            <ToastProvider>
+              <QuickActionsProvider>
+                <NewClientProvider>
+                  <NewLocationProvider>
+                    <AppRouter />
+                  </NewLocationProvider>
+                </NewClientProvider>
+              </QuickActionsProvider>
+            </ToastProvider>
+          </SettingsProvider>
+        </AuthProvider>
+      </AppConfigProvider>
     </ErrorBoundary>
   );
 }

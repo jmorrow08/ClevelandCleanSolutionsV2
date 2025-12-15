@@ -640,29 +640,8 @@ export default function InvoicesPage() {
                     <RoleGuard allow={["owner", "super_admin"]}>
                       <button
                         className="px-2 py-1 text-xs rounded-md bg-red-600/10 text-red-700 dark:text-red-400"
-                        onClick={async () => {
-                          if (
-                            !confirm(
-                              "Delete this invoice? This cannot be undone."
-                            )
-                          )
-                            return;
-                          try {
-                            const db = getFirestore();
-                            await deleteDoc(doc(db, "invoices", inv.id));
-                            setInvoices((prev) =>
-                              prev.filter((x) => x.id !== inv.id)
-                            );
-                            show({
-                              type: "success",
-                              message: "Invoice deleted.",
-                            });
-                          } catch (e: any) {
-                            show({
-                              type: "error",
-                              message: e?.message || "Failed to delete",
-                            });
-                          }
+                        onClick={() => {
+                          console.log("TODO: delete invoice", inv.id);
                         }}
                       >
                         Delete

@@ -79,6 +79,28 @@ describe("RBAC basics", () => {
       ownerDb.collection("users").doc("u1").update({ role: "owner" })
     );
   });
+
+  it("treats legacy Owner casing in users doc as owner for write checks", async () => {
+    const legacyOwnerUid = "owner-legacy";
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await db.collection("users").doc(legacyOwnerUid).set({ role: "Owner" });
+    });
+
+    const legacyOwnerDb = testEnv
+      .authenticatedContext(
+        legacyOwnerUid,
+        authedContext(legacyOwnerUid).token
+      )
+      .firestore();
+
+    await assertSucceeds(
+      legacyOwnerDb.collection("employeeMasterList").doc("emp-legacy").set({
+        fullName: "Legacy Owner Added",
+        status: true,
+      })
+    );
+  });
 });
 
 describe("Storage basics", () => {

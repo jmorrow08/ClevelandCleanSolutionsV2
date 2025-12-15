@@ -12,6 +12,7 @@ import {
 import { firebaseConfig } from "../../services/firebase";
 import { useSettings } from "../../context/SettingsContext";
 import { renderInvoicePdf, renderInvoicePreview } from "../../lib/invoicePdf";
+import { useAppConfig } from "@/config/appConfig";
 
 type Invoice = {
   id: string;
@@ -31,6 +32,7 @@ type Payment = {
 
 export default function Billing() {
   const { settings } = useSettings();
+  const { companyName } = useAppConfig();
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -123,7 +125,7 @@ export default function Billing() {
                         name:
                           settings?.companyProfile?.name ||
                           settings?.emailBranding?.fromName ||
-                          "Cleveland Clean Solutions",
+                          companyName,
                         email:
                           settings?.companyProfile?.email ||
                           settings?.emailBranding?.fromEmail ||
@@ -157,7 +159,7 @@ export default function Billing() {
                         name:
                           settings?.companyProfile?.name ||
                           settings?.emailBranding?.fromName ||
-                          "Cleveland Clean Solutions",
+                          companyName,
                         email:
                           settings?.companyProfile?.email ||
                           settings?.emailBranding?.fromEmail ||

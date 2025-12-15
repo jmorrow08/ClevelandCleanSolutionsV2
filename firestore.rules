@@ -35,9 +35,13 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(userId)).data : null;
     }
     
+    function roleEquals(userRoleValue, expectedRole) {
+      return userRoleValue is string && userRoleValue.matches('(?i)^' + expectedRole + '$');
+    }
+    
     function hasRoleInFirestore(userId, role) {
       let userData = getUserData(userId);
-      return userData != null && userData.role == role;
+      return userData != null && roleEquals(userData.role, role);
     }
     
     function isProfileOwner(profileDocId) {

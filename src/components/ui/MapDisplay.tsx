@@ -7,6 +7,7 @@ import {
   formatCoordinates,
   getAddressFromCoordinates,
 } from "../../services/maps";
+import { useAppConfig } from "@/config/appConfig";
 
 interface Coordinate {
   lat: number;
@@ -42,6 +43,7 @@ export default function MapDisplay({
   onMarkerClick,
   markers,
 }: MapDisplayProps) {
+  const { defaultMapCenter } = useAppConfig();
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
@@ -67,7 +69,7 @@ export default function MapDisplay({
 
         // Create map instance
         const mapOptions: google.maps.MapOptions = {
-          center: center || { lat: 41.4993, lng: -81.6944 }, // Cleveland, OH default
+          center: center || defaultMapCenter,
           zoom: zoom,
           mapTypeControl: showControls,
           streetViewControl: showControls,
@@ -138,7 +140,15 @@ export default function MapDisplay({
     return () => {
       isMounted = false;
     };
-  }, [coordinates, center, zoom, markers, showControls, onMarkerClick]);
+  }, [
+    coordinates,
+    center,
+    zoom,
+    markers,
+    showControls,
+    onMarkerClick,
+    defaultMapCenter,
+  ]);
 
   // Load addresses for coordinates
   useEffect(() => {

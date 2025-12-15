@@ -3,25 +3,26 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useSettings } from "../context/SettingsContext";
 import { ScheduleJobProvider } from "../features/scheduling/ScheduleJobModal";
+import { useAppConfig, type AppFeatures } from "@/config/appConfig";
 
-type NavItem = { label: string; to: string };
+type NavItem = { label: string; to: string; feature?: keyof AppFeatures };
 
 const ALL_NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", to: "/" },
-  { label: "Finance", to: "/finance" },
+  { label: "Finance", to: "/finance", feature: "invoicing" },
   { label: "Inventory", to: "/inventory" },
-  { label: "Scheduling", to: "/scheduling" },
-  { label: "Service History", to: "/service-history" },
-  { label: "CRM", to: "/crm" },
-  { label: "Marketing", to: "/marketing" },
+  { label: "Scheduling", to: "/scheduling", feature: "scheduling" },
+  { label: "Service History", to: "/service-history", feature: "scheduling" },
+  { label: "CRM", to: "/crm", feature: "crm" },
+  { label: "Marketing", to: "/marketing", feature: "marketing" },
   { label: "Media", to: "/media" },
   { label: "Training", to: "/training/admin" },
-  { label: "Analytics", to: "/analytics" },
-  { label: "HR", to: "/hr" },
+  { label: "Analytics", to: "/analytics", feature: "analytics" },
+  { label: "HR", to: "/hr", feature: "hr" },
   { label: "Settings", to: "/settings" },
   { label: "Audit Log", to: "/settings/audit" },
   { label: "Notifications", to: "/notifications" },
-  { label: "Tools", to: "/tools/validator" },
+  { label: "Tools", to: "/tools/validator", feature: "tools" },
   { label: "Support", to: "/support" },
   { label: "Logout", to: "/logout" },
 ];
@@ -31,12 +32,7 @@ const HIDDEN_SECTIONS = [
   "/training/admin",
   "/settings/audit",
   "/notifications",
-  "/tools/validator",
 ];
-
-const NAV_ITEMS = ALL_NAV_ITEMS.filter(
-  (item) => !HIDDEN_SECTIONS.includes(item.to)
-);
 
 function ThemeToggle() {
   const [enabled, setEnabled] = useState(false);
@@ -148,6 +144,12 @@ function AdminSidebar({
   isMobileOpen?: boolean;
   onClose?: () => void;
 }) {
+  const { features } = useAppConfig();
+  const navItems = ALL_NAV_ITEMS.filter(
+    (item) =>
+      !HIDDEN_SECTIONS.includes(item.to) &&
+      (!item.feature || features[item.feature])
+  );
   return (
     <aside
       className={`flex flex-col border-r border-[var(--border)] card-bg w-48 md:w-60
@@ -179,7 +181,7 @@ function AdminSidebar({
         Admin Portal
       </div>
       <nav className="flex-1 p-2 space-y-1">
-        {NAV_ITEMS.map((item) => (
+        {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -331,8 +333,9 @@ function Topbar({
   showPortalToggle?: boolean;
 }) {
   const { settings } = useSettings();
+  const { companyName: fallbackCompanyName } = useAppConfig();
   const companyName =
-    settings?.companyProfile?.name || "Cleveland Clean Solutions";
+    settings?.companyProfile?.name || fallbackCompanyName;
   const logoUrl = settings?.companyProfile?.logoDataUrl;
 
   return (
