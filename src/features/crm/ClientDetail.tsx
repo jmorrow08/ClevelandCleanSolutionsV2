@@ -10,7 +10,6 @@ import {
   orderBy,
   limit,
   getDocs,
-  deleteDoc,
 } from "firebase/firestore";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { firebaseConfig } from "../../services/firebase";
@@ -19,6 +18,7 @@ import { RoleGuard } from "../../context/RoleGuard";
 import { useNewLocationModal } from "./NewLocationModal";
 import ClientEditModal from "./ClientEditModal";
 import { ServiceAgreementModal } from "./ServiceAgreementModal";
+import { deleteClient as deleteClientFn } from "../../services/clients";
 
 // Utility function to determine invoice status and styling
 function getInvoiceStatusInfo(invoice: any) {
@@ -242,7 +242,7 @@ export default function ClientDetail() {
               Edit
             </button>
           </RoleGuard>
-          <RoleGuard allow={["super_admin"]}>
+          <RoleGuard allow={["super_admin", "owner", "admin"]}>
             <button
               className="px-3 py-1.5 rounded-md border bg-red-600 text-white disabled:opacity-60"
               disabled={deleting}
@@ -252,8 +252,7 @@ export default function ClientDetail() {
                   return;
                 try {
                   setDeleting(true);
-                  const db = getFirestore();
-                  await deleteDoc(doc(db, "clientMasterList", id));
+                  await deleteClientFn({ clientId: id });
                   show({ type: "success", message: "Client deleted" });
                   navigate("/crm");
                 } catch (e: any) {

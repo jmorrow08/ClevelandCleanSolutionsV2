@@ -115,16 +115,23 @@ export async function initGoogleMaps(): Promise<void> {
  */
 export function isGoogleMapsLoaded(): boolean {
   // Check if Google Maps API is loaded via loader
+  const hasAdvancedMarkers =
+    typeof google !== "undefined" &&
+    typeof google.maps !== "undefined" &&
+    typeof (google.maps as any).marker !== "undefined" &&
+    typeof (google.maps as any).marker.AdvancedMarkerElement !== "undefined";
+
   const isLoaded =
     typeof google !== "undefined" &&
     typeof google.maps !== "undefined" &&
     typeof google.maps.Map !== "undefined" &&
-    typeof google.maps.Marker !== "undefined";
+    hasAdvancedMarkers;
 
   console.log("Maps service: isGoogleMapsLoaded check:", {
     isLoaded,
     googleAvailable: typeof google !== "undefined",
     mapsAvailable: typeof (window as any).google?.maps !== "undefined",
+    advancedMarkerAvailable: hasAdvancedMarkers,
   });
 
   return isLoaded;
@@ -171,45 +178,57 @@ export function createMapMarker(
     icon?: string;
     label?: string;
   } = {}
-): google.maps.Marker {
-  const markerOptions: google.maps.MarkerOptions = {
+): google.maps.marker.AdvancedMarkerElement {
+  if (!(google.maps as any).marker?.AdvancedMarkerElement) {
+    throw new Error("AdvancedMarkerElement is not available on google.maps");
+  }
+
+  const markerOptions: google.maps.marker.AdvancedMarkerElementOptions = {
     map,
     position,
     title: options.title,
   };
 
-  // Create marker
-  const marker = new google.maps.Marker(markerOptions);
+  let content: HTMLElement | null = null;
 
-  // Handle icon if provided
-  if (options.icon) {
-    // For AdvancedMarkerElement, we need to create a custom content element
+  const secureIcon =
+    options.icon && options.icon.startsWith("http://")
+      ? options.icon.replace("http://", "https://")
+      : options.icon;
+
+  if (secureIcon) {
     const iconElement = document.createElement("img");
-    iconElement.src = options.icon;
+    iconElement.src = secureIcon;
+    iconElement.alt = options.title || options.label || "Map marker";
     iconElement.style.width = "32px";
     iconElement.style.height = "32px";
-    // Note: Marker content is set via options, not property
+    iconElement.style.objectFit = "contain";
+    content = iconElement;
+  } else if (options.label) {
+    const labelElement = document.createElement("div");
+    labelElement.textContent = options.label;
+    labelElement.style.cssText = `
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 500;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    `;
+    content = labelElement;
   }
 
-  // Handle label if provided
-  if (options.label) {
-    // For AdvancedMarkerElement, we can add a label as content if no icon
-    if (!options.icon) {
-      const labelElement = document.createElement("div");
-      labelElement.textContent = options.label;
-      labelElement.style.cssText = `
-        background: white;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        padding: 4px 8px;
-        font-size: 12px;
-        font-weight: 500;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-      `;
-      // Note: Marker content is set via options, not property
-    }
+  if (content) {
+    markerOptions.content = content;
   }
 
+  const AdvancedMarker =
+    (google.maps as any).marker.AdvancedMarkerElement as new (
+      opts?: google.maps.marker.AdvancedMarkerElementOptions
+    ) => google.maps.marker.AdvancedMarkerElement;
+
+  const marker = new AdvancedMarker(markerOptions);
   return marker;
 }
 
@@ -218,16 +237,32 @@ export function createMapMarker(
  */
 export function fitMapToMarkers(
   map: google.maps.Map,
-  markers: google.maps.Marker[]
+  markers: google.maps.marker.AdvancedMarkerElement[]
 ): void {
   if (markers.length === 0) return;
 
   const bounds = new google.maps.LatLngBounds();
   markers.forEach((marker) => {
-    // Get position from marker options (position is stored in the marker object)
-    const position = (marker as any).position;
-    if (position) {
+    const position = marker.position;
+    if (!position) {
+      return;
+    }
+
+    if (position instanceof google.maps.LatLng) {
       bounds.extend(position);
+      return;
+    }
+
+    if (
+      typeof (position as google.maps.LatLngLiteral)?.lat === "number" &&
+      typeof (position as google.maps.LatLngLiteral)?.lng === "number"
+    ) {
+      bounds.extend(
+        new google.maps.LatLng(
+          (position as google.maps.LatLngLiteral).lat,
+          (position as google.maps.LatLngLiteral).lng
+        )
+      );
     }
   });
 

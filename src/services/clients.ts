@@ -28,6 +28,12 @@ export async function createClientUser(params: CreateClientUserParams) {
   return res.data as any;
 }
 
+export async function deleteClient(params: { clientId: string }) {
+  const fns = getFns();
+  const callable = httpsCallable(fns, 'deleteClient');
+  const res = await callable(params);
+  return res.data as any;
+}
 
 
 

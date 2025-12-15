@@ -46,7 +46,7 @@ export default function MapDisplay({
   const { defaultMapCenter } = useAppConfig();
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
+  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addresses, setAddresses] = useState<Record<string, string>>({});
@@ -81,7 +81,9 @@ export default function MapDisplay({
         googleMapRef.current = map;
 
         // Clear existing markers
-        markersRef.current.forEach((marker) => marker.setMap(null));
+        markersRef.current.forEach((marker) => {
+          marker.map = null;
+        });
         markersRef.current = [];
 
         // Add markers

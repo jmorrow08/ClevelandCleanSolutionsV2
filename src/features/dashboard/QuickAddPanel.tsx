@@ -27,16 +27,11 @@ import { primeLocationName } from '../../services/queries/resolvers';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { createClientUser } from '@/services/clients';
+import { createEmployeeUser } from '@/services/employees';
 
 type Mode = 'new-service' | 'new-client' | 'new-location' | 'new-employee';
 
 type Option = { id: string; label: string };
-
-// Legacy HTTPS endpoint still used for employee creation.
-// Prefer env override on Vercel; fall back to default for local dev.
-const CREATE_USER_URL =
-  import.meta.env.VITE_CREATE_USER_URL ||
-  'https://us-central1-cleveland-clean-portal.cloudfunctions.net/createNewUser_v1';
 
 export function QuickAddModal({ onClose }: { onClose: () => void }) {
   const { show } = useToast();
@@ -495,30 +490,16 @@ export function QuickAddModal({ onClose }: { onClose: () => void }) {
     try {
       setSaving(true);
       if (!getApps().length) initializeApp(firebaseConfig);
-      const auth = getAuth();
-      const idToken = await auth.currentUser?.getIdToken(true);
-      if (!idToken) throw new Error('Not authenticated');
-      const res = await fetch(CREATE_USER_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          firstName: first,
-          lastName: last,
-          employeeIdString: idStr,
-          email,
-          phone,
-          jobTitle: title || null,
-          role: 'employee',
-          password,
-        }),
+      await createEmployeeUser({
+        firstName: first,
+        lastName: last,
+        employeeIdString: idStr,
+        email,
+        phone: phone || undefined,
+        jobTitle: title || undefined,
+        password,
+        role: 'employee',
       });
-      const data = await res.json();
-      if (!res.ok || !data?.success) {
-        throw new Error(data?.error?.message || data?.message || `HTTP ${res.status}`);
-      }
       show({ type: 'success', message: 'Employee created' });
       resetAll();
     } catch (e: any) {

@@ -18,12 +18,6 @@ declare global {
         setZoom(zoom: number): void;
       }
 
-      class Marker {
-        constructor(opts?: MarkerOptions);
-        setMap(map: Map | null): void;
-        addListener(eventName: string, handler: () => void): void;
-      }
-
       class LatLng {
         constructor(lat: number, lng: number);
         lat(): number;
@@ -48,20 +42,22 @@ declare global {
         zoomControl?: boolean;
       }
 
-      interface MarkerOptions {
-        position: LatLng;
-        map?: Map;
-        title?: string;
-        icon?: string | Icon;
-      }
+      namespace marker {
+        interface AdvancedMarkerElementOptions {
+          map?: Map | null;
+          position?: LatLng | LatLngLiteral;
+          title?: string;
+          content?: Node | null;
+        }
 
-      interface Icon {
-        url: string;
-        scaledSize?: Size;
-      }
-
-      class Size {
-        constructor(width: number, height: number);
+        class AdvancedMarkerElement {
+          constructor(opts?: AdvancedMarkerElementOptions);
+          map: Map | null;
+          position?: LatLng | LatLngLiteral;
+          title?: string;
+          content?: Node | null;
+          addListener(eventName: string, handler: () => void): void;
+        }
       }
     }
   }
@@ -110,7 +106,7 @@ export default function EntryDetailsMap({
 }: EntryDetailsMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
+  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mapContainerReady, setMapContainerReady] = useState(false);
@@ -126,7 +122,7 @@ export default function EntryDetailsMap({
         lng: clockInCoords.lng,
         label: "Clock In",
         title: `Clock In: ${fmt(clockInTime)}`,
-        icon: "http://maps.google.com/mapfiles/ms/icons/green-dot.png",
+        icon: "https://maps.google.com/mapfiles/ms/icons/green-dot.png",
       });
     }
 
@@ -137,7 +133,7 @@ export default function EntryDetailsMap({
         lng: clockOutCoords.lng,
         label: "Clock Out",
         title: `Clock Out: ${fmt(clockOutTime)}`,
-        icon: "http://maps.google.com/mapfiles/ms/icons/red-dot.png",
+        icon: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",
       });
     }
     return coords;
@@ -223,7 +219,7 @@ export default function EntryDetailsMap({
 
         // Clear existing markers
         markersRef.current.forEach((marker) => {
-          marker.setMap(null); // Remove marker from map
+          marker.map = null; // Remove marker from map
         });
         markersRef.current = [];
 
@@ -331,7 +327,7 @@ export default function EntryDetailsMap({
       if (googleMapRef.current) {
         // Clear markers
         markersRef.current.forEach((marker) => {
-          marker.setMap(null); // Remove marker from map
+          marker.map = null; // Remove marker from map
         });
         markersRef.current = [];
         // Note: Google Maps doesn't have a destroy method, but we clear references

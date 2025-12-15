@@ -259,3 +259,26 @@ describe("Admin field access with employee profile", () => {
     );
   });
 });
+
+describe("Client roster management", () => {
+  it("allows super_admin to delete client documents", async () => {
+    const clientId = "client-delete-test";
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await db.collection("clientMasterList").doc(clientId).set({
+        email: "client@example.com",
+        contactName: "Client",
+        phone: "555-0000",
+        updatedAt: new Date(),
+      });
+    });
+
+    const superDb = testEnv
+      .authenticatedContext("super", authedContext("super", "super_admin").token)
+      .firestore();
+
+    await assertSucceeds(
+      superDb.collection("clientMasterList").doc(clientId).delete()
+    );
+  });
+});

@@ -27,7 +27,7 @@ async function resolveCallerRole(context: functions.https.CallableContext): Prom
     const snap = await db.collection('users').doc(uid).get();
     const docRole = (snap.data()?.role as string | undefined)?.trim();
     if (docRole && ADMIN_ROLES.has(docRole)) {
-      // Repair missing custom claims for subsequent calls
+      // Repair missing custom claims so future calls are authorized without fallback
       try {
         const safeClaims: Record<string, unknown> = {};
         const allowedKeys = [
@@ -59,37 +59,46 @@ async function resolveCallerRole(context: functions.https.CallableContext): Prom
   return null;
 }
 
-export const createClientUser = functions
+function normalizeRole(input: unknown, callerRole: string): 'employee' | 'admin' {
+  const raw = String(input || '').trim();
+  if (!raw) return 'employee';
+  if (raw === 'admin') {
+    return callerRole === 'super_admin' ? 'admin' : 'employee';
+  }
+  return 'employee';
+}
+
+export const createEmployeeUser = functions
   .region('us-central1')
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'Login required');
     }
 
-    // Allow super_admin, owner, admin to create client users
-    const role = await resolveCallerRole(context);
-    if (!role || !ADMIN_ROLES.has(role)) {
+    const callerRole = await resolveCallerRole(context);
+    if (!callerRole || !ADMIN_ROLES.has(callerRole)) {
       throw new functions.https.HttpsError(
         'permission-denied',
-        'Insufficient privileges to create client users',
+        'Insufficient privileges to create employee users',
       );
     }
 
-    const email = String(data?.email || '')
-      .trim()
-      .toLowerCase();
+    const firstName = String(data?.firstName || '').trim();
+    const lastName = String(data?.lastName || '').trim();
+    const employeeIdString = String(data?.employeeIdString || '').trim();
+    const email = String(data?.email || '').trim().toLowerCase();
+    const phone = String(data?.phone || '').trim();
+    const jobTitle = String(data?.jobTitle || '').trim();
     const password = String(data?.password || '');
-    const companyName = String(data?.companyName || '').trim();
-    const contactName = String((data?.contactName as string) || '').trim();
-    const phone = String((data?.phone as string) || '').trim();
-    const clientIdString = String(data?.clientIdString || '').trim();
+    const targetRole = normalizeRole(data?.role, callerRole);
 
-    if (!email || !password || !companyName || !clientIdString) {
+    if (!firstName || !lastName || !employeeIdString || !email || !password) {
       throw new functions.https.HttpsError(
         'invalid-argument',
-        'email, password, companyName and clientIdString are required',
+        'firstName, lastName, employeeIdString, email, and password are required',
       );
     }
+
     if (password.length < 6) {
       throw new functions.https.HttpsError(
         'invalid-argument',
@@ -97,34 +106,44 @@ export const createClientUser = functions
       );
     }
 
-    // Create client profile first so we can link profileId to the auth user
-    const clientRef = await db.collection('clientMasterList').add({
-      companyName,
-      contactName: contactName || null,
-      email,
-      phone: phone || null,
-      clientIdString,
-      status: true,
+    const displayName = `${firstName} ${lastName}`.trim() || email;
+    const employeeRef = db.collection('employeeMasterList').doc();
+    const timestamps = {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await employeeRef.set({
+      firstName,
+      lastName,
+      fullName: displayName,
+      email,
+      phone: phone || null,
+      jobTitle: jobTitle || null,
+      employeeIdString,
+      role: targetRole,
+      status: true,
+      createdBy: context.auth.uid,
+      ...timestamps,
     });
 
+    let userRecord: admin.auth.UserRecord | null = null;
+
     try {
-      // Create the auth user
-      const userRecord = await admin.auth().createUser({
+      userRecord = await admin.auth().createUser({
         email,
         password,
-        displayName: contactName || companyName || email,
+        displayName,
       });
 
-      // Set custom claims for client role and attach profileId for faster reads
-      await admin.auth().setCustomUserClaims(userRecord.uid, {
-        role: 'client',
-        client: true,
-        profileId: clientRef.id,
-      });
+      const claims: Record<string, unknown> = {
+        role: targetRole,
+        profileId: employeeRef.id,
+      };
+      claims[targetRole] = true;
 
-      // Create users/{uid} document with linkage to client profile
+      await admin.auth().setCustomUserClaims(userRecord.uid, claims);
+
       await db
         .collection('users')
         .doc(userRecord.uid)
@@ -132,61 +151,53 @@ export const createClientUser = functions
           {
             uid: userRecord.uid,
             email,
+            role: targetRole,
+            profileId: employeeRef.id,
+            employeeProfileId: employeeRef.id,
+            firstName,
+            lastName,
+            fullName: displayName,
             phone: phone || null,
-            role: 'client',
-            profileId: clientRef.id,
+            employeeIdString,
+            jobTitle: jobTitle || null,
+            status: true,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             createdBy: context.auth.uid,
           },
           { merge: true },
         );
 
+      await employeeRef.set(
+        {
+          userId: userRecord.uid,
+          authUid: userRecord.uid,
+        },
+        { merge: true },
+      );
+
       return {
         success: true,
         uid: userRecord.uid,
-        profileId: clientRef.id,
+        profileId: employeeRef.id,
       };
     } catch (err) {
-      // Rollback the client profile if user creation fails
       try {
-        await clientRef.delete();
-      } catch {}
+        await employeeRef.delete();
+      } catch {
+        // ignore cleanup errors
+      }
+      if (userRecord?.uid) {
+        try {
+          await admin.auth().deleteUser(userRecord.uid);
+        } catch {
+          // ignore cleanup errors
+        }
+      }
       if (err instanceof functions.https.HttpsError) {
         throw err;
       }
       const code = (err as any)?.code || 'unknown';
-      const message = (err as any)?.message || 'Failed to create client user account';
-      throw new functions.https.HttpsError('internal', `${code}: ${message}`);
-    }
-  });
-
-export const deleteClient = functions
-  .region('us-central1')
-  .https.onCall(async (data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Login required');
-    }
-
-    const role = await resolveCallerRole(context);
-    if (!role || !ADMIN_ROLES.has(role)) {
-      throw new functions.https.HttpsError(
-        'permission-denied',
-        'Insufficient privileges to delete clients',
-      );
-    }
-
-    const clientId = String(data?.clientId || '').trim();
-    if (!clientId) {
-      throw new functions.https.HttpsError('invalid-argument', 'clientId is required');
-    }
-
-    try {
-      await db.collection('clientMasterList').doc(clientId).delete();
-      return { success: true, clientId };
-    } catch (err) {
-      if (err instanceof functions.https.HttpsError) throw err;
-      const code = (err as any)?.code || 'unknown';
-      const message = (err as any)?.message || 'Failed to delete client';
+      const message = (err as any)?.message || 'Failed to create employee user';
       throw new functions.https.HttpsError('internal', `${code}: ${message}`);
     }
   });

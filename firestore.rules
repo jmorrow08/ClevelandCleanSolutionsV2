@@ -149,10 +149,10 @@ service cloud.firestore {
                      (hasClaim('client') && isProfileOwner(clientDocId)) ||
                      isProfileOwner(clientDocId);
       allow create: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
-      allow update: if hasClaim('admin') || isOwner() ||
+      allow update: if hasClaim('admin') || hasClaim('super_admin') || isOwner() ||
                        (hasClaim('client') && isProfileOwner(clientDocId) && clientCanUpdateProfileFields()) ||
                        (isClientEmailMatch() && clientCanUpdateProfileFields());
-      allow delete: if hasClaim('admin') || isOwner();
+      allow delete: if hasClaim('admin') || hasClaim('super_admin') || isOwner();
     }
 
     // --- employeeMasterList Rules ---
@@ -192,7 +192,8 @@ service cloud.firestore {
       allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner() || hasClaim('employee') ||
                     (isLoggedIn() && hasRoleInFirestore(request.auth.uid, 'employee')) ||
                     isLocationClient() || isClientV2();
-      allow create, update, delete: if hasClaim('admin') || isOwner();
+      // Super admins should have full CRUD parity with admins/owners
+      allow create, update, delete: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
     }
 
     // --- servicePhotos Collection Rules ---
@@ -496,7 +497,8 @@ service cloud.firestore {
       }
 
       allow read: if hasClaim('admin') || hasClaim('super_admin') || isOwner() || isAgreementClient();
-      allow create, update, delete: if hasClaim('admin') || isOwner();
+      // Allow super_admin alongside admin/owner for agreement management
+      allow create, update, delete: if hasClaim('admin') || isOwner() || hasClaim('super_admin');
     }
 
     // --- payrollRecords Collection Rules ---

@@ -784,3 +784,4 @@ export const backfillRateSnapshots = functions
 export { setUserRole, setUserRoleByEmail, onUserRoleMirror } from './claims';
 export { grantSuperAdminByEmail } from './bootstrap';
 export { createClientUser } from './clientAdmin';
+export { createEmployeeUser } from './employeeAdmin';
